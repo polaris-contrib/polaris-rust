@@ -1,0 +1,26 @@
+[workspace]
+members = [
+    "polaris-registry",
+    "polaris-router",
+    "polaris-config",
+    "polaris-limit",
+]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+
+[workspace.package]
+authors = ["https://github.com/polarismesh"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Lightweight Rust SDK used as Proxyless Service Governance."
+homepage = "https://github.com/polarismesh/polaris-rust"
+repository = "https://github.com/polarismesh/polaris-rust.git"
+readme = "README.md"
+keywords = ["polaris", "solution", "governance", "server", "proxyless"]
+categories = ["config", "asynchronous", "development-tools"]
+
+[workspace.dependencies]
+hyper = "0.14"
+hyper-timeout = "0.4"
