@@ -1,5 +1,5 @@
 [package]
-name = "polaris-limit"
+name = "polaris-ratelimit"
 version.workspace = true
 edition.workspace = true
 description.workspace = true

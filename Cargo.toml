@@ -29,9 +29,9 @@ hyper-timeout = "0.4"
 hmac = "0.12"
 hex = "0.4"
 
-
 polaris-config = { path = "./crates/config" }
-polaris-limit = { path = "./crates/limit" }
+polaris-core = { path = "./crates/core" }
+polaris-ratelimit = { path = "crates/ratelimit" }
 polaris-registry = { path = "./crates/registry" }
 polaris-router = { path = "./crates/router" }
 

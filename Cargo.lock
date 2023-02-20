@@ -11,7 +11,11 @@ name = "polaris-config"
 version = "0.1.0"
 
 [[package]]
-name = "polaris-limit"
+name = "polaris-core"
+version = "0.1.0"
+
+[[package]]
+name = "polaris-ratelimit"
 version = "0.1.0"
 
 [[package]]
