@@ -1,9 +1,7 @@
 [workspace]
 members = [
-    "polaris-registry",
-    "polaris-router",
-    "polaris-config",
-    "polaris-limit",
+    "crates/*",
+    "examples/*",
 ]
 resolver = "2"
 
@@ -11,6 +9,7 @@ resolver = "2"
 opt-level = 3
 
 [workspace.package]
+version = "0.1.0"
 authors = ["https://github.com/polarismesh"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -22,5 +21,22 @@ keywords = ["polaris", "solution", "governance", "server", "proxyless"]
 categories = ["config", "asynchronous", "development-tools"]
 
 [workspace.dependencies]
+base64 = "0.21"
+bytes = "1"
+bcrypt = "0.14"
 hyper = "0.14"
 hyper-timeout = "0.4"
+hmac = "0.12"
+hex = "0.4"
+
+
+polaris-config = { path = "./crates/config" }
+polaris-limit = { path = "./crates/limit" }
+polaris-registry = { path = "./crates/registry" }
+polaris-router = { path = "./crates/router" }
+
+rand = "0.8"
+rcgen = "0.10"
+regex = "1"
+tracing = "0.1"
+tracing-test = "0.2.1"

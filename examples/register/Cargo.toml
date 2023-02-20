@@ -1,5 +1,5 @@
 [package]
-name = "polaris-config"
+name = "example-register"
 version = "0.1.0"
 edition = "2021"
 
