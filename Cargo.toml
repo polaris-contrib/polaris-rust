@@ -37,7 +37,7 @@ hex = "0.4"
 
 polaris-config = { path = "./crates/config" }
 polaris-core = { path = "./crates/core" }
-polaris-ratelimit = { path = "crates/ratelimit" }
+polaris-ratelimit = { path = "./crates/ratelimit" }
 polaris-registry = { path = "./crates/registry" }
 polaris-router = { path = "./crates/router" }
 polaris-specification = "0.1.1"
