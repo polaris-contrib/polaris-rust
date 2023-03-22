@@ -9,7 +9,7 @@ resolver = "2"
 opt-level = 3
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.2"
 authors = ["https://github.com/polarismesh"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -34,6 +34,7 @@ polaris-core = { path = "./crates/core" }
 polaris-ratelimit = { path = "crates/ratelimit" }
 polaris-registry = { path = "./crates/registry" }
 polaris-router = { path = "./crates/router" }
+polaris-specification = "0.1.1"
 
 rand = "0.8"
 rcgen = "0.10"
