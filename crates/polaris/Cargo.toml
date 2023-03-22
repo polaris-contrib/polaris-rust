@@ -1,6 +1,6 @@
 [package]
 name = "polaris-rust"
-version.workspace = true
+version = { workspace = true }
 authors.workspace = true
 edition.workspace = true
 description.workspace = true
@@ -21,8 +21,8 @@ categories.workspace = true
 #path = "src/lib.rs"
 
 [dependencies]
-polaris-config = { version = "0.1" }
-polaris-core = { version = "0.1" }
-polaris-ratelimit = { version = "0.1" }
-polaris-registry = { version = "0.1" }
-polaris-router = { version = "0.1" }
+polaris-config = { workspace = true }
+polaris-core = { workspace = true }
+polaris-ratelimit = { workspace = true }
+polaris-registry = { workspace = true }
+polaris-router = { workspace = true }

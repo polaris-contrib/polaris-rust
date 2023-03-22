@@ -1,4 +1,4 @@
-# polaris-rust
+# Polaris rust sdk
 
 [![Build](https://github.com/polarismesh/polaris-rust/workflows/Build/badge.svg)](https://github.com/polarismesh/polaris-rust/actions?query=workflow%3ABuild)
 [![docs.rs](https://docs.rs/polaris-rust/badge.svg)](https://docs.rs/polaris-rust/)
@@ -13,7 +13,7 @@ Lightweight Rust SDK used as Proxyless Service Governance
 Add the following to your `Cargo.toml`: 
 ```toml 
 [dependencies]
-polaris-rust = "0.1.1"
+polaris-rust = "0.1"
 ```
 
 ## Quickstart
