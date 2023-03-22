@@ -1,7 +1,6 @@
 # polaris-rust
 
 [![Build](https://github.com/polarismesh/polaris-rust/workflows/Build/badge.svg)](https://github.com/polarismesh/polaris-rust/actions?query=workflow%3ABuild)
-[![crates.io](https://img.shields.io/crates/v/polaris-grpc.svg)](https://crates.io/crates/polaris-rust)
 [![docs.rs](https://docs.rs/polaris-rust/badge.svg)](https://docs.rs/polaris-rust/)
 [![License](https://img.shields.io/crates/l/polaris-rust)](LICENSE-APACHE)
 [![Crates.io](https://img.shields.io/crates/v/polaris-rust)](https://crates.io/crates/polaris-rust)
