@@ -24,6 +24,10 @@ categories = ["config", "asynchronous", "development-tools"]
 base64 = "0.21"
 bytes = "1"
 bcrypt = "0.14"
+encoding_rs = "0.8"
+form_urlencoded = "1"
+headers = "0.3"
+http = "0.2"
 hyper = "0.14"
 hyper-timeout = "0.4"
 hmac = "0.12"
@@ -36,8 +40,21 @@ polaris-registry = { path = "./crates/registry" }
 polaris-router = { path = "./crates/router" }
 polaris-specification = "0.1.1"
 
+
 rand = "0.8"
 rcgen = "0.10"
 regex = "1"
+rustls = "0.20"
+serde = "1"
+serde_json = "1"
+tokio = "1"
+tokio-native-tls = "0.3"
+tokio-rustls = "0.23"
+tokio-openssl = "0.6"
+tokio-stream = { version = "0.1", default-features = false }
+tokio-util = "0.7"
+tokio-tungstenite = { version = "0.18", default-features = false }
 tracing = "0.1"
 tracing-test = "0.2.1"
+url = "2"
+x509-parser = "0.15.0"
