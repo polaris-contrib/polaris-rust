@@ -12,11 +12,13 @@ opt-level = 3
 version = "0.1.2"
 authors = ["https://github.com/polarismesh"]
 edition = "2021"
+rust-version = "1.63"
 license = "MIT OR Apache-2.0"
 description = "Lightweight Rust SDK used as Proxyless Service Governance."
-homepage = "https://github.com/polarismesh/polaris-rust"
+homepage = "https://polarismesh.cn"
 repository = "https://github.com/polarismesh/polaris-rust.git"
-readme = "README.md"
+documentation = "https://docs.rs/polaris-rust/"
+readme = "./README.md"
 keywords = ["polaris", "solution", "governance", "server", "proxyless"]
 categories = ["config", "asynchronous", "development-tools"]
 

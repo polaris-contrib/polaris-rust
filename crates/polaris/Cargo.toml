@@ -1,0 +1,28 @@
+[package]
+name = "polaris-rust"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+readme.workspace = true
+keywords.workspace = true
+license.workspace = true
+categories.workspace = true
+
+#[package.metadata.docs.rs]
+#all-features = true
+#rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+#name = "polaris-rust"
+#path = "src/lib.rs"
+
+[dependencies]
+polaris-config = { workspace = true }
+polaris-core = { workspace = true }
+polaris-ratelimit = { workspace = true }
+polaris-registry = { workspace = true }
+polaris-router = { workspace = true }

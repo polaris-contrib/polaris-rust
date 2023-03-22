@@ -260,6 +260,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "polaris-rust"
+version = "0.1.2"
+dependencies = [
+ "polaris-config",
+ "polaris-core",
+ "polaris-ratelimit",
+ "polaris-registry",
+ "polaris-router",
+]
+
+[[package]]
 name = "polaris-specification"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
