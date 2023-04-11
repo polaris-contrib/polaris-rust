@@ -1,4 +1,4 @@
-# Polaris rust sdk
+# Polaris Rust SDK
 
 [![Build](https://github.com/polarismesh/polaris-rust/workflows/Build/badge.svg)](https://github.com/polarismesh/polaris-rust/actions?query=workflow%3ABuild)
 [![docs.rs](https://docs.rs/polaris-rust/badge.svg)](https://docs.rs/polaris-rust/)
