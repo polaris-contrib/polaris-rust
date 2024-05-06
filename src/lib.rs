@@ -13,10 +13,30 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use crate::discovery::api::new_provider_api;
+
 pub mod discovery;
 pub mod core;
-mod ratelimit;
-mod router;
-mod config;
-mod circuitbreaker;
-mod plugins;
+pub mod ratelimit;
+pub mod router;
+pub mod config;
+pub mod circuitbreaker;
+pub mod plugins;
+
+mod tests {
+    use log::error;
+    use crate::discovery::api::new_provider_api;
+
+    #[test]
+    fn test_create_provider() {
+        let provider_ret = new_provider_api();
+        match provider_ret {
+            Err(err) => {
+                error!("{}", err.to_string());
+            }
+            Ok(mut provier) => {
+
+            }
+        }
+    }
+}

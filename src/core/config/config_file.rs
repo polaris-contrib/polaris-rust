@@ -15,7 +15,7 @@
 
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConfigFileConfig {
     pub properties_value_cache_size: u32,

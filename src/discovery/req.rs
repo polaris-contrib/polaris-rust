@@ -13,13 +13,62 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::naming::{Instance};
+use std::collections::HashMap;
+use crate::core::model::naming::{Instance, Location};
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 
 pub struct InstanceRegisterRequest {
     pub flow_id: String,
     pub timeout_ms: u32,
-    pub instance: Instance,
+    pub namespace: String,
+    pub service: String,
+    pub ip: String,
+    pub port: u32,
+    pub vpc_id: String,
+    pub version: String,
+    pub protocol: String,
+    pub health: bool,
+    pub isolated: bool,
+    // weight is used to indicate the instance's weight.
+    // If it is 0, the instance will not be used for load balancing.
+    pub weight: u32,
+    pub priority: u32,
+    // metadata is used to store the instance's metadata. It can be used to store
+    // the instance's custom information.
+    pub metadata: HashMap<String, String>,
+    // location record geolocation information of service instances, mainly for nearby routing
+    pub location: Location,
+    // ttl is used to indicate the instance's ttl. If it is 0, the instance will not expire.
+    pub ttl: u32,
+    // auto_heartbeat is used to indicate whether to enable automatic heartbeat
+    // when registering instances. If it is true, the instance will be automatically
+    // do heartbeat action by the SDK.
+    // If it is false, the instance will not be automatically do heartbeat action by the SDK.
+    pub auto_heartbeat: bool,
+}
+
+impl InstanceRegisterRequest {
+
+    pub fn convert_instance(&self) -> Instance {
+        Instance{
+            id: self.ip.clone(),
+            namespace: self.namespace.clone(),
+            service: self.service.clone(),
+            ip: self.ip.clone(),
+            port: self.port.clone(),
+            vpc_id: self.vpc_id.clone(),
+            version: self.version.clone(),
+            protocol: self.protocol.clone(),
+            health: self.health.clone(),
+            isolated: self.isolated.clone(),
+            weight: self.weight.clone(),
+            priority: self.priority.clone(),
+            metadata: self.metadata.clone(),
+            location: self.location.clone(),
+            revision: "".to_string(),
+        }
+    }
+
 }
 
 pub struct InstanceRegisterResponse {
@@ -30,7 +79,34 @@ pub struct InstanceRegisterResponse {
 pub struct InstanceDeregisterRequest {
     pub flow_id: String,
     pub timeout_ms: u32,
-    pub instance: Instance,
+    pub namespace: String,
+    pub service: String,
+    pub ip: String,
+    pub port: u32,
+}
+
+impl InstanceDeregisterRequest {
+
+    pub fn convert_instance(&self) -> Instance {
+        Instance{
+            id: self.ip.clone(),
+            namespace: self.namespace.clone(),
+            service: self.service.clone(),
+            ip: self.ip.clone(),
+            port: self.port.clone(),
+            vpc_id: "".to_string(),
+            version: "".to_string(),
+            protocol: "".to_string(),
+            health: false,
+            isolated: false,
+            weight: 0,
+            priority: 0,
+            metadata: Default::default(),
+            location: Default::default(),
+            revision: "".to_string(),
+        }
+    }
+
 }
 
 pub struct InstanceHeartbeatRequest {

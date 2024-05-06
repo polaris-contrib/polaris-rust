@@ -17,7 +17,7 @@
 use std::time::Duration;
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProviderConfig {
     pub rate_limit: RateLimitConfig,
@@ -31,7 +31,7 @@ fn default_min_register_interval() -> Duration {
     Duration::from_secs(30)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RateLimitConfig {
     pub enable: bool,
@@ -47,7 +47,7 @@ pub struct RateLimitConfig {
     pub report_metrics: bool
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LosslessConfig {
     pub enable: bool,

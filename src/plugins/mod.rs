@@ -13,5 +13,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-mod router;
-mod location;
+pub mod router;
+pub mod location;
+pub mod connector;
+pub mod cache;

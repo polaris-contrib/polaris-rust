@@ -1,45 +1,51 @@
 // Tencent is pleased to support the open source community by making Polaris available.
-// 
+//
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
-// 
+//
 // Licensed under the BSD 3-Clause License (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 // https://opensource.org/licenses/BSD-3-Clause
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-
-use std::collections::{BTreeMap, HashMap};
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::time::Duration;
-use schemars::Map;
-use serde::{Serialize, Deserialize};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GlobalConfig {
     pub system: SystemConfig,
     pub api: APIConfig,
-    pub server_connectors: Map<String, ServerConnectorConfig>,
+    pub server_connectors: HashMap<String, ServerConnectorConfig>,
     pub stat_reporter: StatReporterConfig,
     pub location: LocationConfig,
-    pub local_cache: LocalCacheConfig
+    pub local_cache: LocalCacheConfig,
 }
 
-#[derive(Deserialize)]
+impl GlobalConfig {
+    pub fn update_server_connector_address(&mut self, name: &str, addresses: Vec<String>) {
+        let mut binding = self.server_connectors.get_mut(name);
+        let mut connector = binding.unwrap();
+        connector.update_addresses(addresses);
+    }
+}
+
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SystemConfig {
     pub discover_cluster: Option<ClusterConfig>,
     pub config_cluster: Option<ClusterConfig>,
     pub health_check_cluster: Option<ClusterConfig>,
-    pub variables: Option<Map<String, String>>,
+    pub variables: Option<HashMap<String, String>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct APIConfig {
     #[serde(with = "serde_duration_ext")]
@@ -53,7 +59,10 @@ pub struct APIConfig {
     pub report_interval: Duration,
 }
 
-#[derive(Deserialize)]
+pub static DISCOVER_SERVER_CONNECTOR: &str = "discover";
+pub static CONFIG_SERVER_CONNECTOR: &str = "config";
+
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ServerConnectorConfig {
     pub addresses: Vec<String>,
@@ -68,12 +77,24 @@ pub struct ServerConnectorConfig {
     pub connection_idle_timeout: Duration,
     #[serde(with = "serde_duration_ext")]
     pub reconnect_interval: Duration,
-    pub metadata: Option<Map<String, String>>,
+    pub metadata: Option<HashMap<String, String>>,
     pub ssl: Option<SSL>,
     pub token: Option<String>,
 }
 
-#[derive(Deserialize)]
+impl ServerConnectorConfig {
+
+    pub fn get_protocol(&self) -> String {
+        return self.protocol.clone()
+    }
+
+    pub fn update_addresses(&mut self, addresses: Vec<String>) {
+        self.addresses.clear();
+        self.addresses.extend(addresses);
+    }
+}
+
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SSL {
     pub trusted_ca_file: String,
@@ -81,43 +102,43 @@ pub struct SSL {
     pub key_file: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StatReporterConfig {
     pub enable: bool,
     pub chain: Option<Vec<StatReporterPluginConfig>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StatReporterPluginConfig {
     pub name: String,
-    pub options: Option<Map<String, String>>
+    pub options: Option<HashMap<String, String>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocationConfig {
-    pub providers: Option<Vec<LocationProviderConfig>>
+    pub providers: Option<Vec<LocationProviderConfig>>,
 }
 
 fn default_location_providers() -> Vec<LocationProviderConfig> {
     let mut providers = Vec::new();
-    providers.push(LocationProviderConfig{
+    providers.push(LocationProviderConfig {
         name: "local".to_string(),
-        options: BTreeMap::new(),
+        options: HashMap::new(),
     });
     return providers;
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocationProviderConfig {
     pub name: String,
-    pub options: Map<String, String>,
+    pub options: HashMap<String, String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ClusterConfig {
     pub namespace: Option<String>,
@@ -128,7 +149,7 @@ pub struct ClusterConfig {
     pub lb_policy: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocalCacheConfig {
     #[serde(default = "default_local_cache_name")]

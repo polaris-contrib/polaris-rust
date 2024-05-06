@@ -13,19 +13,48 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use crate::core::context::SDKContext;
+use crate::core::model::error::PolarisError;
+use crate::discovery::default::{DefaultConsumerAPI, DefaultLosslessAPI, DefaultProviderAPI};
 use crate::discovery::req::*;
 
-pub trait ProviderAPI {
-    fn register(&self, req: InstanceRegisterRequest) -> InstanceRegisterResponse;
+pub(crate) fn new_provider_api() -> Result<Box<dyn ProviderAPI>, PolarisError> {
+    let context_ret = SDKContext::default();
+    if context_ret.is_err() {
+        return Err(context_ret.err().unwrap());
+    }
 
-    fn deregister(&self, req: InstanceDeregisterRequest);
-
-    fn heartbeat(&self, req: InstanceHeartbeatRequest);
-
-    fn report_service_contract(&self, req: ReportServiceContractRequest);
+    Ok(Box::new(DefaultProviderAPI::new(context_ret.unwrap())))
 }
 
-pub trait ConsumerAPI {
+pub(crate) fn new_provider_api_by_context(context: SDKContext) -> Result<Box<dyn ProviderAPI>, PolarisError> {
+    Ok(Box::new(DefaultProviderAPI::new(context)))
+}
+
+pub(crate) trait ProviderAPI {
+    fn register(&mut self, req: InstanceRegisterRequest) -> Result<InstanceRegisterResponse, PolarisError>;
+
+    fn deregister(&mut self, req: InstanceDeregisterRequest) -> Result<(), PolarisError>;
+
+    fn heartbeat(&mut self, req: InstanceHeartbeatRequest) -> Result<(), PolarisError>;
+
+    fn report_service_contract(&mut self, req: ReportServiceContractRequest) -> Result<(), PolarisError>;
+}
+
+pub(crate) fn new_consumer_api() -> Result<Box<dyn ConsumerAPI>, PolarisError> {
+    let context_ret = SDKContext::default();
+    if context_ret.is_err() {
+        return Err(context_ret.err().unwrap());
+    }
+
+    Ok(Box::new(DefaultConsumerAPI::new(context_ret.unwrap())))
+}
+
+pub(crate) fn new_consumer_api_by_context(context: SDKContext) -> Result<Box<dyn ConsumerAPI>, PolarisError> {
+    Ok(Box::new(DefaultConsumerAPI::new(context)))
+}
+
+pub(crate) trait ConsumerAPI {
     fn get_one_instance(&self, req: GetOneInstanceRequest) -> InstancesResponse;
 
     fn get_health_instance(&self, req: GetHealthInstanceRequest) -> InstancesResponse;
@@ -42,12 +71,33 @@ pub trait ConsumerAPI {
 
 }
 
-pub trait LosslessAPI {
+pub(crate) fn new_lossless_api() -> Result<Box<dyn LosslessAPI>, PolarisError> {
+    let context_ret = SDKContext::default();
+    if context_ret.is_err() {
+        return Err(context_ret.err().unwrap());
+    }
 
-    fn set_action_provider(&self, ins: dyn BaseInstance, action: dyn LosslessActionProvider);
+    Ok(Box::new(DefaultLosslessAPI::new(context_ret.unwrap())))
+}
 
-    fn lossless_register(&self, ins: dyn BaseInstance);
+pub(crate) fn new_lossless_api_by_context(context: SDKContext) -> Result<Box<dyn LosslessAPI>, PolarisError> {
+    Ok(Box::new(DefaultLosslessAPI::new(context)))
+}
 
-    fn lossless_deregister(&self, ins: dyn BaseInstance);
+pub(crate) trait LosslessAPI {
+
+    fn set_action_provider(&self, ins: Box<dyn BaseInstance>, action: Box<dyn LosslessActionProvider>);
+
+    fn lossless_register(&self, ins: Box<dyn BaseInstance>);
+
+    fn lossless_deregister(&self, ins: Box<dyn BaseInstance>);
 
 }
+
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}
+

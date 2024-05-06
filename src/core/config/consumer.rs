@@ -13,11 +13,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::time::Duration;
 use schemars::Map;
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConsumerConfig {
     pub service_router: ServiceRouterConfig,
@@ -25,7 +24,7 @@ pub struct ConsumerConfig {
     pub load_balancer: LoadBalancerConfig,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ServiceRouterConfig {
     pub before_chain: Vec<ServiceRouterPluginConfig>,
@@ -33,20 +32,20 @@ pub struct ServiceRouterConfig {
     pub after_chain: Vec<ServiceRouterPluginConfig>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ServiceRouterPluginConfig {
     pub name: String,
     pub options: Option<Map<String, String>>
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LoadBalancerConfig {
     pub plugins: Option<Vec<String>>
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CircuitBreakerConfig {
     pub enable: bool,
