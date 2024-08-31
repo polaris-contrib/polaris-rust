@@ -1,27 +1,22 @@
 // Tencent is pleased to support the open source community by making Polaris available.
-// 
+//
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
-// 
+//
 // Licensed under the BSD 3-Clause License (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 // https://opensource.org/licenses/BSD-3-Clause
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Display;
-use std::hash::Hash;
-use std::sync::{Arc, Mutex};
-use tonic::transport::Server;
 use crate::core::config::config::Configuration;
-use crate::core::config::global::{CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNECTOR};
+use crate::core::config::global::{
+    GlobalConfig, CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNECTOR,
+};
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::InstanceRequest;
 use crate::core::plugin::cache::ResourceCache;
@@ -31,6 +26,13 @@ use crate::core::plugin::plugins::PluginType::{PluginCache, PluginConnector};
 use crate::core::plugin::router::ServiceRouter;
 use crate::plugins::cache::memory::memory::MemoryCache;
 use crate::plugins::connector::grpc::connector::GrpcConnector;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt;
+use std::fmt::Display;
+use std::hash::Hash;
+use std::sync::{Arc, Mutex};
+use tonic::transport::Server;
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum PluginType {
@@ -40,7 +42,7 @@ pub enum PluginType {
     PluginLoadBalance,
     PluginCircuitBreaker,
     PluginConnector,
-    PluginRateLimit
+    PluginRateLimit,
 }
 
 impl Display for PluginType {
@@ -50,7 +52,7 @@ impl Display for PluginType {
 }
 
 pub trait Plugin {
-    fn init(&self, options: HashMap<String, String>, extensions: Arc<Extensions>);
+    fn init(&mut self, options: HashMap<String, String>, extensions: Arc<Extensions>);
 
     fn destroy(&self);
 
@@ -60,6 +62,7 @@ pub trait Plugin {
 pub struct Extensions {
     active_discover_connector: Arc<dyn Connector>,
     active_config_connector: Arc<dyn Connector>,
+    pub conf: Arc<Option<Configuration>>,
     pub containers: PluginContainer,
     pub resource_cache: Arc<()>,
     pub http_servers: HashMap<String, Server>,
@@ -68,7 +71,8 @@ pub struct Extensions {
 
 impl Default for Extensions {
     fn default() -> Self {
-        let mut extension = Extensions{
+        let extension = Extensions {
+            conf: Arc::new(None),
             active_discover_connector: Arc::new(NoopConnector::default()),
             active_config_connector: Arc::new(NoopConnector::default()),
             containers: PluginContainer::default(),
@@ -81,21 +85,20 @@ impl Default for Extensions {
 }
 
 impl Extensions {
-
     pub(crate) fn init(&mut self, conf: &Configuration) -> Result<bool, PolarisError> {
         self.containers.register_all_plugin();
         let connector_opt = &conf.global.server_connectors;
         if connector_opt.is_empty() {
-            return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()))
+            return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
         }
         let discover_connector_opt = connector_opt.get(DISCOVER_SERVER_CONNECTOR);
-        discover_connector_opt.map(|mut connector| {
+        discover_connector_opt.map(|connector| {
             let protocol = connector.get_protocol();
             self.active_discover_connector = self.containers.get_connector(&protocol);
         });
 
         let config_connector_opt = connector_opt.get(CONFIG_SERVER_CONNECTOR);
-        config_connector_opt.map(|mut connector| {
+        config_connector_opt.map(|connector| {
             let protocol = connector.get_protocol();
             self.active_config_connector = self.containers.get_connector(&protocol);
         });
@@ -103,11 +106,11 @@ impl Extensions {
         Ok(true)
     }
 
-    pub(crate) fn get_active_connector(&mut self, s: &str) -> Arc<dyn Connector> {
+    pub(crate) fn get_active_connector(&mut self, s: &str) -> Arc<dyn Connector + 'static> {
         if s.eq(DISCOVER_SERVER_CONNECTOR) {
-            return Arc::clone(&self.active_discover_connector);
+            return self.active_discover_connector.clone();
         }
-        return Arc::clone(&self.active_config_connector);
+        return self.active_config_connector.clone();
     }
 }
 
@@ -119,13 +122,13 @@ struct PluginContainer {
 
 impl Default for PluginContainer {
     fn default() -> Self {
-        let mut c = Self {
+        let c = Self {
             connectors: Default::default(),
             routers: Default::default(),
             caches: Default::default(),
         };
 
-        return c
+        return c;
     }
 }
 
@@ -136,24 +139,22 @@ impl PluginContainer {
     }
 
     fn register_connector(&mut self) {
-        let vec = vec![
-            Arc::new(GrpcConnector::default()),
-        ];
+        let vec = vec![Arc::new(GrpcConnector::default())];
         for c in vec {
             self.connectors.insert(c.name(), c);
         }
     }
 
     fn register_resource_cache(&mut self) {
-        let vec = vec![
-            Arc::new(MemoryCache::default()),
-        ];
+        let vec = vec![Arc::new(MemoryCache::default())];
         for c in vec {
             self.caches.insert(c.name(), c);
         }
     }
 
     fn get_connector(&self, name: &str) -> Arc<dyn Connector> {
-        self.connectors.get(name).map_or(Arc::new(NoopConnector::default()), |c| c.clone())
+        self.connectors
+            .get(name)
+            .map_or(Arc::new(NoopConnector::default()), |c| c.clone())
     }
 }

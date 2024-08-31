@@ -13,13 +13,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::collections::HashMap;
 use crate::core::model::naming::{Instance, Location};
 use crate::core::model::router::{CalleeInfo, CallerInfo};
+use std::collections::HashMap;
+use std::time::Duration;
 
 pub struct InstanceRegisterRequest {
     pub flow_id: String,
-    pub timeout_ms: u32,
+    pub timeout: Duration,
     pub namespace: String,
     pub service: String,
     pub ip: String,
@@ -48,9 +49,8 @@ pub struct InstanceRegisterRequest {
 }
 
 impl InstanceRegisterRequest {
-
     pub fn convert_instance(&self) -> Instance {
-        Instance{
+        Instance {
             id: self.ip.clone(),
             namespace: self.namespace.clone(),
             service: self.service.clone(),
@@ -68,7 +68,6 @@ impl InstanceRegisterRequest {
             revision: "".to_string(),
         }
     }
-
 }
 
 pub struct InstanceRegisterResponse {
@@ -86,9 +85,8 @@ pub struct InstanceDeregisterRequest {
 }
 
 impl InstanceDeregisterRequest {
-
     pub fn convert_instance(&self) -> Instance {
-        Instance{
+        Instance {
             id: self.ip.clone(),
             namespace: self.namespace.clone(),
             service: self.service.clone(),
@@ -106,7 +104,6 @@ impl InstanceDeregisterRequest {
             revision: "".to_string(),
         }
     }
-
 }
 
 pub struct InstanceHeartbeatRequest {
@@ -115,9 +112,7 @@ pub struct InstanceHeartbeatRequest {
     pub instance: Instance,
 }
 
-pub struct ReportServiceContractRequest {
-
-}
+pub struct ReportServiceContractRequest {}
 
 // ConsumerAPI request and response definition
 
@@ -153,36 +148,24 @@ pub struct WatchInstanceRequest {
     pub service: String,
 }
 
-pub struct WatchInstanceResponse {
-
-}
+pub struct WatchInstanceResponse {}
 
 pub struct UnWatchInstanceRequest {
     pub namespace: String,
     pub service: String,
 }
 
-pub struct UnWatchInstanceResponse {
+pub struct UnWatchInstanceResponse {}
 
-}
+pub struct ServiceCallResult {}
 
-pub struct ServiceCallResult {
+pub struct GetServiceRuleRequest {}
 
-}
-
-pub struct GetServiceRuleRequest {
-
-}
-
-pub struct ServiceRuleResponse {
-
-}
+pub struct ServiceRuleResponse {}
 
 // LossLessAPI request and response definition
 
-pub struct InstanceProperties {
-
-}
+pub struct InstanceProperties {}
 
 pub trait BaseInstance {
     fn get_namespace(&self) -> String;

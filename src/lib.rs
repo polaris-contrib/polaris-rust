@@ -13,29 +13,55 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::discovery::api::new_provider_api;
-
-pub mod discovery;
+pub mod circuitbreaker;
+pub mod config;
 pub mod core;
+pub mod discovery;
+pub mod plugins;
 pub mod ratelimit;
 pub mod router;
-pub mod config;
-pub mod circuitbreaker;
-pub mod plugins;
 
 mod tests {
+    use std::{collections::HashMap, time::Duration};
+
+    use crate::{
+        core::model::naming::Location,
+        discovery::{api::{new_provider_api, ProviderAPI}, req::InstanceRegisterRequest},
+    };
     use log::error;
-    use crate::discovery::api::new_provider_api;
 
     #[test]
     fn test_create_provider() {
         let provider_ret = new_provider_api();
         match provider_ret {
             Err(err) => {
-                error!("{}", err.to_string());
+                error!("create provider fail: {}", err.to_string());
             }
             Ok(mut provier) => {
-
+                let req = InstanceRegisterRequest {
+                    flow_id: "1".to_string(),
+                    timeout: Duration::from_secs(1),
+                    namespace: "1".to_string(),
+                    service: "1".to_string(),
+                    ip: "1".to_string(),
+                    port: 8080,
+                    vpc_id: "1".to_string(),
+                    version: "1".to_string(),
+                    protocol: "1".to_string(),
+                    health: true,
+                    isolated: false,
+                    weight: 100,
+                    priority: 0,
+                    metadata: HashMap::new(),
+                    location: Location {
+                        region: "1".to_string(),
+                        zone: "1".to_string(),
+                        campus: "1".to_string(),
+                    },
+                    ttl: 1,
+                    auto_heartbeat: true,
+                };
+                let _register_resp = provier.register(req);
             }
         }
     }

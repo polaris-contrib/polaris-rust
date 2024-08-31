@@ -33,7 +33,7 @@ impl Default for MemoryCache {
 }
 
 impl Plugin for MemoryCache {
-    fn init(&self, options: HashMap<String, String>, extensions: Arc<Extensions>) {
+    fn init(&mut self, options: HashMap<String, String>, extensions: Arc<Extensions>) {
         todo!()
     }
 

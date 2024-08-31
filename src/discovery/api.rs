@@ -13,45 +13,57 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::sync::Arc;
+
 use crate::core::context::SDKContext;
 use crate::core::model::error::PolarisError;
 use crate::discovery::default::{DefaultConsumerAPI, DefaultLosslessAPI, DefaultProviderAPI};
 use crate::discovery::req::*;
 
-pub(crate) fn new_provider_api() -> Result<Box<dyn ProviderAPI>, PolarisError> {
+pub(crate) fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(Box::new(DefaultProviderAPI::new(context_ret.unwrap())))
+    Ok(DefaultProviderAPI::new(context_ret.unwrap()))
 }
 
-pub(crate) fn new_provider_api_by_context(context: SDKContext) -> Result<Box<dyn ProviderAPI>, PolarisError> {
-    Ok(Box::new(DefaultProviderAPI::new(context)))
+pub(crate) fn new_provider_api_by_context(
+    context: SDKContext,
+) -> Result<Arc<dyn ProviderAPI>, PolarisError> {
+    Ok(Arc::new(DefaultProviderAPI::new(context)))
 }
 
 pub(crate) trait ProviderAPI {
-    fn register(&mut self, req: InstanceRegisterRequest) -> Result<InstanceRegisterResponse, PolarisError>;
+    fn register(
+        &mut self,
+        req: InstanceRegisterRequest,
+    ) -> Result<InstanceRegisterResponse, PolarisError>;
 
     fn deregister(&mut self, req: InstanceDeregisterRequest) -> Result<(), PolarisError>;
 
     fn heartbeat(&mut self, req: InstanceHeartbeatRequest) -> Result<(), PolarisError>;
 
-    fn report_service_contract(&mut self, req: ReportServiceContractRequest) -> Result<(), PolarisError>;
+    fn report_service_contract(
+        &mut self,
+        req: ReportServiceContractRequest,
+    ) -> Result<(), PolarisError>;
 }
 
-pub(crate) fn new_consumer_api() -> Result<Box<dyn ConsumerAPI>, PolarisError> {
+pub(crate) fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(Box::new(DefaultConsumerAPI::new(context_ret.unwrap())))
+    Ok(DefaultConsumerAPI::new(context_ret.unwrap()))
 }
 
-pub(crate) fn new_consumer_api_by_context(context: SDKContext) -> Result<Box<dyn ConsumerAPI>, PolarisError> {
-    Ok(Box::new(DefaultConsumerAPI::new(context)))
+pub(crate) fn new_consumer_api_by_context(
+    context: SDKContext,
+) -> Result<Arc<dyn ConsumerAPI>, PolarisError> {
+    Ok(Arc::new(DefaultConsumerAPI::new(context)))
 }
 
 pub(crate) trait ConsumerAPI {
@@ -68,30 +80,33 @@ pub(crate) trait ConsumerAPI {
     fn get_service_rule(&self, req: GetServiceRuleRequest) -> ServiceRuleResponse;
 
     fn report_service_call(&self, req: ServiceCallResult);
-
 }
 
-pub(crate) fn new_lossless_api() -> Result<Box<dyn LosslessAPI>, PolarisError> {
+pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(Box::new(DefaultLosslessAPI::new(context_ret.unwrap())))
+    Ok(DefaultLosslessAPI::new(context_ret.unwrap()))
 }
 
-pub(crate) fn new_lossless_api_by_context(context: SDKContext) -> Result<Box<dyn LosslessAPI>, PolarisError> {
-    Ok(Box::new(DefaultLosslessAPI::new(context)))
+pub(crate) fn new_lossless_api_by_context(
+    context: SDKContext,
+) -> Result<Arc<dyn LosslessAPI>, PolarisError> {
+    Ok(Arc::new(DefaultLosslessAPI::new(context)))
 }
 
 pub(crate) trait LosslessAPI {
+    fn set_action_provider(
+        &self,
+        ins: Arc<dyn BaseInstance>,
+        action: Arc<dyn LosslessActionProvider>,
+    );
 
-    fn set_action_provider(&self, ins: Box<dyn BaseInstance>, action: Box<dyn LosslessActionProvider>);
+    fn lossless_register(&self, ins: Arc<dyn BaseInstance>);
 
-    fn lossless_register(&self, ins: Box<dyn BaseInstance>);
-
-    fn lossless_deregister(&self, ins: Box<dyn BaseInstance>);
-
+    fn lossless_deregister(&self, ins: Arc<dyn BaseInstance>);
 }
 
 mod tests {
@@ -100,4 +115,3 @@ mod tests {
         assert_eq!(2 + 2, 4);
     }
 }
-

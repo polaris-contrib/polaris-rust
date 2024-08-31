@@ -13,7 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::cluster::{BUILDIN_SERVER_NAMESPACE, BUILDIN_SERVER_SERVICE, ClusterType, ServerServiceInfo};
+use crate::core::model::cluster::{
+    ClusterType, ServerServiceInfo, BUILDIN_SERVER_NAMESPACE, BUILDIN_SERVER_SERVICE,
+};
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{Instance, ServiceKey};
 use log::{debug, error, info};
@@ -21,33 +23,27 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use std::sync::atomic::Ordering::SeqCst;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize};
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::SendError;
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc::Sender;
 use tonic::transport::{Channel, Endpoint};
 use tower::discover::Change;
 use uuid::Uuid;
-use crate::core::model::pb::lib::polaris_grpc_client::PolarisGrpcClient;
 
 pub trait ConnectionSwitchListener {
     fn on_switch(&self, id: ConnID);
-
 }
 
-pub struct EmptyConnectionSwitchListener {
-
-}
+pub struct EmptyConnectionSwitchListener {}
 
 impl EmptyConnectionSwitchListener {
     pub fn new() -> Self {
-        Self{}
+        Self {}
     }
 }
 
 impl ConnectionSwitchListener for EmptyConnectionSwitchListener {
-
     fn on_switch(&self, id: ConnID) {
         todo!()
     }
@@ -58,18 +54,17 @@ pub struct ConnectionManager {
     pub switch_interval: Duration,
     pub client_id: String,
     pub server_address: HashMap<String, ServerAddress>,
-    pub on_switch: Box<dyn ConnectionSwitchListener>,
+    pub on_switch: Arc<dyn ConnectionSwitchListener>,
 }
 
 impl ConnectionManager {
-
     pub fn empty() -> Self {
-        Self{
+        Self {
             connect_timeout: Default::default(),
             switch_interval: Default::default(),
             client_id: "".to_string(),
             server_address: Default::default(),
-            on_switch: Box::new(EmptyConnectionSwitchListener::new()),
+            on_switch: Arc::new(EmptyConnectionSwitchListener::new()),
         }
     }
 
@@ -77,7 +72,7 @@ impl ConnectionManager {
         connect_timeout: Duration,
         switch_interval: Duration,
         client_id: String,
-        on_switch: Box<dyn ConnectionSwitchListener>,
+        on_switch: Arc<dyn ConnectionSwitchListener>,
     ) -> Self {
         Self {
             connect_timeout,
@@ -89,11 +84,15 @@ impl ConnectionManager {
     }
 
     // set_on_switch just for unit test
-    pub fn set_on_switch(&mut self, on_switch: Box<dyn ConnectionSwitchListener>) {
+    pub fn set_on_switch(&mut self, on_switch: Arc<dyn ConnectionSwitchListener>) {
         self.on_switch = on_switch;
     }
 
-    pub fn get_connection(&self, op_key: &str, cluster_type: ClusterType) -> Result<&Connection, PolarisError> {
+    pub fn get_connection(
+        &self,
+        op_key: &str,
+        cluster_type: ClusterType,
+    ) -> Result<Arc<Connection>, PolarisError> {
         loop {
             let ret = self.try_get_connection(op_key, cluster_type);
             match ret {
@@ -109,18 +108,21 @@ impl ConnectionManager {
         }
     }
 
-    fn try_get_connection(&self, op_key: &str, cluster_type: ClusterType) -> Result<&Connection, PolarisError> {
+    fn try_get_connection(
+        &self,
+        op_key: &str,
+        cluster_type: ClusterType,
+    ) -> Result<Arc<Connection>, PolarisError> {
         let server_address = self.server_address.get(cluster_type.to_string().as_str());
         if server_address.is_none() {
-            return Err(PolarisError::new(ErrorCode::ServerError, format!("{} server_address is empty", cluster_type).to_string()));
+            return Err(PolarisError::new(
+                ErrorCode::ServerError,
+                format!("{} server_address is empty", cluster_type).to_string(),
+            ));
         }
         match server_address {
-            Some(server_address) => {
-                server_address.try_get_connection(op_key)
-            }
-            None => {
-                Err(PolarisError::new(ErrorCode::ServerError, "".to_string()))
-            }
+            Some(server_address) => server_address.try_get_connection(op_key),
+            None => Err(PolarisError::new(ErrorCode::ServerError, "".to_string())),
         }
     }
 }
@@ -129,31 +131,31 @@ pub struct ServerAddress {
     lock: Mutex<u32>,
     cluster: ClusterType,
     cur_index: AtomicUsize,
-    active_conn: Arc<Option<Connection>>,
-    grpc_client: Arc<PolarisGrpcClient<Channel>>,
+    active_conn: Arc<Connection>,
     ready: AtomicBool,
     service_info: Option<ServerServiceInfo>,
     conn_mgr: Arc<ConnectionManager>,
     // connect_timeout 连接超时时间
     connect_timeout: Duration,
     endpoints: Vec<crate::core::model::naming::Endpoint>,
+    // sender 负责通知底层 gRPC 连接 IP 切换
     sender: Sender<Change<String, Endpoint>>,
 }
 
 impl ServerAddress {
-    fn new(conn_mgr: Arc<ConnectionManager>) -> ServerAddress {
-        let (channel, sender) = Channel::balance_channel(64);
-
+    fn new(
+        conn_mgr: Arc<ConnectionManager>,
+        sender: Sender<Change<String, Endpoint>>,
+    ) -> ServerAddress {
         Self {
             lock: Mutex::new(0),
             cluster: ClusterType::default(),
             cur_index: AtomicUsize::new(0),
-            active_conn: Arc::new(None),
+            active_conn: Arc::new(Connection::empty_conn(conn_mgr.clone())),
             ready: Default::default(),
-            grpc_client: Arc::new(PolarisGrpcClient::new(channel)),
             endpoints: vec![],
             service_info: None,
-            conn_mgr,
+            conn_mgr: conn_mgr,
             sender,
             connect_timeout: Duration::from_secs(1),
         }
@@ -176,12 +178,11 @@ impl ServerAddress {
 
     fn run(&mut self) {}
 
-    fn try_get_connection(&self, op_key: &str) -> Result<&Connection, PolarisError> {
-        if self.active_conn.is_none() {
-            return Err(PolarisError::new(ErrorCode::InvalidState, "".to_string()))
+    fn try_get_connection(&self, op_key: &str) -> Result<Arc<Connection>, PolarisError> {
+        if self.active_conn.is_empty {
+            return Err(PolarisError::new(ErrorCode::InvalidState, "".to_string()));
         }
-        let conn = self.active_conn.as_ref().as_ref();
-        return Ok(conn.unwrap());
+        return Ok(self.active_conn.clone());
     }
 
     fn get_server_address(&self) -> Result<crate::core::model::naming::Endpoint, PolarisError> {
@@ -240,7 +241,10 @@ impl ServerAddress {
     }
 }
 
-pub fn notify_change(conn_mgr: &mut ServerAddress, server_addr: crate::core::model::naming::Endpoint) {
+pub fn notify_change(
+    conn_mgr: &mut ServerAddress,
+    server_addr: crate::core::model::naming::Endpoint,
+) {
     let mut ns = String::from(BUILDIN_SERVER_NAMESPACE);
     let mut svc = String::from(BUILDIN_SERVER_SERVICE);
 
@@ -261,20 +265,30 @@ pub fn notify_change(conn_mgr: &mut ServerAddress, server_addr: crate::core::mod
 
     let uri_str = server_addr.format_address();
     futures::executor::block_on(async {
-        let ret = conn_mgr.sender.send(Change::Insert(
-            server_addr.clone().format_address(),
-            Endpoint::try_from(uri_str.to_string()).ok().unwrap(),
-        )).await;
+        let ret = conn_mgr
+            .sender
+            .send(Change::Insert(
+                server_addr.clone().format_address(),
+                Endpoint::try_from(uri_str.to_string()).ok().unwrap(),
+            ))
+            .await;
         match ret {
             Ok(_) => {}
             Err(err) => {
-                error!("notify tonic insert polaris-server node address fail: {}", err)
+                error!(
+                    "notify tonic insert polaris-server node address fail: {}",
+                    err
+                )
             }
         }
     });
 
-    let cur_conn = Connection::new(cur_conn_id, conn_mgr.sender.clone(), Arc::clone(&conn_mgr.conn_mgr), Arc::clone(&conn_mgr.grpc_client));
-    conn_mgr.active_conn = Arc::new(Some(cur_conn));
+    let cur_conn = Connection::new(
+        cur_conn_id,
+        conn_mgr.sender.clone(),
+        Arc::clone(&conn_mgr.conn_mgr),
+    );
+    conn_mgr.active_conn = Arc::new(cur_conn);
 }
 
 pub struct Connection {
@@ -287,7 +301,6 @@ pub struct Connection {
     ref_cnt: AtomicU32,
     lazy_destroy: AtomicBool,
     closed: AtomicBool,
-    grpc_client: Arc<PolarisGrpcClient<Channel>>,
 }
 
 fn available_cur_connection(conn: Option<&Connection>) -> bool {
@@ -298,29 +311,36 @@ fn available_cur_connection(conn: Option<&Connection>) -> bool {
 }
 
 impl Connection {
+    fn empty_conn(conn_mgr: Arc<ConnectionManager>) -> Connection {
+        Connection {
+            is_empty: true,
+            lock: Mutex::new(1),
+            sender: None,
+            conn_id: ConnID::default(),
+            conn_mgr: conn_mgr,
+            create_time: SystemTime::now(),
+            ref_cnt: Default::default(),
+            lazy_destroy: Default::default(),
+            closed: AtomicBool::new(false),
+        }
+    }
 
     fn new(
         conn_id: ConnID,
         sender: Sender<Change<String, Endpoint>>,
         conn_mgr: Arc<ConnectionManager>,
-        grpc_client: Arc<PolarisGrpcClient<Channel>>,
     ) -> Connection {
         Connection {
             is_empty: false,
             lock: Mutex::new(1),
-            sender: Some((sender)),
+            sender: Some(sender),
             conn_id,
             conn_mgr,
             create_time: SystemTime::now(),
             ref_cnt: Default::default(),
             lazy_destroy: Default::default(),
             closed: AtomicBool::new(false),
-            grpc_client,
         }
-    }
-
-    pub fn get_channel(&mut self) -> &mut PolarisGrpcClient<Channel> {
-        Box::new(&mut self.grpc_client).as_mut()
     }
 
     fn lazy_destroy(&self) {
@@ -347,11 +367,16 @@ impl Connection {
         match self.sender.as_ref() {
             Some(sender) => {
                 futures::executor::block_on(async {
-                    let ret =  sender.send(Change::Remove(self.conn_id.format_address())).await;
+                    let ret = sender
+                        .send(Change::Remove(self.conn_id.format_address()))
+                        .await;
                     match ret {
                         Ok(_) => {}
                         Err(err) => {
-                            error!("notify tonic insert polaris-server node address fail: {}", err)
+                            error!(
+                                "notify tonic insert polaris-server node address fail: {}",
+                                err
+                            )
                         }
                     }
                 });
