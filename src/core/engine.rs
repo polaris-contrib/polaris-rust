@@ -17,7 +17,6 @@ use crate::core::config::config::Configuration;
 use crate::core::config::global::DISCOVER_SERVER_CONNECTOR;
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::InstanceRequest;
-use crate::core::plugin::connector::Connector;
 use crate::core::plugin::plugins::Extensions;
 use crate::discovery::req::{
     InstanceDeregisterRequest, InstanceRegisterRequest, InstanceRegisterResponse,
@@ -28,20 +27,17 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new() -> Self {
-        Self {
-            extensions: Extensions::default(),
+    pub fn new(conf: Configuration) -> Result<Self, PolarisError> {
+        let ret = Extensions::build(conf);
+        match ret {
+            Ok(extensions) => Ok(Self {
+                extensions: extensions,
+            }),
+            Err(err) => Err(err),
         }
     }
 
-    pub(crate) fn init(&mut self, conf: &Configuration) -> Result<bool, PolarisError> {
-        let ret = self.extensions.init(conf);
-        if ret.is_err() {
-            return ret;
-        }
-        return Ok(true);
-    }
-
+    /// sync_register_instance 同步注册实例
     pub(crate) fn sync_register_instance(
         &mut self,
         req: InstanceRegisterRequest,
@@ -64,6 +60,7 @@ impl Engine {
         };
     }
 
+    /// sync_deregister_instance 同步注销实例
     pub(crate) fn sync_deregister_instance(
         &mut self,
         req: InstanceDeregisterRequest,

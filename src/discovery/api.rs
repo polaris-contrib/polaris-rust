@@ -35,6 +35,9 @@ pub(crate) fn new_provider_api_by_context(
     Ok(Arc::new(DefaultProviderAPI::new(context)))
 }
 
+/**
+ * 
+ */
 pub(crate) trait ProviderAPI {
     fn register(
         &mut self,

@@ -19,15 +19,16 @@ uuid = {version = "1.8.0", features = [
 ]}
 
 # async
+http = {version = "0.2.12"}
+hyper = {version = "0.14.28", features = ["full"]}
 tokio = {version = "1.37.0", features = ["full"]}
-
 tower = {version = "0.4.13"}
 
 # gRPC dep
+futures = "0.3.30"
 log = {version = "0.4.21"}
 once_cell = {version = "1.19.0"}
 prost = {version = "0.12.4"}
 prost-build = {version = "0.12.4"}
 prost-types = {version = "0.12.4"}
 tonic = {version = "0.11.0"}
-futures = "0.3.30"

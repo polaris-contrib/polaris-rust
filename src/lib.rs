@@ -26,24 +26,26 @@ mod tests {
 
     use crate::{
         core::model::naming::Location,
-        discovery::{api::{new_provider_api, ProviderAPI}, req::InstanceRegisterRequest},
+        discovery::{
+            api::{new_provider_api, ProviderAPI},
+            req::InstanceRegisterRequest,
+        },
     };
-    use log::error;
 
     #[test]
     fn test_create_provider() {
         let provider_ret = new_provider_api();
         match provider_ret {
             Err(err) => {
-                error!("create provider fail: {}", err.to_string());
+                log::error!("create provider fail: {}", err.to_string());
             }
             Ok(mut provier) => {
                 let req = InstanceRegisterRequest {
                     flow_id: "1".to_string(),
                     timeout: Duration::from_secs(1),
-                    namespace: "1".to_string(),
-                    service: "1".to_string(),
-                    ip: "1".to_string(),
+                    namespace: "rust-demo".to_string(),
+                    service: "polaris-rust-provider".to_string(),
+                    ip: "1.1.1.1".to_string(),
                     port: 8080,
                     vpc_id: "1".to_string(),
                     version: "1".to_string(),
@@ -61,7 +63,13 @@ mod tests {
                     ttl: 1,
                     auto_heartbeat: true,
                 };
-                let _register_resp = provier.register(req);
+                let _ret = provier.register(req);
+                match _ret {
+                    Err(err) => {
+                        log::error!("register fail: {}", err.to_string());
+                    }
+                    Ok(_) => {}
+                }
             }
         }
     }

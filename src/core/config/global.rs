@@ -62,7 +62,7 @@ pub struct APIConfig {
 pub static DISCOVER_SERVER_CONNECTOR: &str = "discover";
 pub static CONFIG_SERVER_CONNECTOR: &str = "config";
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ServerConnectorConfig {
     pub addresses: Vec<String>,
@@ -83,9 +83,8 @@ pub struct ServerConnectorConfig {
 }
 
 impl ServerConnectorConfig {
-
     pub fn get_protocol(&self) -> String {
-        return self.protocol.clone()
+        return self.protocol.clone();
     }
 
     pub fn update_addresses(&mut self, addresses: Vec<String>) {
@@ -94,7 +93,7 @@ impl ServerConnectorConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SSL {
     pub trusted_ca_file: String,

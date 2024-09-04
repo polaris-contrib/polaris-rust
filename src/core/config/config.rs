@@ -31,11 +31,14 @@ pub struct Configuration {
 }
 
 pub fn load_default<'a>() -> Result<Configuration, io::Error> {
+    // 这里兼容不同 yaml 文件格式的后缀
     let mut path = Path::new("./polaris.yaml");
     if !path.exists() {
         path = Path::new("./polaris.yml");
     }
     if env::var("POLARIS_RUST_CONFIG").is_ok() {
+        let custom_conf_path = env::var("POLARIS_RUST_CONFIG").unwrap();
+        log::info!("load config from env: {}", custom_conf_path);
         return load(env::var("POLARIS_RUST_CONFIG").unwrap());
     }
     return load(path);

@@ -13,48 +13,35 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::io::Error;
-use crate::core::config::config::{Configuration, load_default};
+use crate::core::config::config::{load_default, Configuration};
 use crate::core::config::global::{CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNECTOR};
 use crate::core::engine::Engine;
 use crate::core::model::error::{ErrorCode, PolarisError};
 
+use super::engine;
+
 pub struct SDKContext {
-    cfg: Configuration,
-    engine: Engine
+    engine: Engine,
 }
 
 impl SDKContext {
-
     // default
     pub fn default() -> Result<SDKContext, PolarisError> {
         let cfg_opt = load_default();
         return match cfg_opt {
-            Ok(cfg) => {
-                let  mut context = Self{
-                    cfg,
-                    engine: Engine::new()
-                };
-                return match context.init() {
-                    Ok(..) => {
-                        Ok(context)
-                    }
-                    Err(err) => {
-                        Err(err)
-                    }
-                }
-            }
-            Err(err) => {
-                Err(PolarisError::new(ErrorCode::InternalError, err.to_string()))
-            }
-        }
+            Ok(conf) => SDKContext::create_by_configuration(conf),
+            Err(err) => Err(PolarisError::new(ErrorCode::InternalError, err.to_string())),
+        };
     }
 
     // create_by_addresses
     pub fn create_by_addresses(addresses: Vec<String>) -> Result<SDKContext, PolarisError> {
-        let mut cfg_opt = load_default();
+        let cfg_opt = load_default();
         if cfg_opt.is_err() {
-            return Err(PolarisError::new(ErrorCode::InternalError, cfg_opt.err().unwrap().to_string()))
+            return Err(PolarisError::new(
+                ErrorCode::InternalError,
+                cfg_opt.err().unwrap().to_string(),
+            ));
         }
         let mut conf = cfg_opt.unwrap();
 
@@ -69,46 +56,23 @@ impl SDKContext {
             }
         });
 
+        conf.global
+            .update_server_connector_address(DISCOVER_SERVER_CONNECTOR, discover_address);
+        conf.global
+            .update_server_connector_address(CONFIG_SERVER_CONNECTOR, config_address);
 
-        conf.global.update_server_connector_address(DISCOVER_SERVER_CONNECTOR, discover_address);
-        conf.global.update_server_connector_address(CONFIG_SERVER_CONNECTOR, config_address);
-
-        let mut context = Self{
-            cfg: conf,
-            engine: Engine::new()
-        };
-        return match context.init() {
-            Ok(..) => {
-                Ok(context)
-            }
-            Err(err) => {
-                Err(err)
-            }
-        }
+        SDKContext::create_by_configuration(conf)
     }
 
     // create_by_configuration
     pub fn create_by_configuration(cfg: Configuration) -> Result<SDKContext, PolarisError> {
-        let mut context = Self{
-            cfg,
-            engine: Engine::new()
-        };
-        return match context.init() {
-            Ok(..) => {
-                Ok(context)
-            }
-            Err(err) => {
-                Err(err)
-            }
-        }
-    }
-
-    pub fn init(&mut self) -> Result<(), PolarisError> {
-        let ret = self.engine.init(&self.cfg);
-        if !ret.is_ok() { 
+        let ret = Engine::new(cfg);
+        if ret.is_err() {
             return Err(ret.err().unwrap());
         }
-        Ok(())
+        return Ok(Self {
+            engine: ret.ok().unwrap(),
+        });
     }
 
     pub fn get_engine(&mut self) -> &mut Engine {

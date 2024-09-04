@@ -13,37 +13,46 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub trait Connector: Plugin {
-    // register_resource_handler 注册资源处理器
+    /// register_resource_handler 注册资源处理器
     fn register_resource_handler(&self) -> Result<bool, PolarisError>;
 
-    // deregister_resource_handler
+    /// deregister_resource_handler
     fn deregister_resource_handler(&self) -> Result<bool, PolarisError>;
 
+    /// register_instance: 实例注册回调函数
     fn register_instance(&self, req: InstanceRequest) -> Result<InstanceResponse, PolarisError>;
 
+    /// deregister_instance
     fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError>;
 
+    /// heartbeat_instance
     fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError>;
 
+    /// report_client
     fn report_client(&self) -> Result<bool, PolarisError>;
 
+    /// report_service_contract
     fn report_service_contract(&self) -> Result<bool, PolarisError>;
 
+    /// get_service_contract
     fn get_service_contract(&self) -> Result<String, PolarisError>;
 
+    /// create_config_file
     fn create_config_file(&self) -> Result<bool, PolarisError>;
 
+    /// update_config_file
     fn update_config_file(&self) -> Result<bool, PolarisError>;
 
+    /// release_config_file
     fn release_config_file(&self) -> Result<bool, PolarisError>;
 
+    /// upsert_publish_config_file
     fn upsert_publish_config_file(&self) -> Result<bool, PolarisError>;
 }
 
@@ -56,7 +65,7 @@ impl Default for NoopConnector {
 }
 
 impl Plugin for NoopConnector {
-    fn init(&mut self, options: HashMap<String, String>, extensions: Arc<Extensions>) {
+    fn init(&mut self, extensions: Extensions) {
         todo!()
     }
 
