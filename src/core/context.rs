@@ -13,6 +13,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::sync::Arc;
+
 use crate::core::config::config::{load_default, Configuration};
 use crate::core::config::global::{CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNECTOR};
 use crate::core::engine::Engine;
@@ -21,7 +23,7 @@ use crate::core::model::error::{ErrorCode, PolarisError};
 use super::engine;
 
 pub struct SDKContext {
-    engine: Engine,
+    engine: Arc<Engine>,
 }
 
 impl SDKContext {
@@ -71,12 +73,12 @@ impl SDKContext {
             return Err(ret.err().unwrap());
         }
         return Ok(Self {
-            engine: ret.ok().unwrap(),
+            engine: Arc::new(ret.ok().unwrap()),
         });
     }
 
-    pub fn get_engine(&mut self) -> &mut Engine {
-        &mut self.engine
+    pub fn get_engine(&self) -> Arc<Engine> {
+        self.engine.clone()
     }
 }
 

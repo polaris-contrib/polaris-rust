@@ -26,34 +26,40 @@ pub(crate) fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultProviderAPI::new(context_ret.unwrap()))
+    Ok(DefaultProviderAPI::new(context_ret.unwrap(), true))
 }
 
 pub(crate) fn new_provider_api_by_context(
     context: SDKContext,
-) -> Result<Arc<dyn ProviderAPI>, PolarisError> {
-    Ok(Arc::new(DefaultProviderAPI::new(context)))
+) -> Result<impl ProviderAPI, PolarisError> {
+    Ok(DefaultProviderAPI::new(context, false))
 }
 
-/**
- * 
- */
+/// ProviderAPI 负责服务提供者的生命周期管理
 pub(crate) trait ProviderAPI {
-    fn register(
-        &mut self,
+    /// register 实例注册
+    async fn register(
+        &self,
         req: InstanceRegisterRequest,
     ) -> Result<InstanceRegisterResponse, PolarisError>;
 
-    fn deregister(&mut self, req: InstanceDeregisterRequest) -> Result<(), PolarisError>;
+    /// deregister 实例反注册
+    async fn deregister(&self, req: InstanceDeregisterRequest) -> Result<(), PolarisError>;
 
-    fn heartbeat(&mut self, req: InstanceHeartbeatRequest) -> Result<(), PolarisError>;
+    /// heartbeat 实例心跳上报
+    async fn heartbeat(&self, req: InstanceHeartbeatRequest) -> Result<(), PolarisError>;
 
-    fn report_service_contract(
-        &mut self,
+    /// report_service_contract 上报服务接口定义信息
+    async fn report_service_contract(
+        &self,
         req: ReportServiceContractRequest,
     ) -> Result<(), PolarisError>;
+
+    /// close 关闭 ProviderAPI 实例
+    async fn close(&mut self);
 }
 
+/// new_consumer_api
 pub(crate) fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
@@ -65,8 +71,8 @@ pub(crate) fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
 
 pub(crate) fn new_consumer_api_by_context(
     context: SDKContext,
-) -> Result<Arc<dyn ConsumerAPI>, PolarisError> {
-    Ok(Arc::new(DefaultConsumerAPI::new(context)))
+) -> Result<impl ConsumerAPI, PolarisError> {
+    Ok(DefaultConsumerAPI::new(context))
 }
 
 pub(crate) trait ConsumerAPI {

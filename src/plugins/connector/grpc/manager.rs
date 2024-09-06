@@ -18,7 +18,6 @@ use crate::core::model::cluster::{
 };
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{Instance, ServiceKey};
-use log::{debug, error, info};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
@@ -29,9 +28,13 @@ use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc::Sender;
 use tonic::transport::{Channel, Endpoint};
 use tower::discover::Change;
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
-pub trait ConnectionSwitchListener {
+pub trait ConnectionSwitchListener
+where
+    Self: Sync + Send,
+{
     fn on_switch(&self, id: ConnID);
 }
 
@@ -49,7 +52,10 @@ impl ConnectionSwitchListener for EmptyConnectionSwitchListener {
     }
 }
 
-pub struct ConnectionManager {
+pub struct ConnectionManager
+where
+    Self: Sync + Send,
+{
     pub connect_timeout: Duration,
     pub switch_interval: Duration,
     pub client_id: String,
@@ -231,7 +237,7 @@ impl ServerAddress {
                 notify_change(self, server_addr)
             }
             Err(err) => {
-                log::error!("failed to get server address: {}", err);
+                tracing::error!("failed to get server address: {}", err);
             }
         }
     }

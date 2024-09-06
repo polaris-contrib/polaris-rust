@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::model::loadbalance::Criteria;
-use crate::core::model::naming::ServiceInstances;
+use crate::core::model::naming::{Instance, ServiceInstances};
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 
 // 负载均衡相关请求
@@ -25,7 +25,7 @@ pub struct ProcessLoadBalanceRequest {
 }
 
 pub struct ProcessLoadBalanceResponse {
-
+    pub instance: Instance,
 }
 
 // 路由相关请求

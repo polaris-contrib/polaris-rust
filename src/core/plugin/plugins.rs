@@ -56,7 +56,10 @@ impl Display for PluginType {
     }
 }
 
-pub trait Plugin {
+pub trait Plugin
+where
+    Self: Send + Sync,
+{
     fn init(&mut self, extensions: Extensions);
 
     fn destroy(&self);
@@ -79,16 +82,9 @@ pub struct Extensions {
 }
 
 impl Extensions {
-    pub fn build(conf: Configuration) -> Result<Self, PolarisError> {
+    pub fn build(conf: Configuration, runetime: Arc<Runtime>) -> Result<Self, PolarisError> {
         let mut extension = Extensions {
-            runtime: Arc::new(
-                Builder::new_multi_thread()
-                    .enable_all()
-                    .thread_name("polaris-client-thread-pool")
-                    .worker_threads(1)
-                    .build()
-                    .unwrap(),
-            ),
+            runtime: runetime,
             client_id: acquire_client_id(&conf),
             conf: Arc::new(conf),
             active_discover_connector: Arc::new(Box::new(NoopConnector::default())),
@@ -101,7 +97,7 @@ impl Extensions {
         containers.register_all_plugin();
 
         // 初始化所有的 ServerConnector 组件
-        let ret = extension.inir_server_connector(&mut containers);
+        let ret = extension.init_server_connector(&mut containers);
         if ret.is_err() {
             return Err(ret.unwrap_err());
         }
@@ -112,7 +108,7 @@ impl Extensions {
         self.client_id.clone()
     }
 
-    fn inir_server_connector(
+    fn init_server_connector(
         &mut self,
         containers: &mut PluginContainer,
     ) -> Result<bool, PolarisError> {
@@ -147,7 +143,7 @@ impl Extensions {
         Ok(true)
     }
 
-    pub(crate) fn get_active_connector(&mut self, s: &str) -> Arc<Box<dyn Connector>> {
+    pub(crate) fn get_active_connector(&self, s: &str) -> Arc<Box<dyn Connector>> {
         if s.eq(DISCOVER_SERVER_CONNECTOR) {
             return self.active_discover_connector.clone();
         }

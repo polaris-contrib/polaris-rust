@@ -13,9 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::collections::HashMap;
-use prost::Message;
 use crate::core::model::pb::lib::HeartbeatHealthCheck;
+use prost::Message;
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct Services {
@@ -32,7 +32,7 @@ pub struct ServiceKey {
 
 impl ServiceKey {
     pub fn new(namespace: String, name: String) -> Self {
-        ServiceKey{ namespace, name }
+        ServiceKey { namespace, name }
     }
 }
 
@@ -51,7 +51,7 @@ pub struct ServiceInstances {
     pub instances: Vec<Instance>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Instance {
     pub id: String,
     pub namespace: String,
@@ -76,7 +76,7 @@ impl Instance {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Location {
     pub region: String,
     pub zone: String,
@@ -84,9 +84,8 @@ pub struct Location {
 }
 
 impl Location {
-
     pub fn clone(&self) -> Location {
-        Self{
+        Self {
             region: self.region.clone(),
             zone: self.zone.clone(),
             campus: self.campus.clone(),
@@ -94,7 +93,7 @@ impl Location {
     }
 
     pub fn convert_spec(&self) -> crate::core::model::pb::lib::Location {
-        crate::core::model::pb::lib::Location{
+        crate::core::model::pb::lib::Location {
             region: Some(self.region.clone()),
             zone: Some(self.zone.clone()),
             campus: Some(self.campus.clone()),
@@ -130,9 +129,47 @@ pub struct InstanceRequest {
 }
 
 impl InstanceRequest {
+    pub fn convert_beat_spec(&self) -> crate::core::model::pb::lib::Instance {
+        crate::core::model::pb::lib::Instance {
+            id: None,
+            service: Some(self.instance.service.to_string()),
+            namespace: Some(self.instance.namespace.to_string()),
+            vpc_id: Some(self.instance.vpc_id.to_string()),
+            host: Some(self.instance.ip.to_string()),
+            port: Some(self.instance.port.clone()),
+            protocol: None,
+            version: None,
+            priority: None,
+            weight: None,
+            enable_health_check: None,
+            health_check: None,
+            healthy: None,
+            isolate: None,
+            location: None,
+            metadata: HashMap::new(),
+            logic_set: None,
+            ctime: None,
+            mtime: None,
+            revision: None,
+            service_token: None,
+        }
+    }
 
     pub fn convert_spec(&self) -> crate::core::model::pb::lib::Instance {
-        let mut spec_ins = crate::core::model::pb::lib::Instance{
+        let ttl = self.ttl;
+        let mut enable_health_check = Some(false);
+        let mut health_check = None;
+        if ttl != 0 {
+            enable_health_check = Some(true);
+            health_check = Some(crate::core::model::pb::lib::HealthCheck {
+                r#type: i32::from(
+                    crate::core::model::pb::lib::health_check::HealthCheckType::Heartbeat,
+                ),
+                heartbeat: Some(HeartbeatHealthCheck { ttl: Some(ttl) }),
+            });
+        }
+
+        let mut spec_ins = crate::core::model::pb::lib::Instance {
             id: None,
             service: Some(self.instance.service.to_string()),
             namespace: Some(self.instance.namespace.to_string()),
@@ -143,8 +180,8 @@ impl InstanceRequest {
             version: Some(self.instance.version.to_string()),
             priority: Some(self.instance.priority.clone()),
             weight: Some(self.instance.weight.clone()),
-            enable_health_check: None,
-            health_check: None,
+            enable_health_check: enable_health_check,
+            health_check: health_check,
             healthy: Some(self.instance.health.clone()),
             isolate: Some(self.instance.isolated.clone()),
             location: Some(self.instance.location.convert_spec()),
@@ -158,7 +195,9 @@ impl InstanceRequest {
         if self.ttl != 0 {
             spec_ins.enable_health_check = Some(true);
             spec_ins.health_check = Some(crate::core::model::pb::lib::HealthCheck {
-                r#type: i32::from(crate::core::model::pb::lib::health_check::HealthCheckType::Heartbeat),
+                r#type: i32::from(
+                    crate::core::model::pb::lib::health_check::HealthCheckType::Heartbeat,
+                ),
                 heartbeat: Some(HeartbeatHealthCheck {
                     ttl: Some(self.ttl.clone()),
                 }),
@@ -175,14 +214,13 @@ pub struct InstanceResponse {
 }
 
 impl InstanceResponse {
-
     pub fn success(id: String) -> Self {
         let mut ret = Self {
             exist: false,
-            instance: Instance::default()
+            instance: Instance::default(),
         };
         ret.instance.id = id;
-        return ret
+        return ret;
     }
 
     pub fn exist_resource() -> Self {
@@ -192,4 +230,3 @@ impl InstanceResponse {
         }
     }
 }
-

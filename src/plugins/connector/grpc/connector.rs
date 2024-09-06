@@ -26,7 +26,6 @@ use crate::plugins::connector::grpc::manager::ConnectionManager;
 use futures::future::BoxFuture;
 use http::Uri;
 use hyper::rt::Executor;
-use log::error;
 use std::cmp::PartialEq;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -43,23 +42,19 @@ pub struct GrpcConnector {
     grpc_client: PolarisGrpcClient<Channel>,
 }
 
-fn new_connector(label: String, conf: &ServerConnectorConfig, extensions: Arc<Extensions>) -> Box<dyn Connector> {
+fn new_connector(
+    label: String,
+    conf: &ServerConnectorConfig,
+    extensions: Arc<Extensions>,
+) -> Box<dyn Connector> {
     let addresses = conf.addresses.clone();
     let connect_server = format!("http://{}", addresses.get(0).unwrap().clone());
     let uri_ret = Uri::from_str(connect_server.as_str());
     if uri_ret.is_err() {
         panic!("parse server connect info fail: {}", uri_ret.unwrap_err());
     }
-    log::info!("connect to server: {:?}", connect_server);
-    let connect_ret = extensions.runtime.block_on(async {
-        return Channel::builder(uri_ret.unwrap()).connect().await;
-    });
-
-    if connect_ret.is_err() {
-        panic!("connect to server fail: {}", connect_ret.unwrap_err());
-    }
-
-    let channel = connect_ret.unwrap();
+    tracing::info!("connect to server: {:?}", connect_server);
+    let channel = Channel::builder(uri_ret.unwrap()).connect_lazy();
     let grpc_client = PolarisGrpcClient::new(channel);
     let client_id = extensions.get_client_id();
     let connect_timeout = conf.connect_timeout;
@@ -100,103 +95,130 @@ impl GrpcConnector {
     }
 }
 
+#[async_trait::async_trait]
 impl Connector for GrpcConnector {
-    fn register_resource_handler(&self) -> Result<bool, PolarisError> {
+    async fn register_resource_handler(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    fn deregister_resource_handler(&self) -> Result<bool, PolarisError> {
+    async fn deregister_resource_handler(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    fn register_instance(&self, req: InstanceRequest) -> Result<InstanceResponse, PolarisError> {
+    async fn register_instance(
+        &self,
+        req: InstanceRequest,
+    ) -> Result<InstanceResponse, PolarisError> {
         self.wait_discover_ready();
-        return self.extensions.runtime.block_on(async {
-            let mut client = self.grpc_client.clone();
-            let ret = client.register_instance(req.convert_spec()).await;
-            return match ret {
-                Ok(rsp) => {
-                    let rsp = rsp.into_inner();
-                    if rsp.instance.is_none() {
-                        return Err(PolarisError::new(
-                            ServerUserError,
-                            "invalid register response: missing instance".to_string(),
-                        ));
-                    }
-                    let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
-                    if ExecuteSuccess.eq(&recv_code) {
-                        return Ok(InstanceResponse::default());
-                    }
-                    if ExistedResource.eq(&recv_code) {
-                        return Ok(InstanceResponse::exist_resource());
-                    }
-                    Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+        let mut client = self.grpc_client.clone();
+        let ret = client.register_instance(req.convert_spec()).await;
+        return match ret {
+            Ok(rsp) => {
+                let rsp = rsp.into_inner();
+                if rsp.instance.is_none() {
+                    return Err(PolarisError::new(
+                        ServerUserError,
+                        "invalid register response: missing instance".to_string(),
+                    ));
                 }
-                Err(err) => {
-                    error!("send register instance request to server fail: {}", err);
-                    Err(PolarisError::new(ServerError, err.to_string()))
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                if ExecuteSuccess.eq(&recv_code) {
+                    let ins_id = rsp.instance.unwrap().id.unwrap();
+                    tracing::info!(
+                        "register instance to server success instance-id={}",
+                        ins_id.clone(),
+                    );
+                    let mut ins = InstanceResponse::default();
+                    ins.instance.id = ins_id.clone();
+                    return Ok(ins);
                 }
-            };
-        });
+                if ExistedResource.eq(&recv_code) {
+                    return Ok(InstanceResponse::exist_resource());
+                }
+                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+            }
+            Err(err) => {
+                tracing::error!("send register instance request to server fail: {}", err);
+                Err(PolarisError::new(ServerError, err.to_string()))
+            }
+        };
     }
 
-    fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
+    async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
         self.wait_discover_ready();
-        return self.extensions.runtime.block_on(async {
-            let mut client: PolarisGrpcClient<Channel> = self.grpc_client.clone();
-            let ret = client.deregister_instance(req.convert_spec()).await;
-            return match ret {
-                Ok(rsp) => {
-                    let rsp = rsp.into_inner();
-                    if rsp.instance.is_none() {
-                        return Err(PolarisError::new(
-                            ServerUserError,
-                            "invalid deregister response: missing instance".to_string(),
-                        ));
-                    }
-                    let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
-                    if ExecuteSuccess.eq(&recv_code) {
-                        return Ok(true);
-                    }
-                    Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+        let mut client: PolarisGrpcClient<Channel> = self.grpc_client.clone();
+        let ret = client.deregister_instance(req.convert_spec()).await;
+        return match ret {
+            Ok(rsp) => {
+                let rsp = rsp.into_inner();
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                if ExecuteSuccess.eq(&recv_code) {
+                    return Ok(true);
                 }
-                Err(err) => {
-                    error!("send deregister instance request to server fail: {}", err);
-                    Err(PolarisError::new(ServerError, "".to_string()))
+                tracing::error!(
+                    "send deregister instance request to server receive fail: code={} info={}",
+                    rsp.code.unwrap().clone(),
+                    rsp.info.clone().unwrap(),
+                );
+                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+            }
+            Err(err) => {
+                tracing::error!("send deregister instance request to server fail: {}", err);
+                Err(PolarisError::new(ServerError, "".to_string()))
+            }
+        };
+    }
+
+    async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
+        self.wait_discover_ready();
+        let mut client: PolarisGrpcClient<Channel> = self.grpc_client.clone();
+        let ret = client.heartbeat(req.convert_beat_spec()).await;
+        return match ret {
+            Ok(rsp) => {
+                let rsp = rsp.into_inner();
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                if ExecuteSuccess.eq(&recv_code) {
+                    return Ok(true);
                 }
-            };
-        });
+                tracing::error!(
+                    "send heartbeat instance request to server receive fail: code={} info={}",
+                    rsp.code.unwrap().clone(),
+                    rsp.info.clone().unwrap(),
+                );
+                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+            }
+            Err(err) => {
+                tracing::error!("send heartbeat instance request to server fail: {}", err);
+                Err(PolarisError::new(ServerError, "".to_string()))
+            }
+        };
     }
 
-    fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
+    async fn report_client(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    fn report_client(&self) -> Result<bool, PolarisError> {
+    async fn report_service_contract(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    fn report_service_contract(&self) -> Result<bool, PolarisError> {
+    async fn get_service_contract(&self) -> Result<String, PolarisError> {
         todo!()
     }
 
-    fn get_service_contract(&self) -> Result<String, PolarisError> {
+    async fn create_config_file(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    fn create_config_file(&self) -> Result<bool, PolarisError> {
+    async fn update_config_file(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    fn update_config_file(&self) -> Result<bool, PolarisError> {
+    async fn release_config_file(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    fn release_config_file(&self) -> Result<bool, PolarisError> {
-        todo!()
-    }
-
-    fn upsert_publish_config_file(&self) -> Result<bool, PolarisError> {
+    async fn upsert_publish_config_file(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 }

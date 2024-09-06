@@ -21,6 +21,7 @@ pub mod plugins;
 pub mod ratelimit;
 pub mod router;
 
+#[cfg(test)]
 mod tests {
     use std::{collections::HashMap, time::Duration};
 
@@ -28,21 +29,44 @@ mod tests {
         core::model::naming::Location,
         discovery::{
             api::{new_provider_api, ProviderAPI},
-            req::InstanceRegisterRequest,
+            req::{InstanceDeregisterRequest, InstanceHeartbeatRequest, InstanceRegisterRequest},
         },
     };
 
-    #[test]
-    fn test_create_provider() {
+    use std::sync::Once;
+
+    use tracing::metadata::LevelFilter;
+
+    static LOGGER_INIT: Once = Once::new();
+
+    pub(crate) fn setup_log() {
+        LOGGER_INIT.call_once(|| {
+            tracing_subscriber::fmt()
+                .with_thread_names(true)
+                .with_file(true)
+                .with_level(true)
+                .with_line_number(true)
+                .with_thread_ids(true)
+                .with_max_level(LevelFilter::DEBUG)
+                .init()
+        });
+    }
+
+    #[tokio::test]
+    async fn test_create_provider() {
+        setup_log();
         let provider_ret = new_provider_api();
         match provider_ret {
             Err(err) => {
-                log::error!("create provider fail: {}", err.to_string());
+                tracing::error!("create provider fail: {}", err.to_string());
             }
-            Ok(mut provier) => {
+            Ok(provier) => {
+                let metadata = HashMap::new();
+
                 let req = InstanceRegisterRequest {
                     flow_id: "1".to_string(),
                     timeout: Duration::from_secs(1),
+                    id: None,
                     namespace: "rust-demo".to_string(),
                     service: "polaris-rust-provider".to_string(),
                     ip: "1.1.1.1".to_string(),
@@ -54,22 +78,67 @@ mod tests {
                     isolated: false,
                     weight: 100,
                     priority: 0,
-                    metadata: HashMap::new(),
+                    metadata: metadata,
                     location: Location {
                         region: "1".to_string(),
                         zone: "1".to_string(),
                         campus: "1".to_string(),
                     },
-                    ttl: 1,
+                    ttl: 5,
+                    // 这里开启心跳的自动上报能力
                     auto_heartbeat: true,
                 };
-                let _ret = provier.register(req);
+                let _ret = provier.register(req).await;
                 match _ret {
                     Err(err) => {
-                        log::error!("register fail: {}", err.to_string());
+                        tracing::error!("register fail: {}", err.to_string());
                     }
                     Ok(_) => {}
                 }
+
+                std::thread::sleep(Duration::from_secs(10));
+
+                // 主动做一次心跳上报
+                let _ret = provier
+                    .heartbeat(InstanceHeartbeatRequest {
+                        timeout: Duration::from_secs(1),
+                        flow_id: "1".to_string(),
+                        id: None,
+                        namespace: "rust-demo".to_string(),
+                        service: "polaris-rust-provider".to_string(),
+                        ip: "1.1.1.1".to_string(),
+                        port: 8080,
+                    })
+                    .await;
+
+                match _ret {
+                    Err(err) => {
+                        tracing::error!("heartbeat fail: {}", err.to_string());
+                    }
+                    Ok(_) => {}
+                }
+
+                std::thread::sleep(Duration::from_secs(10));
+
+                // 反注册
+                let deregister_req = InstanceDeregisterRequest {
+                    flow_id: "1".to_string(),
+                    timeout: Duration::from_secs(1),
+                    namespace: "rust-demo".to_string(),
+                    service: "polaris-rust-provider".to_string(),
+                    ip: "1.1.1.1".to_string(),
+                    port: 8080,
+                };
+
+                let _ret = provier.deregister(deregister_req).await;
+                match _ret {
+                    Err(err) => {
+                        tracing::error!("deregister fail: {}", err.to_string());
+                    }
+                    Ok(_) => {}
+                }
+
+                std::mem::forget(provier);
             }
         }
     }

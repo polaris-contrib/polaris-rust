@@ -21,6 +21,7 @@ use std::time::Duration;
 pub struct InstanceRegisterRequest {
     pub flow_id: String,
     pub timeout: Duration,
+    pub id: Option<String>,
     pub namespace: String,
     pub service: String,
     pub ip: String,
@@ -51,7 +52,7 @@ pub struct InstanceRegisterRequest {
 impl InstanceRegisterRequest {
     pub fn convert_instance(&self) -> Instance {
         Instance {
-            id: self.ip.clone(),
+            id: self.id.as_ref().unwrap_or(&"".to_string()).clone(),
             namespace: self.namespace.clone(),
             service: self.service.clone(),
             ip: self.ip.clone(),
@@ -68,8 +69,21 @@ impl InstanceRegisterRequest {
             revision: "".to_string(),
         }
     }
+
+    pub fn to_heartbeat_request(&self) -> InstanceHeartbeatRequest {
+        InstanceHeartbeatRequest {
+            flow_id: self.flow_id.clone(),
+            timeout: self.timeout.clone(),
+            id: self.id.clone(),
+            namespace: self.namespace.clone(),
+            service: self.service.clone(),
+            ip: self.ip.clone(),
+            port: self.port,
+        }
+    }
 }
 
+#[derive(Clone, Debug)]
 pub struct InstanceRegisterResponse {
     pub instance_id: String,
     pub exist: bool,
@@ -77,7 +91,7 @@ pub struct InstanceRegisterResponse {
 
 pub struct InstanceDeregisterRequest {
     pub flow_id: String,
-    pub timeout_ms: u32,
+    pub timeout: Duration,
     pub namespace: String,
     pub service: String,
     pub ip: String,
@@ -87,7 +101,7 @@ pub struct InstanceDeregisterRequest {
 impl InstanceDeregisterRequest {
     pub fn convert_instance(&self) -> Instance {
         Instance {
-            id: self.ip.clone(),
+            id: "".to_string(),
             namespace: self.namespace.clone(),
             service: self.service.clone(),
             ip: self.ip.clone(),
@@ -106,10 +120,51 @@ impl InstanceDeregisterRequest {
     }
 }
 
+#[derive(Clone, Debug)]
+#[warn(unreachable_code)]
 pub struct InstanceHeartbeatRequest {
     pub flow_id: String,
-    pub timeout_ms: u32,
-    pub instance: Instance,
+    pub timeout: Duration,
+    pub id: Option<String>,
+    pub namespace: String,
+    pub service: String,
+    pub ip: String,
+    pub port: u32,
+}
+
+impl InstanceHeartbeatRequest {
+    pub fn beat_key(&self) -> String {
+        let namespace = self.namespace.clone();
+        let service = self.service.clone();
+        let ip = self.ip.clone();
+        let port = self.port;
+        return format!("{}_{}_{}_{}", namespace, service, ip, port);
+    }
+
+    pub fn convert_instance(&self) -> Instance {
+        let instance_id = self.id.clone();
+        let ip = self.ip.clone();
+        let namespace = self.namespace.clone();
+        let service = self.service.clone();
+        let port = self.port;
+        Instance {
+            id: instance_id.as_ref().unwrap_or(&"".to_string()).clone(),
+            namespace: namespace,
+            service: service,
+            ip: ip,
+            port: port,
+            vpc_id: "".to_string(),
+            version: "".to_string(),
+            protocol: "".to_string(),
+            health: false,
+            isolated: false,
+            weight: 0,
+            priority: 0,
+            metadata: Default::default(),
+            location: Default::default(),
+            revision: "".to_string(),
+        }
+    }
 }
 
 pub struct ReportServiceContractRequest {}

@@ -13,47 +13,67 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::sync::Arc;
+
+use tokio::runtime::{Builder, Runtime};
+
 use crate::core::config::config::Configuration;
 use crate::core::config::global::DISCOVER_SERVER_CONNECTOR;
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::InstanceRequest;
 use crate::core::plugin::plugins::Extensions;
 use crate::discovery::req::{
-    InstanceDeregisterRequest, InstanceRegisterRequest, InstanceRegisterResponse,
+    InstanceDeregisterRequest, InstanceHeartbeatRequest, InstanceRegisterRequest,
+    InstanceRegisterResponse,
 };
 
+use super::model::pb::lib::InstanceHeartbeat;
+
 pub struct Engine {
+    pub runtime: Arc<Runtime>,
     extensions: Extensions,
 }
 
 impl Engine {
     pub fn new(conf: Configuration) -> Result<Self, PolarisError> {
-        let ret = Extensions::build(conf);
+        let runtime = Arc::new(
+            Builder::new_multi_thread()
+                .enable_all()
+                .thread_name("polaris-client-thread-pool")
+                .worker_threads(4)
+                .build()
+                .unwrap(),
+        );
+
+        let ret = Extensions::build(conf, runtime.clone());
         match ret {
             Ok(extensions) => Ok(Self {
                 extensions: extensions,
+                runtime: runtime,
             }),
             Err(err) => Err(err),
         }
     }
 
     /// sync_register_instance 同步注册实例
-    pub(crate) fn sync_register_instance(
-        &mut self,
+    pub async fn sync_register_instance(
+        &self,
         req: InstanceRegisterRequest,
     ) -> Result<InstanceRegisterResponse, PolarisError> {
         let connector = self
             .extensions
             .get_active_connector(DISCOVER_SERVER_CONNECTOR);
-        let rsp = connector.register_instance(InstanceRequest {
-            flow_id: req.flow_id.clone(),
-            ttl: req.ttl.clone(),
-            instance: req.convert_instance(),
-        });
+        let rsp = connector
+            .register_instance(InstanceRequest {
+                flow_id: req.flow_id.clone(),
+                ttl: req.ttl.clone(),
+                instance: req.convert_instance(),
+            })
+            .await;
 
         return match rsp {
             Ok(ins_rsp) => Ok(InstanceRegisterResponse {
-                instance_id: ins_rsp.instance.ip.clone(),
+                instance_id: ins_rsp.instance.id.clone(),
                 exist: ins_rsp.exist.clone(),
             }),
             Err(err) => Err(err),
@@ -61,22 +81,50 @@ impl Engine {
     }
 
     /// sync_deregister_instance 同步注销实例
-    pub(crate) fn sync_deregister_instance(
-        &mut self,
+    pub async fn sync_deregister_instance(
+        &self,
         req: InstanceDeregisterRequest,
     ) -> Result<(), PolarisError> {
-        let mut connector = self
+        let connector = self
             .extensions
             .get_active_connector(DISCOVER_SERVER_CONNECTOR);
-        let rsp = connector.deregister_instance(InstanceRequest {
-            flow_id: req.flow_id.clone(),
-            ttl: 0,
-            instance: req.convert_instance(),
-        });
+        let rsp = connector
+            .deregister_instance(InstanceRequest {
+                flow_id: req.flow_id.clone(),
+                ttl: 0,
+                instance: req.convert_instance(),
+            })
+            .await;
 
         return match rsp {
-            Ok(ins_rsp) => Ok(()),
+            Ok(_) => Ok(()),
             Err(err) => Err(err),
         };
+    }
+
+    /// sync_instance_heartbeat 同步实例心跳
+    pub async fn sync_instance_heartbeat(
+        &self,
+        req: InstanceHeartbeatRequest,
+    ) -> Result<(), PolarisError> {
+        let connector = self
+            .extensions
+            .get_active_connector(DISCOVER_SERVER_CONNECTOR);
+        let rsp = connector
+            .heartbeat_instance(InstanceRequest {
+                flow_id: req.flow_id.clone(),
+                ttl: 0,
+                instance: req.convert_instance(),
+            })
+            .await;
+
+        return match rsp {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err),
+        };
+    }
+
+    pub fn get_executor(&self) -> Arc<Runtime> {
+        self.runtime.clone()
     }
 }

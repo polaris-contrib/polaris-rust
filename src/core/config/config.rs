@@ -38,7 +38,7 @@ pub fn load_default<'a>() -> Result<Configuration, io::Error> {
     }
     if env::var("POLARIS_RUST_CONFIG").is_ok() {
         let custom_conf_path = env::var("POLARIS_RUST_CONFIG").unwrap();
-        log::info!("load config from env: {}", custom_conf_path);
+        tracing::info!("load config from env: {}", custom_conf_path);
         return load(env::var("POLARIS_RUST_CONFIG").unwrap());
     }
     return load(path);
