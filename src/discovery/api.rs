@@ -20,8 +20,11 @@ use crate::core::model::error::PolarisError;
 use crate::discovery::default::{DefaultConsumerAPI, DefaultLosslessAPI, DefaultProviderAPI};
 use crate::discovery::req::*;
 
-pub(crate) fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
+/// new_provider_api
+pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
+    let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
+    tracing::info!("create sdk context cost: {:?}", start_time.elapsed());
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
@@ -29,14 +32,15 @@ pub(crate) fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
     Ok(DefaultProviderAPI::new(context_ret.unwrap(), true))
 }
 
-pub(crate) fn new_provider_api_by_context(
-    context: SDKContext,
-) -> Result<impl ProviderAPI, PolarisError> {
+pub fn new_provider_api_by_context(context: SDKContext) -> Result<impl ProviderAPI, PolarisError> {
     Ok(DefaultProviderAPI::new(context, false))
 }
 
 /// ProviderAPI 负责服务提供者的生命周期管理
-pub(crate) trait ProviderAPI {
+pub trait ProviderAPI
+where
+    Self: Send + Sync,
+{
     /// register 实例注册
     async fn register(
         &self,

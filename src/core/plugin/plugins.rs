@@ -17,6 +17,7 @@ use crate::core::config::config::Configuration;
 use crate::core::config::global::{
     ServerConnectorConfig, CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNECTOR,
 };
+use crate::core::engine::Engine;
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::plugin::cache::ResourceCache;
 use crate::core::plugin::connector::{Connector, NoopConnector};
@@ -32,7 +33,7 @@ use std::ptr::eq;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::{env, fmt};
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::Runtime;
 use tonic::transport::Server;
 
 use super::cache::NoopResourceCache;
@@ -60,111 +61,83 @@ pub trait Plugin
 where
     Self: Send + Sync,
 {
-    fn init(&mut self, extensions: Extensions);
+    fn init(&mut self, extensions: Arc<Extensions>);
 
     fn destroy(&self);
 
     fn name(&self) -> String;
 }
 
-pub struct Extensions {
+pub struct Extensions
+where
+    Self: Send + Sync,
+{
     pub runtime: Arc<Runtime>,
-
     pub client_id: String,
-
     pub conf: Arc<Configuration>,
-    pub resource_cache: Arc<Box<dyn ResourceCache>>,
-    pub http_servers: HashMap<String, Server>,
-    pub lossless_policies: Vec<Arc<dyn LosslessPolicy>>,
-
-    active_discover_connector: Arc<Box<dyn Connector>>,
-    active_config_connector: Arc<Box<dyn Connector>>,
 }
 
 impl Extensions {
-    pub fn build(conf: Configuration, runetime: Arc<Runtime>) -> Result<Self, PolarisError> {
-        let mut extension = Extensions {
+    pub fn build(
+        client_id: String,
+        conf: Arc<Configuration>,
+        runetime: Arc<Runtime>,
+    ) -> Result<Self, PolarisError> {
+        Ok(Self {
             runtime: runetime,
-            client_id: acquire_client_id(&conf),
-            conf: Arc::new(conf),
-            active_discover_connector: Arc::new(Box::new(NoopConnector::default())),
-            active_config_connector: Arc::new(Box::new(NoopConnector::default())),
-            resource_cache: Arc::new(Box::new(NoopResourceCache::default())),
-            http_servers: Default::default(),
-            lossless_policies: vec![],
-        };
-        let mut containers = PluginContainer::default();
-        containers.register_all_plugin();
-
-        // 初始化所有的 ServerConnector 组件
-        let ret = extension.init_server_connector(&mut containers);
-        if ret.is_err() {
-            return Err(ret.unwrap_err());
-        }
-        Ok(extension)
+            client_id: client_id,
+            conf: conf,
+        })
     }
 
     pub fn get_client_id(&self) -> String {
         self.client_id.clone()
     }
-
-    fn init_server_connector(
-        &mut self,
-        containers: &mut PluginContainer,
-    ) -> Result<bool, PolarisError> {
-        let connector_opt = &self.conf.global.server_connectors;
-        if connector_opt.is_empty() {
-            return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
-        }
-        let connector_vec = vec![DISCOVER_SERVER_CONNECTOR, CONFIG_SERVER_CONNECTOR];
-        for ele in connector_vec {
-            let connector_opt = connector_opt.get(ele);
-            if connector_opt.is_none() {
-                return Err(PolarisError::new(
-                    ErrorCode::InvalidConfig,
-                    format!("{} connector not found", ele),
-                ));
-            }
-            let protocol = connector_opt.unwrap().get_protocol();
-            let supplier = containers.get_connector(&protocol);
-            let mut active_connector = supplier(
-                ele.to_string(),
-                connector_opt.unwrap(),
-                Arc::new(self.clone()),
-            );
-            active_connector.init(self.clone());
-            if eq(ele, DISCOVER_SERVER_CONNECTOR) {
-                self.active_discover_connector = Arc::new(active_connector);
-            } else {
-                self.active_config_connector = Arc::new(active_connector);
-            }
-        }
-
-        Ok(true)
-    }
-
-    pub(crate) fn get_active_connector(&self, s: &str) -> Arc<Box<dyn Connector>> {
-        if s.eq(DISCOVER_SERVER_CONNECTOR) {
-            return self.active_discover_connector.clone();
-        }
-        return self.active_config_connector.clone();
-    }
-
-    fn clone(&self) -> Extensions {
-        return Extensions {
-            runtime: self.runtime.clone(),
-            client_id: self.client_id.clone(),
-            conf: self.conf.clone(),
-            active_discover_connector: self.active_discover_connector.clone(),
-            active_config_connector: self.active_config_connector.clone(),
-            resource_cache: self.resource_cache.clone(),
-            http_servers: self.http_servers.clone(),
-            lossless_policies: self.lossless_policies.clone(),
-        };
-    }
 }
 
-struct PluginContainer {
+pub struct ConnectorResult {
+    pub discover: Option<Box<dyn Connector>>,
+    pub config: Option<Box<dyn Connector>>,
+}
+
+pub fn init_server_connector(
+    connector_opt: &HashMap<String, ServerConnectorConfig>,
+    containers: &PluginContainer,
+    extensions: Arc<Extensions>
+) -> Result<ConnectorResult, PolarisError> {
+    if connector_opt.is_empty() {
+        return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
+    }
+
+    let connector_vec = vec![DISCOVER_SERVER_CONNECTOR, CONFIG_SERVER_CONNECTOR];
+    let mut connectors = ConnectorResult {
+        discover: None,
+        config: None,
+    };
+    for ele in connector_vec {
+        let connector_opt = connector_opt.get(ele);
+        if connector_opt.is_none() {
+            return Err(PolarisError::new(
+                ErrorCode::InvalidConfig,
+                format!("{} connector not found", ele),
+            ));
+        }
+        let protocol = connector_opt.unwrap().get_protocol();
+        let supplier = containers.get_connector(&protocol);
+        let mut active_connector =
+            supplier(ele.to_string(), connector_opt.unwrap(), extensions.clone());
+        active_connector.init(extensions.clone());
+        if eq(ele, DISCOVER_SERVER_CONNECTOR) {
+            connectors.discover = Some(active_connector);
+        } else {
+            connectors.config = Some(active_connector);
+        }
+    }
+
+    Ok(connectors)
+}
+
+pub struct PluginContainer {
     connectors:
         HashMap<String, fn(String, &ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector>>,
     routers: HashMap<String, fn(&Configuration) -> Box<dyn ServiceRouter>>,
@@ -184,7 +157,7 @@ impl Default for PluginContainer {
 }
 
 impl PluginContainer {
-    fn register_all_plugin(&mut self) {
+    pub fn register_all_plugin(&mut self) {
         self.register_resource_cache();
         self.register_connector();
     }

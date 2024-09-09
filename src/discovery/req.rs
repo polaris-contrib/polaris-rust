@@ -18,6 +18,7 @@ use crate::core::model::router::{CalleeInfo, CallerInfo};
 use std::collections::HashMap;
 use std::time::Duration;
 
+#[derive(Clone, Debug)]
 pub struct InstanceRegisterRequest {
     pub flow_id: String,
     pub timeout: Duration,
@@ -72,7 +73,7 @@ impl InstanceRegisterRequest {
 
     pub fn to_heartbeat_request(&self) -> InstanceHeartbeatRequest {
         InstanceHeartbeatRequest {
-            flow_id: self.flow_id.clone(),
+            flow_id: "".to_string(),
             timeout: self.timeout.clone(),
             id: self.id.clone(),
             namespace: self.namespace.clone(),
@@ -116,6 +117,18 @@ impl InstanceDeregisterRequest {
             metadata: Default::default(),
             location: Default::default(),
             revision: "".to_string(),
+        }
+    }
+
+    pub fn to_heartbeat_request(&self) -> InstanceHeartbeatRequest {
+        InstanceHeartbeatRequest {
+            flow_id: self.flow_id.clone(),
+            timeout: self.timeout.clone(),
+            id: Some("".to_string()),
+            namespace: self.namespace.clone(),
+            service: self.service.clone(),
+            ip: self.ip.clone(),
+            port: self.port,
         }
     }
 }

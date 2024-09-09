@@ -15,11 +15,8 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 
-use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
 
 use crate::core::context::SDKContext;
 use crate::core::model::error::PolarisError;
@@ -32,6 +29,7 @@ use crate::discovery::req::{
     UnWatchInstanceResponse, WatchInstanceRequest, WatchInstanceResponse,
 };
 
+/// DefaultConsumerAPI
 pub struct DefaultConsumerAPI {
     context: SDKContext,
 }
@@ -72,7 +70,11 @@ impl ConsumerAPI for DefaultConsumerAPI {
     }
 }
 
-pub struct DefaultProviderAPI {
+/// DefaultProviderAPI
+pub struct DefaultProviderAPI
+where
+    Self: Send + Sync,
+{
     manage_sdk: bool,
     context: SDKContext,
     beat_tasks: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
@@ -96,31 +98,30 @@ impl ProviderAPI for DefaultProviderAPI {
         let auto_heartbeat = req.auto_heartbeat;
         let ttl = req.ttl;
         let beat_req = req.to_heartbeat_request();
+        tracing::info!("[polaris][discovery][provider] register instance request: {req:?}");
         let rsp = self.context.get_engine().sync_register_instance(req).await;
-        tracing::info!("[polaris][discovery][provider] register instance result: {rsp:?}");
-        let duration = Duration::from_secs(u64::from(ttl));
         let engine = self.context.get_engine();
         if rsp.is_ok() && auto_heartbeat {
             let task_key = beat_req.beat_key();
             tracing::info!(
-                "[polaris][discovery][provider] start to auto heartbeat task={} duration={}",
+                "[polaris][discovery][heartbeat] add one auto_beat task={} duration={}s",
                 task_key,
-                duration.as_secs(),
+                ttl,
             );
+            let beat_engine = engine.clone();
             // 开启了心跳自动上报功能，这里需要维护一个自动心跳上报的任务
-            let handler = self.context.get_engine().get_executor().spawn(async move {
+            let handler = engine.get_executor().spawn(async move {
                 loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(u64::from(ttl))).await;
                     tracing::info!(
-                        "[polaris][discovery][provider] start to auto_beat instance: {beat_req:?}"
+                        "[polaris][discovery][heartbeat] start to auto_beat instance: {beat_req:?}"
                     );
-                    let beat_ret = engine.sync_instance_heartbeat(beat_req.clone()).await;
+                    let beat_ret = beat_engine.sync_instance_heartbeat(beat_req.clone()).await;
                     if let Err(e) = beat_ret {
                         tracing::error!(
-                            "[polaris][discovery][provider] auto_beat instance to server fail: {e}"
-                        );
-                        break;
+                        "[polaris][discovery][heartbeat] auto_beat instance to server fail: {e}"
+                    );
                     }
-                    sleep(duration).await;
                 }
             });
             self.beat_tasks.write().unwrap().insert(task_key, handler);
@@ -129,6 +130,17 @@ impl ProviderAPI for DefaultProviderAPI {
     }
 
     async fn deregister(&self, req: InstanceDeregisterRequest) -> Result<(), PolarisError> {
+        let beat_req = req.to_heartbeat_request();
+        let task_key = beat_req.beat_key();
+        let wait_remove_task = self.beat_tasks.write().unwrap().remove(&task_key);
+        if let Some(task) = wait_remove_task {
+            tracing::info!(
+                "[polaris][discovery][heartbeat] remove one auto_beat task={}",
+                task_key,
+            );
+            task.abort();
+        }
+
         let engine = self.context.get_engine();
         engine.sync_deregister_instance(req).await
     }

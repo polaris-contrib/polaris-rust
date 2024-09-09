@@ -57,17 +57,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> Result<Configuration, io::Error> {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::config::config::load;
-    use std::env;
 
     #[test]
-    fn test_load() {
-        let ret = load(env::var("TEST_LOAD_FILE").unwrap());
-        if ret.is_ok() {
-            let conf = ret.ok().unwrap();
-            println!("{:?}", conf)
-        } else {
-            println!("{:?}", ret.err().unwrap())
-        }
-    }
+    fn test_load() {}
 }

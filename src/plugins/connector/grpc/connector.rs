@@ -20,22 +20,27 @@ use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::model::pb::lib::polaris_grpc_client::PolarisGrpcClient;
 use crate::core::model::pb::lib::Code;
 use crate::core::model::pb::lib::Code::{ExecuteSuccess, ExistedResource};
-use crate::core::plugin::connector::Connector;
+use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 use crate::plugins::connector::grpc::manager::ConnectionManager;
-use futures::future::BoxFuture;
 use http::Uri;
-use hyper::rt::Executor;
 use std::cmp::PartialEq;
-use std::pin::Pin;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::thread;
+use tonic::client::GrpcService;
+use tonic::metadata::{Ascii, AsciiMetadataKey, MetadataValue};
+use tonic::service::interceptor::InterceptedService;
+use tonic::service::Interceptor;
 use tonic::transport::{Channel, Endpoint};
+use tonic::Request;
+use tower::ServiceExt;
+use tracing::Instrument;
 
 use super::manager::EmptyConnectionSwitchListener;
 
 pub struct GrpcConnector {
+    channel: Channel,
     label: String,
     extensions: Arc<Extensions>,
     connection_manager: Arc<ConnectionManager>,
@@ -47,20 +52,15 @@ fn new_connector(
     conf: &ServerConnectorConfig,
     extensions: Arc<Extensions>,
 ) -> Box<dyn Connector> {
-    let addresses = conf.addresses.clone();
-    let connect_server = format!("http://{}", addresses.get(0).unwrap().clone());
-    let uri_ret = Uri::from_str(connect_server.as_str());
-    if uri_ret.is_err() {
-        panic!("parse server connect info fail: {}", uri_ret.unwrap_err());
-    }
-    tracing::info!("connect to server: {:?}", connect_server);
-    let channel = Channel::builder(uri_ret.unwrap()).connect_lazy();
-    let grpc_client = PolarisGrpcClient::new(channel);
+    let channel = create_channel(label.clone(), conf);
+    let grpc_client = create_grpc_client(label.clone(), channel.clone());
+
     let client_id = extensions.get_client_id();
     let connect_timeout = conf.connect_timeout;
     let server_switch_interval = conf.server_switch_interval;
 
     let c = GrpcConnector {
+        channel: channel,
         label: label,
         extensions: extensions,
         connection_manager: Arc::new(ConnectionManager::new(
@@ -74,8 +74,26 @@ fn new_connector(
     Box::new(c) as Box<dyn Connector + 'static>
 }
 
+fn create_channel(label: String, conf: &ServerConnectorConfig) -> Channel {
+    let addresses = conf.addresses.clone();
+    let connect_server = format!("http://{}", addresses.get(0).unwrap().clone());
+    let uri_ret = Uri::from_str(connect_server.as_str());
+    if uri_ret.is_err() {
+        panic!("parse server connect info fail: {}", uri_ret.unwrap_err());
+    }
+    tracing::info!("connect to server: {:?}", connect_server);
+    let connect_timeout = conf.connect_timeout;
+    Channel::builder(uri_ret.unwrap())
+        .connect_timeout(connect_timeout)
+        .connect_lazy()
+}
+
+fn create_grpc_client(label: String, channel: Channel) -> PolarisGrpcClient<Channel> {
+    PolarisGrpcClient::new(channel)
+}
+
 impl Plugin for GrpcConnector {
-    fn init(&mut self, extensions: Extensions) {}
+    fn init(&mut self, extensions: Arc<Extensions>) {}
 
     fn destroy(&self) {}
 
@@ -85,7 +103,7 @@ impl Plugin for GrpcConnector {
 }
 
 impl GrpcConnector {
-    fn wait_discover_ready(&self) {}
+    fn wait_server_ready(&self) {}
 
     pub fn builder() -> (
         fn(String, &ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector>,
@@ -93,11 +111,28 @@ impl GrpcConnector {
     ) {
         return (new_connector, "grpc".to_string());
     }
+
+    fn create_grpc_stub(
+        &self,
+        flow: String,
+    ) -> PolarisGrpcClient<InterceptedService<Channel, GrpcConnectorInterceptor>> {
+        let interceptor = GrpcConnectorInterceptor {
+            metadata: {
+                let mut metadata = HashMap::new();
+                metadata.insert("request-id".to_string(), flow.to_string());
+                metadata
+            },
+        };
+        PolarisGrpcClient::with_interceptor(self.channel.clone(), interceptor)
+    }
 }
 
 #[async_trait::async_trait]
 impl Connector for GrpcConnector {
-    async fn register_resource_handler(&self) -> Result<bool, PolarisError> {
+    async fn register_resource_handler(
+        &self,
+        handler: Arc<dyn ResourceHandler>,
+    ) -> Result<bool, PolarisError> {
         todo!()
     }
 
@@ -109,23 +144,29 @@ impl Connector for GrpcConnector {
         &self,
         req: InstanceRequest,
     ) -> Result<InstanceResponse, PolarisError> {
-        self.wait_discover_ready();
-        let mut client = self.grpc_client.clone();
-        let ret = client.register_instance(req.convert_spec()).await;
+        self.wait_server_ready();
+
+        tracing::debug!("[polaris][discovery][connector] send register instance request={req:?}");
+
+        let mut client = self.create_grpc_stub(req.flow_id.clone());
+        let ret = client
+            .register_instance(tonic::Request::new(req.convert_spec()))
+            .in_current_span()
+            .await;
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
                 if rsp.instance.is_none() {
                     return Err(PolarisError::new(
                         ServerUserError,
-                        "invalid register response: missing instance".to_string(),
+                        "[polaris][discovery][connector] invalid register response: missing instance".to_string(),
                     ));
                 }
                 let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
                 if ExecuteSuccess.eq(&recv_code) {
                     let ins_id = rsp.instance.unwrap().id.unwrap();
                     tracing::info!(
-                        "register instance to server success instance-id={}",
+                        "[polaris][discovery][connector] register instance to server success id={}",
                         ins_id.clone(),
                     );
                     let mut ins = InstanceResponse::default();
@@ -138,16 +179,25 @@ impl Connector for GrpcConnector {
                 Err(PolarisError::new(ServerError, rsp.info.unwrap()))
             }
             Err(err) => {
-                tracing::error!("send register instance request to server fail: {}", err);
+                tracing::error!(
+                    "[polaris][discovery][connector] send register request to server fail: {}",
+                    err
+                );
                 Err(PolarisError::new(ServerError, err.to_string()))
             }
         };
     }
 
     async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
-        self.wait_discover_ready();
-        let mut client: PolarisGrpcClient<Channel> = self.grpc_client.clone();
-        let ret = client.deregister_instance(req.convert_spec()).await;
+        self.wait_server_ready();
+
+        tracing::debug!("[polaris][discovery][connector] send deregister instance request={req:?}");
+
+        let mut client = self.create_grpc_stub(req.flow_id.clone());
+        let ret = client
+            .deregister_instance(tonic::Request::new(req.convert_spec()))
+            .in_current_span()
+            .await;
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
@@ -156,23 +206,32 @@ impl Connector for GrpcConnector {
                     return Ok(true);
                 }
                 tracing::error!(
-                    "send deregister instance request to server receive fail: code={} info={}",
+                    "[polaris][discovery][connector] send deregister request to server receive fail: code={} info={}",
                     rsp.code.unwrap().clone(),
                     rsp.info.clone().unwrap(),
                 );
                 Err(PolarisError::new(ServerError, rsp.info.unwrap()))
             }
             Err(err) => {
-                tracing::error!("send deregister instance request to server fail: {}", err);
-                Err(PolarisError::new(ServerError, "".to_string()))
+                tracing::error!(
+                    "[polaris][discovery][connector] send deregister request to server fail: {}",
+                    err
+                );
+                Err(PolarisError::new(ServerError, err.to_string()))
             }
         };
     }
 
     async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
-        self.wait_discover_ready();
-        let mut client: PolarisGrpcClient<Channel> = self.grpc_client.clone();
-        let ret = client.heartbeat(req.convert_beat_spec()).await;
+        self.wait_server_ready();
+
+        tracing::debug!("[polaris][discovery][connector] send heartbeat instance request={req:?}");
+
+        let mut client = self.create_grpc_stub(req.flow_id.clone());
+        let ret = client
+            .heartbeat(tonic::Request::new(req.convert_beat_spec()))
+            .in_current_span()
+            .await;
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
@@ -181,15 +240,18 @@ impl Connector for GrpcConnector {
                     return Ok(true);
                 }
                 tracing::error!(
-                    "send heartbeat instance request to server receive fail: code={} info={}",
+                    "[polaris][discovery][connector] send heartbeat request to server receive fail: code={} info={}",
                     rsp.code.unwrap().clone(),
                     rsp.info.clone().unwrap(),
                 );
                 Err(PolarisError::new(ServerError, rsp.info.unwrap()))
             }
             Err(err) => {
-                tracing::error!("send heartbeat instance request to server fail: {}", err);
-                Err(PolarisError::new(ServerError, "".to_string()))
+                tracing::error!(
+                    "[polaris][discovery][connector] send heartbeat request to server fail: {}",
+                    err
+                );
+                Err(PolarisError::new(ServerError, err.to_string()))
             }
         };
     }
@@ -223,41 +285,29 @@ impl Connector for GrpcConnector {
     }
 }
 
-#[derive(Copy, Clone)]
-struct ConnectorExec;
-
-impl<F> Executor<F> for ConnectorExec
-where
-    F: std::future::Future + Send + 'static,
-    F::Output: Send + 'static,
-{
-    fn execute(&self, fut: F) {
-        thread::spawn(move || fut);
-    }
+struct GrpcConnectorInterceptor {
+    metadata: HashMap<String, String>,
 }
 
-#[derive(Clone)]
-pub(crate) struct SharedExec {
-    inner: Arc<dyn Executor<BoxFuture<'static, ()>> + Send + Sync + 'static>,
-}
-
-impl SharedExec {
-    pub(crate) fn new<E>(exec: E) -> Self
-    where
-        E: Executor<Pin<Box<dyn std::future::Future<Output = ()> + Send>>> + Send + Sync + 'static,
-    {
-        Self {
-            inner: Arc::new(exec),
+impl Interceptor for GrpcConnectorInterceptor {
+    fn call(
+        &mut self,
+        mut request: tonic::Request<()>,
+    ) -> Result<tonic::Request<()>, tonic::Status> {
+        let metadata = self.metadata.clone();
+        for ele in metadata {
+            let meta_key = AsciiMetadataKey::from_str(ele.0.to_string().as_str());
+            if meta_key.is_err() {
+                return Err(tonic::Status::internal("invalid metadata value"));
+            }
+            let meta_val: Result<MetadataValue<_>, _> = ele.1.to_string().parse();
+            if meta_val.is_err() {
+                return Err(tonic::Status::internal("invalid metadata value"));
+            }
+            request
+                .metadata_mut()
+                .insert(meta_key.unwrap(), meta_val.unwrap());
         }
-    }
-
-    pub(crate) fn connector() -> Self {
-        Self::new(ConnectorExec)
-    }
-}
-
-impl Executor<BoxFuture<'static, ()>> for SharedExec {
-    fn execute(&self, fut: BoxFuture<'static, ()>) {
-        self.inner.execute(fut)
+        Ok(request)
     }
 }

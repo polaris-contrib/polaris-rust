@@ -36,7 +36,7 @@ fn new_resource_cache(_conf: &Configuration) -> Box<dyn ResourceCache> {
 }
 
 impl Plugin for MemoryCache {
-    fn init(&mut self, extensions: Extensions) {
+    fn init(&mut self, extensions: Arc<Extensions>) {
         todo!()
     }
 

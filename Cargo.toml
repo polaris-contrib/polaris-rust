@@ -38,3 +38,7 @@ tracing = {version = "0.1.36"}
 
 [dev-dependencies]
 tracing-subscriber = {version = "0.3", features = ["default"]}
+
+[[example]]
+name = "discover"
+path = "examples/discover.rs"

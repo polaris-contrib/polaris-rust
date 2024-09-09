@@ -21,6 +21,8 @@ use crate::core::plugin::plugins::Plugin;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::plugins::Extensions;
+
 pub struct Filter {
     pub resource_key: ResourceEventKey,
     pub internal_request: bool,
@@ -68,7 +70,7 @@ impl Default for NoopResourceCache {
 }
 
 impl Plugin for NoopResourceCache {
-    fn init(&mut self, extensions: super::plugins::Extensions) {
+    fn init(&mut self, extensions: Arc<Extensions>) {
         todo!()
     }
 

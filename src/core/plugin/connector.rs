@@ -13,14 +13,21 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::sync::Arc;
+
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 
+pub trait ResourceHandler: Send + Sync {}
+
 #[async_trait::async_trait]
 pub trait Connector: Plugin + Send + Sync {
     /// register_resource_handler 注册资源处理器
-    async fn register_resource_handler(&self) -> Result<bool, PolarisError>;
+    async fn register_resource_handler(
+        &self,
+        handler: Arc<dyn ResourceHandler>,
+    ) -> Result<bool, PolarisError>;
 
     /// deregister_resource_handler
     async fn deregister_resource_handler(&self) -> Result<bool, PolarisError>;
@@ -68,7 +75,7 @@ impl Default for NoopConnector {
 }
 
 impl Plugin for NoopConnector {
-    fn init(&mut self, extensions: Extensions) {
+    fn init(&mut self, extensions: Arc<Extensions>) {
         todo!()
     }
 
@@ -83,7 +90,10 @@ impl Plugin for NoopConnector {
 
 #[async_trait::async_trait]
 impl Connector for NoopConnector {
-    async fn register_resource_handler(&self) -> Result<bool, PolarisError> {
+    async fn register_resource_handler(
+        &self,
+        handler: Arc<dyn ResourceHandler>,
+    ) -> Result<bool, PolarisError> {
         todo!()
     }
 

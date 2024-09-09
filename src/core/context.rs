@@ -68,7 +68,9 @@ impl SDKContext {
 
     // create_by_configuration
     pub fn create_by_configuration(cfg: Configuration) -> Result<SDKContext, PolarisError> {
+        let start_time = std::time::Instant::now();
         let ret = Engine::new(cfg);
+        tracing::info!("create engine cost: {:?}", start_time.elapsed());
         if ret.is_err() {
             return Err(ret.err().unwrap());
         }

@@ -122,6 +122,7 @@ impl Endpoint {
 
 // Connector request and response 请求对象
 
+#[derive(Clone, Debug)]
 pub struct InstanceRequest {
     pub flow_id: String,
     pub ttl: u32,
@@ -132,11 +133,11 @@ impl InstanceRequest {
     pub fn convert_beat_spec(&self) -> crate::core::model::pb::lib::Instance {
         crate::core::model::pb::lib::Instance {
             id: None,
-            service: Some(self.instance.service.to_string()),
             namespace: Some(self.instance.namespace.to_string()),
-            vpc_id: Some(self.instance.vpc_id.to_string()),
+            service: Some(self.instance.service.to_string()),
             host: Some(self.instance.ip.to_string()),
             port: Some(self.instance.port.clone()),
+            vpc_id: None,
             protocol: None,
             version: None,
             priority: None,

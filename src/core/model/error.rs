@@ -66,7 +66,10 @@ impl Default for ErrorCode {
 }
 
 #[derive(Debug)]
-pub struct PolarisError {
+pub struct PolarisError
+where
+    Self: Display + Send + Sync,
+{
     err_msg: String,
     err_code: ErrorCode,
 }

@@ -23,10 +23,10 @@ pub mod router;
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, time::Duration};
+    use std::{borrow::BorrowMut, collections::HashMap, pin::Pin, sync::Arc, time::Duration};
 
     use crate::{
-        core::model::naming::Location,
+        core::model::{error::PolarisError, naming::Location},
         discovery::{
             api::{new_provider_api, ProviderAPI},
             req::{InstanceDeregisterRequest, InstanceHeartbeatRequest, InstanceRegisterRequest},
@@ -55,7 +55,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_provider() {
         setup_log();
+        let start_time = std::time::Instant::now();
         let provider_ret = new_provider_api();
+        tracing::info!("create provider cost: {:?}", start_time.elapsed());
         match provider_ret {
             Err(err) => {
                 tracing::error!("create provider fail: {}", err.to_string());
@@ -64,7 +66,7 @@ mod tests {
                 let metadata = HashMap::new();
 
                 let req = InstanceRegisterRequest {
-                    flow_id: "1".to_string(),
+                    flow_id: uuid::Uuid::new_v4().to_string(),
                     timeout: Duration::from_secs(1),
                     id: None,
                     namespace: "rust-demo".to_string(),
@@ -96,33 +98,31 @@ mod tests {
                     Ok(_) => {}
                 }
 
-                std::thread::sleep(Duration::from_secs(10));
+                let arc_provider = Arc::new(provier);
 
                 // 主动做一次心跳上报
-                let _ret = provier
-                    .heartbeat(InstanceHeartbeatRequest {
-                        timeout: Duration::from_secs(1),
-                        flow_id: "1".to_string(),
-                        id: None,
-                        namespace: "rust-demo".to_string(),
-                        service: "polaris-rust-provider".to_string(),
-                        ip: "1.1.1.1".to_string(),
-                        port: 8080,
-                    })
-                    .await;
-
-                match _ret {
-                    Err(err) => {
-                        tracing::error!("heartbeat fail: {}", err.to_string());
+                async {
+                    let cloned_provider = arc_provider.clone();
+                    for _ in 0..10 {
+                        let _ = cloned_provider
+                            .heartbeat(InstanceHeartbeatRequest {
+                                timeout: Duration::from_secs(1),
+                                flow_id: "1".to_string(),
+                                id: None,
+                                namespace: "rust-demo".to_string(),
+                                service: "polaris-rust-provider".to_string(),
+                                ip: "1.1.1.1".to_string(),
+                                port: 8080,
+                            })
+                            .await;
+                        tokio::time::sleep(Duration::from_secs(5)).await;
                     }
-                    Ok(_) => {}
                 }
-
-                std::thread::sleep(Duration::from_secs(10));
+                .await;
 
                 // 反注册
                 let deregister_req = InstanceDeregisterRequest {
-                    flow_id: "1".to_string(),
+                    flow_id: uuid::Uuid::new_v4().to_string(),
                     timeout: Duration::from_secs(1),
                     namespace: "rust-demo".to_string(),
                     service: "polaris-rust-provider".to_string(),
@@ -130,7 +130,7 @@ mod tests {
                     port: 8080,
                 };
 
-                let _ret = provier.deregister(deregister_req).await;
+                let _ret = arc_provider.clone().deregister(deregister_req).await;
                 match _ret {
                     Err(err) => {
                         tracing::error!("deregister fail: {}", err.to_string());
@@ -138,7 +138,7 @@ mod tests {
                     Ok(_) => {}
                 }
 
-                std::mem::forget(provier);
+                std::mem::forget(arc_provider);
             }
         }
     }
