@@ -36,7 +36,7 @@ impl ServiceKey {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ServiceInfo {
     pub id: String,
     pub namespace: String,

@@ -17,34 +17,37 @@ use crate::core::config::global::ServerConnectorConfig;
 use crate::core::model::error::ErrorCode::{ServerError, ServerUserError};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
+use crate::core::model::pb::lib::polaris_config_grpc_client::PolarisConfigGrpcClient;
 use crate::core::model::pb::lib::polaris_grpc_client::PolarisGrpcClient;
-use crate::core::model::pb::lib::Code;
 use crate::core::model::pb::lib::Code::{ExecuteSuccess, ExistedResource};
+use crate::core::model::pb::lib::{Code, DiscoverRequest, DiscoverResponse};
 use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 use crate::plugins::connector::grpc::manager::ConnectionManager;
-use http::Uri;
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use tonic::client::GrpcService;
-use tonic::metadata::{Ascii, AsciiMetadataKey, MetadataValue};
+use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::StreamExt;
+use tonic::metadata::{AsciiMetadataKey, MetadataValue};
 use tonic::service::interceptor::InterceptedService;
 use tonic::service::Interceptor;
 use tonic::transport::{Channel, Endpoint};
-use tonic::Request;
-use tower::ServiceExt;
+use tonic::Streaming;
 use tracing::Instrument;
 
 use super::manager::EmptyConnectionSwitchListener;
 
 pub struct GrpcConnector {
-    channel: Channel,
+    discover_channel: Channel,
+    config_channel: Channel,
     label: String,
     extensions: Arc<Extensions>,
     connection_manager: Arc<ConnectionManager>,
-    grpc_client: PolarisGrpcClient<Channel>,
+    discover_grpc_client: PolarisGrpcClient<Channel>,
+    config_grpc_client: PolarisConfigGrpcClient<Channel>,
 }
 
 fn new_connector(
@@ -52,16 +55,19 @@ fn new_connector(
     conf: &ServerConnectorConfig,
     extensions: Arc<Extensions>,
 ) -> Box<dyn Connector> {
-    let channel = create_channel(label.clone(), conf);
-    let grpc_client = create_grpc_client(label.clone(), channel.clone());
+    let (discover_channel, config_channel) = create_channel(label.clone(), conf);
 
     let client_id = extensions.get_client_id();
     let connect_timeout = conf.connect_timeout;
     let server_switch_interval = conf.server_switch_interval;
 
+    let discover_grpc_client = create_discover_grpc_client(label.clone(), discover_channel.clone());
+    let config_grpc_client = create_config_grpc_client(label.clone(), config_channel.clone());
+
     let c = GrpcConnector {
-        channel: channel,
-        label: label,
+        discover_channel: discover_channel.clone(),
+        config_channel: config_channel.clone(),
+        label: label.clone(),
         extensions: extensions,
         connection_manager: Arc::new(ConnectionManager::new(
             connect_timeout,
@@ -69,31 +75,61 @@ fn new_connector(
             client_id,
             Arc::new(EmptyConnectionSwitchListener::new()),
         )),
-        grpc_client: grpc_client,
+        discover_grpc_client: discover_grpc_client,
+        config_grpc_client: config_grpc_client,
     };
+
     Box::new(c) as Box<dyn Connector + 'static>
 }
 
-fn create_channel(label: String, conf: &ServerConnectorConfig) -> Channel {
+fn create_channel(label: String, conf: &ServerConnectorConfig) -> (Channel, Channel) {
     let addresses = conf.addresses.clone();
-    let connect_server = format!("http://{}", addresses.get(0).unwrap().clone());
-    let uri_ret = Uri::from_str(connect_server.as_str());
-    if uri_ret.is_err() {
-        panic!("parse server connect info fail: {}", uri_ret.unwrap_err());
+    let mut discover_address: Vec<String> = Vec::new();
+    let mut config_address: Vec<String> = Vec::new();
+
+    for ele in addresses {
+        if ele.starts_with("discover://") {
+            discover_address.push(format!(
+                "http://{}",
+                ele.trim_start_matches("discover://").to_string()
+            ));
+        } else if ele.starts_with("config://") {
+            config_address.push(format!(
+                "http://{}",
+                ele.trim_start_matches("config://").to_string()
+            ));
+        }
     }
-    tracing::info!("connect to server: {:?}", connect_server);
+
     let connect_timeout = conf.connect_timeout;
-    Channel::builder(uri_ret.unwrap())
-        .connect_timeout(connect_timeout)
-        .connect_lazy()
+
+    let discover_endpoints = discover_address.iter().map(|item| {
+        Endpoint::from_shared(item.to_string())
+            .unwrap()
+            .connect_timeout(connect_timeout.clone())
+    });
+    let config_endpoints = discover_address.iter().map(|item| {
+        Endpoint::from_shared(item.to_string())
+            .unwrap()
+            .connect_timeout(connect_timeout.clone())
+    });
+
+    let discover_channel = Channel::balance_list(discover_endpoints);
+    let config_channel = Channel::balance_list(config_endpoints);
+
+    (discover_channel, config_channel)
 }
 
-fn create_grpc_client(label: String, channel: Channel) -> PolarisGrpcClient<Channel> {
+fn create_discover_grpc_client(label: String, channel: Channel) -> PolarisGrpcClient<Channel> {
     PolarisGrpcClient::new(channel)
 }
 
+fn create_config_grpc_client(label: String, channel: Channel) -> PolarisConfigGrpcClient<Channel> {
+    PolarisConfigGrpcClient::new(channel)
+}
+
 impl Plugin for GrpcConnector {
-    fn init(&mut self, extensions: Arc<Extensions>) {}
+    fn init(&mut self) {}
 
     fn destroy(&self) {}
 
@@ -112,7 +148,7 @@ impl GrpcConnector {
         return (new_connector, "grpc".to_string());
     }
 
-    fn create_grpc_stub(
+    fn create_discover_grpc_stub(
         &self,
         flow: String,
     ) -> PolarisGrpcClient<InterceptedService<Channel, GrpcConnectorInterceptor>> {
@@ -123,7 +159,7 @@ impl GrpcConnector {
                 metadata
             },
         };
-        PolarisGrpcClient::with_interceptor(self.channel.clone(), interceptor)
+        PolarisGrpcClient::with_interceptor(self.discover_channel.clone(), interceptor)
     }
 }
 
@@ -148,7 +184,7 @@ impl Connector for GrpcConnector {
 
         tracing::debug!("[polaris][discovery][connector] send register instance request={req:?}");
 
-        let mut client = self.create_grpc_stub(req.flow_id.clone());
+        let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
         let ret = client
             .register_instance(tonic::Request::new(req.convert_spec()))
             .in_current_span()
@@ -193,7 +229,7 @@ impl Connector for GrpcConnector {
 
         tracing::debug!("[polaris][discovery][connector] send deregister instance request={req:?}");
 
-        let mut client = self.create_grpc_stub(req.flow_id.clone());
+        let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
         let ret = client
             .deregister_instance(tonic::Request::new(req.convert_spec()))
             .in_current_span()
@@ -227,7 +263,7 @@ impl Connector for GrpcConnector {
 
         tracing::debug!("[polaris][discovery][connector] send heartbeat instance request={req:?}");
 
-        let mut client = self.create_grpc_stub(req.flow_id.clone());
+        let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
         let ret = client
             .heartbeat(tonic::Request::new(req.convert_beat_spec()))
             .in_current_span()
@@ -284,6 +320,31 @@ impl Connector for GrpcConnector {
         todo!()
     }
 }
+
+struct DiscoverStreamClient {
+    sender: UnboundedSender<DiscoverRequest>,
+    reciver: Streaming<DiscoverResponse>
+}
+
+impl DiscoverStreamClient {
+    async fn build(client: &mut PolarisGrpcClient<Channel>) -> Result<Self, PolarisError> {
+        let (tx, rx) = mpsc::unbounded_channel::<DiscoverRequest>();
+        let reciver = UnboundedReceiverStream::new(rx);
+        let discover_rt = client.discover(tonic::Request::new(reciver)).await;
+
+        if discover_rt.is_err() {
+            return Err(PolarisError::new(crate::core::model::error::ErrorCode::PluginError, discover_rt.err().unwrap().to_string()));
+        }
+
+        let stream_recv = discover_rt.ok().unwrap().into_inner();
+        Ok(Self{
+            sender: tx,
+            reciver: stream_recv
+        })
+    }
+}
+
+struct ConfigStreamClient {}
 
 struct GrpcConnectorInterceptor {
     metadata: HashMap<String, String>,

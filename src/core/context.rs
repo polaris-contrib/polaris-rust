@@ -47,21 +47,7 @@ impl SDKContext {
         }
         let mut conf = cfg_opt.unwrap();
 
-        let mut discover_address = Vec::new();
-        let mut config_address = Vec::new();
-
-        addresses.iter().for_each(|addr| {
-            if addr.starts_with("config") {
-                config_address.push(addr.clone());
-            } else {
-                discover_address.push(addr.clone());
-            }
-        });
-
-        conf.global
-            .update_server_connector_address(DISCOVER_SERVER_CONNECTOR, discover_address);
-        conf.global
-            .update_server_connector_address(CONFIG_SERVER_CONNECTOR, config_address);
+        conf.global.update_server_connector_address(addresses);
 
         SDKContext::create_by_configuration(conf)
     }

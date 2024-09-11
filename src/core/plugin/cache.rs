@@ -16,10 +16,11 @@
 use crate::core::model::cache::{RegistryCacheValue, ResourceEventKey};
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::{ServiceKey, ServiceRule, Services};
+use crate::core::model::naming::{ServiceInfo, ServiceKey, ServiceRule, Services};
 use crate::core::plugin::plugins::Plugin;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use super::plugins::Extensions;
 
@@ -27,6 +28,7 @@ pub struct Filter {
     pub resource_key: ResourceEventKey,
     pub internal_request: bool,
     pub include_cache: bool,
+    pub timeout: Duration,
 }
 
 enum Action {
@@ -35,30 +37,31 @@ enum Action {
     Delete,
 }
 
-pub trait ResourceListener {
+pub trait ResourceListener: Send + Sync {
     fn on_event(&self, action: Action, key: ResourceEventKey, val: Arc<dyn RegistryCacheValue>);
 }
 
+#[async_trait::async_trait]
 pub trait ResourceCache: Plugin {
-    fn get_services(&self) -> Vec<ServiceKey>;
+    async fn get_services(&self, filter: Filter) -> Result<&[ServiceInfo], PolarisError>;
 
-    fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError>;
+    async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError>;
 
-    fn load_services(&self, filter: Filter) -> Result<Services, PolarisError>;
+    async fn load_services(&self, filter: Filter) -> Result<Services, PolarisError>;
 
-    fn load_service_instances(&self, filter: Filter) -> Result<Services, PolarisError>;
+    async fn load_service_instances(&self, filter: Filter) -> Result<Services, PolarisError>;
 
-    fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError>;
+    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError>;
 
-    fn load_config_groups(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
+    async fn load_config_groups(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
 
-    fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
+    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
 
-    fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>);
+    async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>);
 
-    fn watch_resource(&self, key: ResourceEventKey);
+    async fn watch_resource(&self, key: ResourceEventKey);
 
-    fn un_watch_resource(&self, key: ResourceEventKey);
+    async fn un_watch_resource(&self, key: ResourceEventKey);
 }
 
 pub struct NoopResourceCache {}
@@ -70,7 +73,7 @@ impl Default for NoopResourceCache {
 }
 
 impl Plugin for NoopResourceCache {
-    fn init(&mut self, extensions: Arc<Extensions>) {
+    fn init(&mut self) {
         todo!()
     }
 
@@ -83,44 +86,45 @@ impl Plugin for NoopResourceCache {
     }
 }
 
+#[async_trait::async_trait]
 impl ResourceCache for NoopResourceCache {
-    fn get_services(&self) -> Vec<ServiceKey> {
+    async fn get_services(&self, filter: Filter) -> Result<&[ServiceInfo], PolarisError> {
         todo!()
     }
 
-    fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
+    async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
         todo!()
     }
 
-    fn load_services(&self, filter: Filter) -> Result<Services, PolarisError> {
+    async fn load_services(&self, filter: Filter) -> Result<Services, PolarisError> {
         todo!()
     }
 
-    fn load_service_instances(&self, filter: Filter) -> Result<Services, PolarisError> {
+    async fn load_service_instances(&self, filter: Filter) -> Result<Services, PolarisError> {
         todo!()
     }
 
-    fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError> {
+    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError> {
         todo!()
     }
 
-    fn load_config_groups(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
+    async fn load_config_groups(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
         todo!()
     }
 
-    fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
+    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
         todo!()
     }
 
-    fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
+    async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
         todo!()
     }
 
-    fn watch_resource(&self, key: ResourceEventKey) {
+    async fn watch_resource(&self, key: ResourceEventKey) {
         todo!()
     }
 
-    fn un_watch_resource(&self, key: ResourceEventKey) {
+    async fn un_watch_resource(&self, key: ResourceEventKey) {
         todo!()
     }
 }

@@ -13,13 +13,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::core::model::cache::{ResourceEventKey, ServerEvent};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 
-pub trait ResourceHandler: Send + Sync {}
+pub trait ResourceHandler: Send + Sync {
+    // handle_event 处理资源事件
+    fn handle_event(&self, event: ServerEvent);
+    /// interest_resource 获取感兴趣的资源
+    fn interest_resource(&self) -> ResourceEventKey;
+}
 
 #[async_trait::async_trait]
 pub trait Connector: Plugin + Send + Sync {
@@ -38,31 +45,31 @@ pub trait Connector: Plugin + Send + Sync {
         req: InstanceRequest,
     ) -> Result<InstanceResponse, PolarisError>;
 
-    /// deregister_instance
+    /// deregister_instance 实例注销回调函数
     async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError>;
 
-    /// heartbeat_instance
+    /// heartbeat_instance 实例心跳回调函数
     async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError>;
 
-    /// report_client
+    /// report_client 上报客户端信息
     async fn report_client(&self) -> Result<bool, PolarisError>;
 
-    /// report_service_contract
+    /// report_service_contract 上报服务契约
     async fn report_service_contract(&self) -> Result<bool, PolarisError>;
 
-    /// get_service_contract
+    /// get_service_contract 获取服务契约
     async fn get_service_contract(&self) -> Result<String, PolarisError>;
 
-    /// create_config_file
+    /// create_config_file 创建配置文件
     async fn create_config_file(&self) -> Result<bool, PolarisError>;
 
-    /// update_config_file
+    /// update_config_file 更新配置文件
     async fn update_config_file(&self) -> Result<bool, PolarisError>;
 
-    /// release_config_file
+    /// release_config_file 删除配置文件
     async fn release_config_file(&self) -> Result<bool, PolarisError>;
 
-    /// upsert_publish_config_file
+    /// upsert_publish_config_file 更新发布配置文件
     async fn upsert_publish_config_file(&self) -> Result<bool, PolarisError>;
 }
 
@@ -75,7 +82,7 @@ impl Default for NoopConnector {
 }
 
 impl Plugin for NoopConnector {
-    fn init(&mut self, extensions: Arc<Extensions>) {
+    fn init(&mut self) {
         todo!()
     }
 

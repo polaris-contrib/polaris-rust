@@ -18,11 +18,15 @@ uuid = {version = "1.8.0", features = [
   "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]}
 
+# cache
+dashmap = {version = "5.4.0"}
+
 # async
-async-trait = "0.1"
+async-trait = {version = "0.1"}
 http = {version = "0.2.12"}
 hyper = {version = "0.14.28", features = ["full"]}
 tokio = {version = "1.37.0", features = ["full"]}
+tokio-stream = {version = "0.1.16"}
 tower = {version = "0.4.13"}
 
 # gRPC dep

@@ -40,8 +40,7 @@ where
 {
     runtime: Arc<Runtime>,
 
-    discover_connector: Arc<Box<dyn Connector>>,
-    config_connector: Arc<Box<dyn Connector>>,
+    server_connector: Arc<Box<dyn Connector>>,
 }
 
 impl Engine {
@@ -56,7 +55,7 @@ impl Engine {
         );
 
         let arc_conf = Arc::new(conf);
-        let client_id = acquire_client_id(arc_conf.clone());
+        let client_id = crate::core::plugin::plugins::acquire_client_id(arc_conf.clone());
 
         let mut containers = PluginContainer::default();
         // 初始化所有的插件
@@ -78,13 +77,11 @@ impl Engine {
         }
 
         let connector_result = init_connector_ret.unwrap();
-        let discover_connector: Option<Box<dyn Connector>> = connector_result.discover;
-        let config_connector: Option<Box<dyn Connector>> = connector_result.config;
+        let server_connector = connector_result;
 
         Ok(Self {
             runtime,
-            discover_connector: Arc::new(discover_connector.unwrap()),
-            config_connector: Arc::new(config_connector.unwrap()),
+            server_connector: Arc::new(server_connector),
         })
     }
 
@@ -93,7 +90,7 @@ impl Engine {
         &self,
         req: InstanceRegisterRequest,
     ) -> Result<InstanceRegisterResponse, PolarisError> {
-        let connector = self.discover_connector.clone();
+        let connector = self.server_connector.clone();
         let rsp = connector
             .register_instance(InstanceRequest {
                 flow_id: {
@@ -122,7 +119,7 @@ impl Engine {
         &self,
         req: InstanceDeregisterRequest,
     ) -> Result<(), PolarisError> {
-        let connector = self.discover_connector.clone();
+        let connector = self.server_connector.clone();
         let rsp = connector
             .deregister_instance(InstanceRequest {
                 flow_id: {
@@ -148,7 +145,7 @@ impl Engine {
         &self,
         req: InstanceHeartbeatRequest,
     ) -> Result<(), PolarisError> {
-        let connector = self.discover_connector.clone();
+        let connector = self.server_connector.clone();
         let rsp = connector
             .heartbeat_instance(InstanceRequest {
                 flow_id: {
@@ -171,47 +168,5 @@ impl Engine {
 
     pub fn get_executor(&self) -> Arc<Runtime> {
         self.runtime.clone()
-    }
-}
-
-fn acquire_client_id(conf: Arc<Configuration>) -> String {
-    // 读取本地域名 HOSTNAME，如果存在，则客户端 ID 标识为 {HOSTNAME}_{进程 PID}_{单进程全局自增数字}
-    // 不满足1的情况下，读取本地 IP，如果存在，则客户端 ID 标识为 {LOCAL_IP}_{进程 PID}_{单进程全局自增数字}
-    // 不满足上述情况，使用UUID作为客户端ID。
-    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    if env::var("HOSTNAME").is_ok() {
-        return format!(
-            "{}_{}_{}",
-            env::var("HOSTNAME").unwrap(),
-            std::process::id(),
-            seq
-        );
-    }
-    // 和北极星服务端做一个 TCP connect 连接获取 本地 IP 地址
-    let host = conf
-        .global
-        .server_connectors
-        .get(DISCOVER_SERVER_CONNECTOR)
-        .unwrap()
-        .addresses
-        .get(0);
-    let addrs = (host.unwrap().as_str(), 80).to_socket_addrs();
-    match addrs {
-        Ok(mut addr_iter) => {
-            if let Some(addr) = addr_iter.next() {
-                if let IpAddr::V4(ipv4) = addr.ip() {
-                    return format!("{}_{}_{}", ipv4, std::process::id(), seq);
-                } else if let IpAddr::V6(ipv6) = addr.ip() {
-                    return format!("{}_{}_{}", ipv6, std::process::id(), seq);
-                } else {
-                    return uuid::Uuid::new_v4().to_string();
-                }
-            } else {
-                return uuid::Uuid::new_v4().to_string();
-            }
-        }
-        Err(err) => {
-            return uuid::Uuid::new_v4().to_string();
-        }
     }
 }

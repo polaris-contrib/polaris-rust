@@ -22,17 +22,15 @@ use std::time::Duration;
 pub struct GlobalConfig {
     pub system: SystemConfig,
     pub api: APIConfig,
-    pub server_connectors: HashMap<String, ServerConnectorConfig>,
+    pub server_connectors: ServerConnectorConfig,
     pub stat_reporter: StatReporterConfig,
     pub location: LocationConfig,
     pub local_cache: LocalCacheConfig,
 }
 
 impl GlobalConfig {
-    pub fn update_server_connector_address(&mut self, name: &str, addresses: Vec<String>) {
-        let mut binding = self.server_connectors.get_mut(name);
-        let mut connector = binding.unwrap();
-        connector.update_addresses(addresses);
+    pub fn update_server_connector_address(&mut self, addresses: Vec<String>) {
+        self.server_connectors.update_addresses(addresses);
     }
 }
 
