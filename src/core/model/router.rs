@@ -15,10 +15,13 @@
 
 use std::iter::Map;
 
+use super::loadbalance::Criteria;
+
+#[derive(Clone)]
 enum MetadataFailoverType {
     MetadataFailoverNone,
     MetadataFailoverAll,
-    MetadataFailoverNoKey
+    MetadataFailoverNoKey,
 }
 
 enum TrafficLabel {
@@ -36,11 +39,13 @@ pub struct Argument {
     pub value: String,
 }
 
+#[derive(Clone)]
 pub struct CallerInfo {
     pub namespace: String,
     pub service: String,
     pub metadata: Map<String, String>,
     pub metadata_failover: MetadataFailoverType,
+    pub criteria: Criteria,
 }
 
 pub struct CalleeInfo {

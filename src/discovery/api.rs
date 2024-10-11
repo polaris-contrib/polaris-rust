@@ -29,14 +29,15 @@ pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultProviderAPI::new(context_ret.unwrap(), true))
+    Ok(DefaultProviderAPI::new(Arc::new(context_ret.unwrap()), true))
 }
 
-pub fn new_provider_api_by_context(context: SDKContext) -> Result<impl ProviderAPI, PolarisError> {
+pub fn new_provider_api_by_context(context: Arc<SDKContext>) -> Result<impl ProviderAPI, PolarisError> {
     Ok(DefaultProviderAPI::new(context, false))
 }
 
 /// ProviderAPI 负责服务提供者的生命周期管理
+#[async_trait::async_trait]
 pub trait ProviderAPI
 where
     Self: Send + Sync,
@@ -64,35 +65,51 @@ where
 }
 
 /// new_consumer_api
-pub(crate) fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
+pub fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultConsumerAPI::new(context_ret.unwrap()))
+    Ok(DefaultConsumerAPI::new(Arc::new(context_ret.unwrap())))
 }
 
-pub(crate) fn new_consumer_api_by_context(
-    context: SDKContext,
-) -> Result<impl ConsumerAPI, PolarisError> {
+pub fn new_consumer_api_by_context(context: Arc<SDKContext>) -> Result<impl ConsumerAPI, PolarisError> {
     Ok(DefaultConsumerAPI::new(context))
 }
 
-pub(crate) trait ConsumerAPI {
-    fn get_one_instance(&self, req: GetOneInstanceRequest) -> InstancesResponse;
+/// ConsumerAPI 负责服务消费方完成获取被调服务的 IP 地址完成远程调用
+#[async_trait::async_trait]
+pub trait ConsumerAPI
+where
+    Self: Send + Sync,
+{
+    async fn get_one_instance(
+        &self,
+        req: GetOneInstanceRequest,
+    ) -> Result<InstancesResponse, PolarisError>;
 
-    fn get_health_instance(&self, req: GetHealthInstanceRequest) -> InstancesResponse;
+    async fn get_health_instance(
+        &self,
+        req: GetHealthInstanceRequest,
+    ) -> Result<InstancesResponse, PolarisError>;
 
-    fn get_all_instance(&self, req: GetAllInstanceRequest) -> InstancesResponse;
+    async fn get_all_instance(
+        &self,
+        req: GetAllInstanceRequest,
+    ) -> Result<InstancesResponse, PolarisError>;
 
-    fn watch_instance(&self, req: WatchInstanceRequest) -> WatchInstanceResponse;
+    async fn watch_instance(
+        &self,
+        req: WatchInstanceRequest,
+    ) -> Result<WatchInstanceResponse, PolarisError>;
 
-    fn un_watch_instance(&self, req: UnWatchInstanceRequest) -> UnWatchInstanceResponse;
+    async fn get_service_rule(
+        &self,
+        req: GetServiceRuleRequest,
+    ) -> Result<ServiceRuleResponse, PolarisError>;
 
-    fn get_service_rule(&self, req: GetServiceRuleRequest) -> ServiceRuleResponse;
-
-    fn report_service_call(&self, req: ServiceCallResult);
+    async fn report_service_call(&self, req: ServiceCallResult);
 }
 
 pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {

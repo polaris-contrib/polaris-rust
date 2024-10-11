@@ -13,17 +13,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::cache::{RegistryCacheValue, ResourceEventKey};
+use crate::core::model::cache::{EventType, ResourceEventKey, ServerEvent};
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::{ServiceInfo, ServiceKey, ServiceRule, Services};
+use crate::core::model::naming::{ServiceInstances, ServiceRule, Services};
 use crate::core::plugin::plugins::Plugin;
-use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
-use super::plugins::Extensions;
-
+#[derive(Clone, Default)]
 pub struct Filter {
     pub resource_key: ResourceEventKey,
     pub internal_request: bool,
@@ -31,37 +28,43 @@ pub struct Filter {
     pub timeout: Duration,
 }
 
-enum Action {
+impl Filter {
+    pub fn get_event_type(&self) -> EventType {
+        self.resource_key.event_type.clone()
+    }
+}
+
+pub enum Action {
     Add,
     Update,
     Delete,
 }
 
 pub trait ResourceListener: Send + Sync {
-    fn on_event(&self, action: Action, key: ResourceEventKey, val: Arc<dyn RegistryCacheValue>);
+    // 处理事件
+    fn on_event(&self, action: Action, val: ServerEvent);
+    // 获取监听的key
+    fn watch_key(&self) -> ResourceEventKey;
 }
 
+/// 资源缓存
 #[async_trait::async_trait]
 pub trait ResourceCache: Plugin {
-    async fn get_services(&self, filter: Filter) -> Result<&[ServiceInfo], PolarisError>;
-
+    // 加载服务规则
     async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError>;
-
+    // 加载服务
     async fn load_services(&self, filter: Filter) -> Result<Services, PolarisError>;
-
-    async fn load_service_instances(&self, filter: Filter) -> Result<Services, PolarisError>;
-
+    // 加载服务实例
+    async fn load_service_instances(
+        &self,
+        filter: Filter,
+    ) -> Result<ServiceInstances, PolarisError>;
+    // 加载配置文件
     async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError>;
-
-    async fn load_config_groups(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
-
+    // 加载配置文件组
     async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
-
-    async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>);
-
-    async fn watch_resource(&self, key: ResourceEventKey);
-
-    async fn un_watch_resource(&self, key: ResourceEventKey);
+    // 注册资源监听器
+    async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>);
 }
 
 pub struct NoopResourceCache {}
@@ -88,10 +91,6 @@ impl Plugin for NoopResourceCache {
 
 #[async_trait::async_trait]
 impl ResourceCache for NoopResourceCache {
-    async fn get_services(&self, filter: Filter) -> Result<&[ServiceInfo], PolarisError> {
-        todo!()
-    }
-
     async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
         todo!()
     }
@@ -100,7 +99,10 @@ impl ResourceCache for NoopResourceCache {
         todo!()
     }
 
-    async fn load_service_instances(&self, filter: Filter) -> Result<Services, PolarisError> {
+    async fn load_service_instances(
+        &self,
+        filter: Filter,
+    ) -> Result<ServiceInstances, PolarisError> {
         todo!()
     }
 
@@ -108,23 +110,11 @@ impl ResourceCache for NoopResourceCache {
         todo!()
     }
 
-    async fn load_config_groups(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
-        todo!()
-    }
-
     async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
         todo!()
     }
 
-    async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
-        todo!()
-    }
-
-    async fn watch_resource(&self, key: ResourceEventKey) {
-        todo!()
-    }
-
-    async fn un_watch_resource(&self, key: ResourceEventKey) {
+    async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>) {
         todo!()
     }
 }

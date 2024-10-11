@@ -20,7 +20,7 @@ use std::time::Duration;
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GlobalConfig {
-    pub system: SystemConfig,
+    pub system: Option<SystemConfig>,
     pub api: APIConfig,
     pub server_connectors: ServerConnectorConfig,
     pub stat_reporter: StatReporterConfig,
@@ -113,7 +113,7 @@ pub struct StatReporterPluginConfig {
     pub options: Option<HashMap<String, String>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocationConfig {
     pub providers: Option<Vec<LocationProviderConfig>>,
@@ -128,7 +128,7 @@ fn default_location_providers() -> Vec<LocationProviderConfig> {
     return providers;
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocationProviderConfig {
     pub name: String,

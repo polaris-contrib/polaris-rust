@@ -13,7 +13,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::naming::{Instance, Location};
+use prost::Message;
+
+use crate::core::model::cache::EventType;
+use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::naming::{Instance, Location, ServiceInfo, ServiceInstancesChangeEvent};
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -186,50 +190,133 @@ pub struct ReportServiceContractRequest {}
 
 pub struct GetOneInstanceRequest {
     pub flow_id: String,
-    pub timeout_ms: u32,
+    pub timeout: Duration,
     pub service: String,
     pub namespace: String,
     pub caller_info: CallerInfo,
     pub callee_info: CalleeInfo,
 }
 
+impl GetOneInstanceRequest {
+    pub fn check_valid(&self) -> Result<(), PolarisError> {
+        if self.service.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "service is empty".to_string(),
+            ));
+        }
+
+        if self.namespace.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "namespace is empty".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub struct GetHealthInstanceRequest {
     pub flow_id: String,
-    pub timeout_ms: u32,
+    pub timeout: Duration,
     pub service: String,
     pub namespace: String,
 }
 
+impl GetHealthInstanceRequest {
+    pub fn check_valid(&self) -> Result<(), PolarisError> {
+        if self.service.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "service is empty".to_string(),
+            ));
+        }
+
+        if self.namespace.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "namespace is empty".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct GetAllInstanceRequest {
     pub flow_id: String,
-    pub timeout_ms: u32,
+    pub timeout: Duration,
     pub service: String,
     pub namespace: String,
 }
 
+impl GetAllInstanceRequest {
+    pub fn check_valid(&self) -> Result<(), PolarisError> {
+        if self.service.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "service is empty".to_string(),
+            ));
+        }
+
+        if self.namespace.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "namespace is empty".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct InstancesResponse {
+    pub service_info: ServiceInfo,
     pub instances: Vec<Instance>,
 }
 
 pub struct WatchInstanceRequest {
     pub namespace: String,
     pub service: String,
+    pub call_back: fn(ServiceInstancesChangeEvent),
 }
 
-pub struct WatchInstanceResponse {}
-
-pub struct UnWatchInstanceRequest {
-    pub namespace: String,
-    pub service: String,
+pub struct WatchInstanceResponse {
+    pub cancel: fn(),
 }
-
-pub struct UnWatchInstanceResponse {}
 
 pub struct ServiceCallResult {}
 
-pub struct GetServiceRuleRequest {}
+pub enum ServiceRuleType {
+    Router,
+    CircuitBreaker,
+    RateLimit,
+    FaultDetector,
+    Lane,
+}
 
-pub struct ServiceRuleResponse {}
+impl ServiceRuleType {
+    pub fn to_event_type(&self) -> EventType {
+        match self {
+            ServiceRuleType::Router => EventType::RouterRule,
+            ServiceRuleType::CircuitBreaker => EventType::CircuitBreakerRule,
+            ServiceRuleType::RateLimit => EventType::RateLimitRule,
+            ServiceRuleType::FaultDetector => EventType::FaultDetectRule,
+            ServiceRuleType::Lane => EventType::LaneRule,
+        }
+    }
+}
+
+pub struct GetServiceRuleRequest {
+    pub namespace: String,
+    pub service: String,
+    pub rule_type: ServiceRuleType,
+    pub timeout: Duration,
+}
+
+pub struct ServiceRuleResponse {
+    pub rules: Vec<Box<dyn Message>>,
+}
 
 // LossLessAPI request and response definition
 

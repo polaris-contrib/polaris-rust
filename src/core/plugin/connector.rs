@@ -16,28 +16,25 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::core::model::cache::{ResourceEventKey, ServerEvent};
+use crate::core::model::cache::{RemoteData, ResourceEventKey, ServerEvent};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 
 pub trait ResourceHandler: Send + Sync {
     // handle_event 处理资源事件
-    fn handle_event(&self, event: ServerEvent);
+    fn handle_event(&self, event: RemoteData);
     /// interest_resource 获取感兴趣的资源
     fn interest_resource(&self) -> ResourceEventKey;
 }
 
 #[async_trait::async_trait]
-pub trait Connector: Plugin + Send + Sync {
+pub trait Connector: Plugin {
     /// register_resource_handler 注册资源处理器
     async fn register_resource_handler(
         &self,
-        handler: Arc<dyn ResourceHandler>,
+        handler: Box<dyn ResourceHandler>,
     ) -> Result<bool, PolarisError>;
-
-    /// deregister_resource_handler
-    async fn deregister_resource_handler(&self) -> Result<bool, PolarisError>;
 
     /// register_instance: 实例注册回调函数
     async fn register_instance(
@@ -99,12 +96,8 @@ impl Plugin for NoopConnector {
 impl Connector for NoopConnector {
     async fn register_resource_handler(
         &self,
-        handler: Arc<dyn ResourceHandler>,
+        handler: Box<dyn ResourceHandler>,
     ) -> Result<bool, PolarisError> {
-        todo!()
-    }
-
-    async fn deregister_resource_handler(&self) -> Result<bool, PolarisError> {
         todo!()
     }
 

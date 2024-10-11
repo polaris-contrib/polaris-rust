@@ -14,13 +14,16 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::config::global::ServerConnectorConfig;
+use crate::core::model::cache::{EventType, RemoteData};
 use crate::core::model::error::ErrorCode::{ServerError, ServerUserError};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::model::pb::lib::polaris_config_grpc_client::PolarisConfigGrpcClient;
 use crate::core::model::pb::lib::polaris_grpc_client::PolarisGrpcClient;
 use crate::core::model::pb::lib::Code::{ExecuteSuccess, ExistedResource};
-use crate::core::model::pb::lib::{Code, DiscoverRequest, DiscoverResponse};
+use crate::core::model::pb::lib::{
+    Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
+};
 use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 use crate::plugins::connector::grpc::manager::ConnectionManager;
@@ -28,7 +31,11 @@ use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::mpsc::{self, UnboundedSender};
+use std::thread::sleep;
+use std::time::{self, Duration};
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::RwLock;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tonic::metadata::{AsciiMetadataKey, MetadataValue};
@@ -40,6 +47,7 @@ use tracing::Instrument;
 
 use super::manager::EmptyConnectionSwitchListener;
 
+#[derive(Clone)]
 pub struct GrpcConnector {
     discover_channel: Channel,
     config_channel: Channel,
@@ -48,6 +56,11 @@ pub struct GrpcConnector {
     connection_manager: Arc<ConnectionManager>,
     discover_grpc_client: PolarisGrpcClient<Channel>,
     config_grpc_client: PolarisConfigGrpcClient<Channel>,
+
+    discover_spec_sender: Arc<UnboundedSender<DiscoverRequest>>,
+    config_spec_sender: Arc<UnboundedSender<ConfigDiscoverRequest>>,
+
+    watch_resources: Arc<RwLock<HashMap<String, Box<dyn ResourceHandler>>>>,
 }
 
 fn new_connector(
@@ -64,11 +77,17 @@ fn new_connector(
     let discover_grpc_client = create_discover_grpc_client(label.clone(), discover_channel.clone());
     let config_grpc_client = create_config_grpc_client(label.clone(), config_channel.clone());
 
+    let (discover_sender, mut discover_reciver) =
+        run_discover_spec_stream(discover_channel.clone(), extensions.runtime.clone()).unwrap();
+
+    let (config_sender, mut config_reciver) =
+        run_config_spec_stream(config_channel.clone(), extensions.runtime.clone()).unwrap();
+
     let c = GrpcConnector {
         discover_channel: discover_channel.clone(),
         config_channel: config_channel.clone(),
         label: label.clone(),
-        extensions: extensions,
+        extensions: extensions.clone(),
         connection_manager: Arc::new(ConnectionManager::new(
             connect_timeout,
             server_switch_interval,
@@ -77,7 +96,61 @@ fn new_connector(
         )),
         discover_grpc_client: discover_grpc_client,
         config_grpc_client: config_grpc_client,
+
+        discover_spec_sender: Arc::new(discover_sender),
+        config_spec_sender: Arc::new(config_sender),
+
+        watch_resources: Arc::new(RwLock::new(HashMap::new())),
     };
+
+    let receive_c = c.clone();
+    // 创建一个新的线程，用于处理grpc的消息
+    extensions.runtime.spawn(async move {
+        loop {
+            tokio::select! {
+                discover_ret = discover_reciver.recv() => {
+                    if discover_ret.is_some() {
+                        receive_c.receive_discover_response(discover_ret.unwrap()).await;
+                    }
+                }
+                config_ret = config_reciver.recv() => {
+                    if config_ret.is_some() {
+                        receive_c.receive_config_response(config_ret.unwrap());
+                    }
+                }
+            }
+        }
+    });
+
+    let send_c = c.clone();
+    // 开启一个异步任务，定期发送请求到服务端
+    extensions.runtime.spawn(async move {
+        loop {
+            {
+                // 额外一个方法块，减少 lock 的占用时间
+                let watch_resources = send_c.watch_resources.read().await;
+                watch_resources.iter().for_each(|(_key, handler)| {
+                    let key = handler.interest_resource();
+                    let filter = key.clone().filter;
+                    tracing::debug!(
+                        "[polaris][discovery][connector] send discover request: {:?} filter: {:?}",
+                        key.clone(),
+                        filter.clone()
+                    );
+
+                    let discover_request = key.to_discover_request();
+                    let config_request = key.to_config_request();
+
+                    if discover_request.is_some() {
+                        let _ = send_c.discover_spec_sender.send(discover_request.unwrap());
+                    } else {
+                        let _ = send_c.config_spec_sender.send(config_request.unwrap());
+                    }
+                });
+            }
+            sleep(Duration::from_secs(2));
+        }
+    });
 
     Box::new(c) as Box<dyn Connector + 'static>
 }
@@ -101,6 +174,12 @@ fn create_channel(label: String, conf: &ServerConnectorConfig) -> (Channel, Chan
         }
     }
 
+    tracing::info!(
+        "[polaris][server_connector] discover_address: {:?} config_address: {:?}",
+        discover_address,
+        config_address
+    );
+
     let connect_timeout = conf.connect_timeout;
 
     let discover_endpoints = discover_address.iter().map(|item| {
@@ -108,7 +187,7 @@ fn create_channel(label: String, conf: &ServerConnectorConfig) -> (Channel, Chan
             .unwrap()
             .connect_timeout(connect_timeout.clone())
     });
-    let config_endpoints = discover_address.iter().map(|item| {
+    let config_endpoints = config_address.iter().map(|item| {
         Endpoint::from_shared(item.to_string())
             .unwrap()
             .connect_timeout(connect_timeout.clone())
@@ -139,8 +218,6 @@ impl Plugin for GrpcConnector {
 }
 
 impl GrpcConnector {
-    fn wait_server_ready(&self) {}
-
     pub fn builder() -> (
         fn(String, &ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector>,
         String,
@@ -161,27 +238,112 @@ impl GrpcConnector {
         };
         PolarisGrpcClient::with_interceptor(self.discover_channel.clone(), interceptor)
     }
+
+    async fn receive_discover_response(&self, resp: DiscoverResponse) {
+        tracing::debug!(
+            "[polaris][discovery][connector] receive naming_discover response: {:?}",
+            resp
+        );
+        let remote_rsp = resp.clone();
+        let mut watch_key = "".to_string();
+        match resp.r#type() {
+            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Services => {
+                watch_key = resp.service.unwrap().namespace.clone().unwrap();
+            },
+            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Instance => {
+                let svc = resp.service.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::Instance, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
+            },
+            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Routing => {
+                let svc = resp.service.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::RouterRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
+            },
+            crate::core::model::pb::lib::discover_response::DiscoverResponseType::RateLimit => {
+                let svc = resp.service.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::RateLimitRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
+            },
+            crate::core::model::pb::lib::discover_response::DiscoverResponseType::CircuitBreaker => {
+                let svc = resp.service.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::CircuitBreakerRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
+            },
+            crate::core::model::pb::lib::discover_response::DiscoverResponseType::FaultDetector => {
+                let svc = resp.service.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::FaultDetectRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
+            },
+            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Lane => {
+                let svc = resp.service.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::LaneRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
+            },
+            _ => {},
+        }
+        let handlers = self.watch_resources.read().await;
+        if let Some(handle) = handlers.get(watch_key.as_str()) {
+            handle.handle_event(RemoteData {
+                event_key: handle.interest_resource(),
+                discover_value: Some(remote_rsp),
+                config_value: None,
+            });
+        }
+    }
+
+    fn receive_config_response(&self, resp: ConfigDiscoverResponse) {
+        tracing::info!(
+            "[polaris][config][connector] receive config_discover response: {:?}",
+            resp
+        );
+        match resp.r#type() {
+            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFile => todo!(),
+            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => todo!(),
+            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => todo!(),
+            _ => todo!()
+        }
+    }
 }
 
 #[async_trait::async_trait]
 impl Connector for GrpcConnector {
     async fn register_resource_handler(
         &self,
-        handler: Arc<dyn ResourceHandler>,
+        handler: Box<dyn ResourceHandler>,
     ) -> Result<bool, PolarisError> {
-        todo!()
-    }
+        let watch_key = handler.interest_resource();
+        let watch_key_str = watch_key.to_string();
 
-    async fn deregister_resource_handler(&self) -> Result<bool, PolarisError> {
-        todo!()
+        let mut handlers = self.watch_resources.write().await;
+        if handlers.contains_key(watch_key_str.as_str()) {
+            return Err(PolarisError::new(
+                ServerError,
+                format!(
+                    "[polaris][discovery][connector] resource handler already exist: {}",
+                    watch_key_str
+                ),
+            ));
+        }
+
+        handlers.insert(watch_key_str.clone(), handler);
+
+        // 立即发送一个数据通知
+
+        let discover_request = watch_key.to_discover_request();
+        let config_request = watch_key.to_config_request();
+
+        if discover_request.is_some() {
+            let _ = self.discover_spec_sender.send(discover_request.unwrap());
+        } else {
+            let _ = self.config_spec_sender.send(config_request.unwrap());
+        }
+
+        tracing::info!(
+            "[polaris][discovery][connector] register resource handler: {}",
+            watch_key_str.clone()
+        );
+        Ok(true)
     }
 
     async fn register_instance(
         &self,
         req: InstanceRequest,
     ) -> Result<InstanceResponse, PolarisError> {
-        self.wait_server_ready();
-
         tracing::debug!("[polaris][discovery][connector] send register instance request={req:?}");
 
         let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
@@ -225,8 +387,6 @@ impl Connector for GrpcConnector {
     }
 
     async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
-        self.wait_server_ready();
-
         tracing::debug!("[polaris][discovery][connector] send deregister instance request={req:?}");
 
         let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
@@ -259,8 +419,6 @@ impl Connector for GrpcConnector {
     }
 
     async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
-        self.wait_server_ready();
-
         tracing::debug!("[polaris][discovery][connector] send heartbeat instance request={req:?}");
 
         let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
@@ -321,30 +479,124 @@ impl Connector for GrpcConnector {
     }
 }
 
-struct DiscoverStreamClient {
-    sender: UnboundedSender<DiscoverRequest>,
-    reciver: Streaming<DiscoverResponse>
-}
-
-impl DiscoverStreamClient {
-    async fn build(client: &mut PolarisGrpcClient<Channel>) -> Result<Self, PolarisError> {
-        let (tx, rx) = mpsc::unbounded_channel::<DiscoverRequest>();
+fn run_discover_spec_stream(
+    channel: Channel,
+    executor: Arc<Runtime>,
+) -> Result<
+    (
+        UnboundedSender<DiscoverRequest>,
+        UnboundedReceiver<DiscoverResponse>,
+    ),
+    PolarisError,
+> {
+    let (discover_sender, rx) = mpsc::unbounded_channel::<DiscoverRequest>();
+    let (rsp_sender, rsp_recv) = mpsc::unbounded_channel::<DiscoverResponse>();
+    _ = executor.spawn(async move {
+        tracing::info!("[polaris][discovery][connector] start naming_discover grpc stream");
         let reciver = UnboundedReceiverStream::new(rx);
-        let discover_rt = client.discover(tonic::Request::new(reciver)).await;
 
+        let mut client = PolarisGrpcClient::new(channel);
+
+        let discover_future = client.discover(tonic::Request::new(reciver));
+
+        let discover_rt = discover_future.await;
         if discover_rt.is_err() {
-            return Err(PolarisError::new(crate::core::model::error::ErrorCode::PluginError, discover_rt.err().unwrap().to_string()));
+            let stream_err = discover_rt.err().unwrap();
+            tracing::error!(
+                "[polaris][discovery][connector] naming_discover stream receive err: {}",
+                stream_err.clone().to_string()
+            );
+            return Err(PolarisError::new(
+                crate::core::model::error::ErrorCode::PluginError,
+                stream_err.clone().to_string(),
+            ));
         }
 
-        let stream_recv = discover_rt.ok().unwrap().into_inner();
-        Ok(Self{
-            sender: tx,
-            reciver: stream_recv
-        })
-    }
+        let mut stream_recv = discover_rt.unwrap().into_inner();
+        while let Some(received) = stream_recv.next().await {
+            match received {
+                Ok(rsp) => {
+                    match rsp_sender.send(rsp) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            tracing::error!(
+                                "[polaris][discovery][connector] send discover request receive fail: {}",
+                                err.to_string()
+                            );
+                        }
+                    }
+                }
+                Err(err) => {
+                    tracing::error!(
+                        "[polaris][discovery][connector] naming_discover stream receive err: {}",
+                        err.to_string()
+                    );
+                }
+            }
+        }
+        return Ok(());
+    });
+
+    Ok((discover_sender, rsp_recv))
 }
 
-struct ConfigStreamClient {}
+fn run_config_spec_stream(
+    channel: Channel,
+    executor: Arc<Runtime>,
+) -> Result<
+    (
+        UnboundedSender<ConfigDiscoverRequest>,
+        UnboundedReceiver<ConfigDiscoverResponse>,
+    ),
+    PolarisError,
+> {
+    tracing::info!("[polaris][config][connector] start config_discover grpc stream");
+    let (config_sender, config_reciver) = mpsc::unbounded_channel::<ConfigDiscoverRequest>();
+    let (rsp_sender, rsp_recv) = mpsc::unbounded_channel::<ConfigDiscoverResponse>();
+    _ = executor.spawn(async move {
+        let reciver = UnboundedReceiverStream::new(config_reciver);
+        let mut client = PolarisConfigGrpcClient::new(channel);
+
+        let discover_future = client.discover(tonic::Request::new(reciver));
+
+        let discover_rt = discover_future.await;
+        if discover_rt.is_err() {
+            let stream_err = discover_rt.err().unwrap();
+            tracing::error!(
+                "[polaris][config][connector] config_discover stream receive err: {}",
+                stream_err.clone().to_string()
+            );
+            return Err(PolarisError::new(
+                crate::core::model::error::ErrorCode::PluginError,
+                stream_err.clone().to_string(),
+            ));
+        }
+
+        let mut stream_recv: Streaming<ConfigDiscoverResponse> = discover_rt.unwrap().into_inner();
+        while let Some(received) = stream_recv.next().await {
+            match received {
+                Ok(rsp) => match rsp_sender.send(rsp) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        tracing::error!(
+                            "[polaris][config][connector] send config request receive fail: {}",
+                            err.to_string()
+                        );
+                    }
+                },
+                Err(err) => {
+                    tracing::error!(
+                        "[polaris][config][connector] config_discover stream receive err: {}",
+                        err.to_string()
+                    );
+                }
+            }
+        }
+        return Ok(());
+    });
+
+    Ok((config_sender, rsp_recv))
+}
 
 struct GrpcConnectorInterceptor {
     metadata: HashMap<String, String>,

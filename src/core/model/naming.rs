@@ -49,6 +49,7 @@ pub struct ServiceInfo {
 pub struct ServiceInstances {
     pub service: ServiceInfo,
     pub instances: Vec<Instance>,
+    pub available_instances: Vec<Instance>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -73,6 +74,49 @@ pub struct Instance {
 impl Instance {
     pub fn new() -> Instance {
         Default::default()
+    }
+
+    pub fn is_available(&self) -> bool {
+        if self.weight == 0 {
+            return false;
+        }
+        if !self.health {
+            return false;
+        }
+        if self.isolated {
+            return false;
+        }
+        return true;
+    }
+
+    pub fn convert_from_spec(data: crate::core::model::pb::lib::Instance) -> Instance {
+        let mut metadata = HashMap::<String, String>::new();
+        for ele in data.metadata {
+            metadata.insert(ele.0, ele.1);
+        }
+        let location = data.location.unwrap_or_default();
+
+        Self {
+            id: data.id.unwrap_or_default(),
+            namespace: data.namespace.unwrap_or_default(),
+            service: data.service.unwrap_or_default(),
+            ip: data.host.unwrap_or_default(),
+            port: data.port.unwrap_or_default(),
+            vpc_id: data.vpc_id.unwrap_or_default(),
+            version: data.version.unwrap_or_default(),
+            protocol: data.protocol.unwrap_or_default(),
+            health: data.healthy.unwrap_or(false),
+            isolated: data.isolate.unwrap_or(false),
+            weight: data.weight.unwrap_or(100),
+            priority: data.priority.unwrap_or_default(),
+            metadata: metadata,
+            location: Location {
+                region: location.region.unwrap_or_default(),
+                zone: location.zone.unwrap_or_default(),
+                campus: location.campus.unwrap_or_default(),
+            },
+            revision: data.revision.unwrap_or_default(),
+        }
     }
 }
 
@@ -99,10 +143,14 @@ impl Location {
             campus: Some(self.campus.clone()),
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.region.is_empty() && self.zone.is_empty() && self.campus.is_empty()
+    }
 }
 
 pub struct ServiceRule {
-    pub rule: Box<dyn Message>,
+    pub rules: Vec<Box<dyn Message>>,
     pub revision: String,
     pub initialized: bool,
 }
@@ -230,4 +278,11 @@ impl InstanceResponse {
             instance: Instance::default(),
         }
     }
+}
+
+pub struct ServiceInstancesChangeEvent {
+    pub service: ServiceInfo,
+    pub add_instances: Vec<Instance>,
+    pub remove_instances: Vec<Instance>,
+    pub update_instances: Vec<Instance>,
 }

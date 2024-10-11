@@ -16,7 +16,7 @@
 use std::fmt;
 use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ErrorCode {
     Success = 0,
     ApiInvalidArgument = 1001,
@@ -65,7 +65,7 @@ impl Default for ErrorCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolarisError
 where
     Self: Display + Send + Sync,

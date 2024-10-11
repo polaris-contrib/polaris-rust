@@ -66,6 +66,7 @@ where
     fn name(&self) -> String;
 }
 
+#[derive(Clone)]
 pub struct Extensions
 where
     Self: Send + Sync,

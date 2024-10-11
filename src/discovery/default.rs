@@ -20,52 +20,159 @@ use tokio::task::JoinHandle;
 
 use crate::core::context::SDKContext;
 use crate::core::model::error::PolarisError;
+use crate::core::model::naming::ServiceInstances;
 use crate::discovery::api::{ConsumerAPI, LosslessAPI, ProviderAPI};
 use crate::discovery::req::{
     BaseInstance, GetAllInstanceRequest, GetHealthInstanceRequest, GetOneInstanceRequest,
     GetServiceRuleRequest, InstanceDeregisterRequest, InstanceHeartbeatRequest,
     InstanceRegisterRequest, InstanceRegisterResponse, InstancesResponse, LosslessActionProvider,
-    ReportServiceContractRequest, ServiceCallResult, ServiceRuleResponse, UnWatchInstanceRequest,
-    UnWatchInstanceResponse, WatchInstanceRequest, WatchInstanceResponse,
+    ReportServiceContractRequest, ServiceCallResult, ServiceRuleResponse, WatchInstanceRequest,
+    WatchInstanceResponse,
 };
+use crate::router::api::{LoadBalanceAPI, RouterAPI};
+use crate::router::default::{DefaultLoadBalancerAPI, DefaultRouterAPI};
+use crate::router::req::{ProcessLoadBalanceRequest, ProcessRouteRequest};
 
 /// DefaultConsumerAPI
 pub struct DefaultConsumerAPI {
-    context: SDKContext,
+    context: Arc<SDKContext>,
+    router_api: Box<DefaultRouterAPI>,
+    loadbalance_api: Box<DefaultLoadBalancerAPI>,
 }
 
 impl DefaultConsumerAPI {
-    pub fn new(context: SDKContext) -> Self {
-        Self { context }
+    pub fn new(context: Arc<SDKContext>) -> Self {
+        Self {
+            context,
+            router_api: Box::new(DefaultRouterAPI::default()),
+            loadbalance_api: Box::new(DefaultLoadBalancerAPI::default()),
+        }
     }
 }
 
+#[async_trait::async_trait]
 impl ConsumerAPI for DefaultConsumerAPI {
-    fn get_one_instance(&self, req: GetOneInstanceRequest) -> InstancesResponse {
+    async fn get_one_instance(
+        &self,
+        req: GetOneInstanceRequest,
+    ) -> Result<InstancesResponse, PolarisError> {
+        let check_ret = req.check_valid();
+        if let Err(e) = check_ret {
+            return Err(e);
+        }
+
+        let engine = self.context.get_engine();
+        let rsp = engine
+            .get_service_instances(
+                GetAllInstanceRequest {
+                    flow_id: req.flow_id.clone(),
+                    timeout: req.timeout.clone(),
+                    service: req.service.clone(),
+                    namespace: req.namespace.clone(),
+                },
+                true,
+            )
+            .await;
+
+        match rsp {
+            Ok(mut rsp) => {
+                let instances = rsp.instances;
+
+                let criteria = req.caller_info.clone().criteria;
+
+                // 执行路由逻辑
+                let route_ret = self
+                    .router_api
+                    .router(ProcessRouteRequest {
+                        service_instances: ServiceInstances {
+                            service: rsp.service_info.clone(),
+                            available_instances: instances,
+                            instances: vec![],
+                        },
+                        caller_info: req.caller_info,
+                        callee_info: req.callee_info,
+                    })
+                    .await;
+
+                // 执行负载均衡逻辑
+                let balance_ret = self
+                    .loadbalance_api
+                    .load_balance(ProcessLoadBalanceRequest {
+                        service_instances: route_ret.service_instances,
+                        criteria: criteria,
+                    })
+                    .await;
+                rsp.instances = vec![balance_ret.instance];
+                Ok(rsp)
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
+    async fn get_health_instance(
+        &self,
+        req: GetHealthInstanceRequest,
+    ) -> Result<InstancesResponse, PolarisError> {
+        let check_ret = req.check_valid();
+        if let Err(e) = check_ret {
+            return Err(e);
+        }
+
+        let engine = self.context.get_engine();
+        let rsp: Result<InstancesResponse, PolarisError> = engine
+            .get_service_instances(
+                GetAllInstanceRequest {
+                    flow_id: req.flow_id,
+                    timeout: req.timeout,
+                    service: req.service,
+                    namespace: req.namespace,
+                },
+                true,
+            )
+            .await;
+
+        match rsp {
+            Ok(rsp) => Ok(rsp),
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn get_all_instance(
+        &self,
+        req: GetAllInstanceRequest,
+    ) -> Result<InstancesResponse, PolarisError> {
+        let check_ret = req.check_valid();
+        if let Err(e) = check_ret {
+            return Err(e);
+        }
+
+        let engine = self.context.get_engine();
+        let rsp = engine.get_service_instances(req, false).await;
+
+        match rsp {
+            Ok(rsp) => Ok(rsp),
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn watch_instance(
+        &self,
+        req: WatchInstanceRequest,
+    ) -> Result<WatchInstanceResponse, PolarisError> {
         todo!()
     }
 
-    fn get_health_instance(&self, req: GetHealthInstanceRequest) -> InstancesResponse {
-        todo!()
+    async fn get_service_rule(
+        &self,
+        req: GetServiceRuleRequest,
+    ) -> Result<ServiceRuleResponse, PolarisError> {
+        let engine = self.context.get_engine();
+        engine.get_service_rule(req).await
     }
 
-    fn get_all_instance(&self, req: GetAllInstanceRequest) -> InstancesResponse {
-        todo!()
-    }
-
-    fn watch_instance(&self, req: WatchInstanceRequest) -> WatchInstanceResponse {
-        todo!()
-    }
-
-    fn un_watch_instance(&self, req: UnWatchInstanceRequest) -> UnWatchInstanceResponse {
-        todo!()
-    }
-
-    fn get_service_rule(&self, req: GetServiceRuleRequest) -> ServiceRuleResponse {
-        todo!()
-    }
-
-    fn report_service_call(&self, req: ServiceCallResult) {
+    async fn report_service_call(&self, req: ServiceCallResult) {
         todo!()
     }
 }
@@ -76,12 +183,12 @@ where
     Self: Send + Sync,
 {
     manage_sdk: bool,
-    context: SDKContext,
+    context: Arc<SDKContext>,
     beat_tasks: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
 }
 
 impl DefaultProviderAPI {
-    pub fn new(context: SDKContext, manage_sdk: bool) -> Self {
+    pub fn new(context: Arc<SDKContext>, manage_sdk: bool) -> Self {
         Self {
             context,
             manage_sdk: manage_sdk,
@@ -90,6 +197,7 @@ impl DefaultProviderAPI {
     }
 }
 
+#[async_trait::async_trait]
 impl ProviderAPI for DefaultProviderAPI {
     async fn register(
         &self,
@@ -99,7 +207,7 @@ impl ProviderAPI for DefaultProviderAPI {
         let ttl = req.ttl;
         let beat_req = req.to_heartbeat_request();
         tracing::info!("[polaris][discovery][provider] register instance request: {req:?}");
-        let rsp = self.context.get_engine().sync_register_instance(req).await;
+        let rsp = self.context.get_engine().register_instance(req).await;
         let engine = self.context.get_engine();
         if rsp.is_ok() && auto_heartbeat {
             let task_key = beat_req.beat_key();
@@ -113,10 +221,10 @@ impl ProviderAPI for DefaultProviderAPI {
             let handler = engine.get_executor().spawn(async move {
                 loop {
                     tokio::time::sleep(tokio::time::Duration::from_secs(u64::from(ttl))).await;
-                    tracing::info!(
+                    tracing::debug!(
                         "[polaris][discovery][heartbeat] start to auto_beat instance: {beat_req:?}"
                     );
-                    let beat_ret = beat_engine.sync_instance_heartbeat(beat_req.clone()).await;
+                    let beat_ret = beat_engine.instance_heartbeat(beat_req.clone()).await;
                     if let Err(e) = beat_ret {
                         tracing::error!(
                         "[polaris][discovery][heartbeat] auto_beat instance to server fail: {e}"
@@ -142,12 +250,12 @@ impl ProviderAPI for DefaultProviderAPI {
         }
 
         let engine = self.context.get_engine();
-        engine.sync_deregister_instance(req).await
+        engine.deregister_instance(req).await
     }
 
     async fn heartbeat(&self, req: InstanceHeartbeatRequest) -> Result<(), PolarisError> {
         let engine = self.context.get_engine();
-        engine.sync_instance_heartbeat(req).await
+        engine.instance_heartbeat(req).await
     }
 
     async fn report_service_contract(

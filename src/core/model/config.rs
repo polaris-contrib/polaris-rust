@@ -15,6 +15,7 @@
 
 use std::collections::HashMap;
 
+#[derive(Default, Debug, Clone)]
 pub struct ConfigFile {
     pub namespace: String,
     pub group: String,
@@ -25,9 +26,15 @@ pub struct ConfigFile {
     // 配置加解密标识
     pub encrypt_algo: String,
     pub encrypt_key: String,
-    pub revision: String,
 }
 
+impl ConfigFile {
+    pub fn convert_from_spec(f: crate::core::model::pb::lib::ClientConfigFileInfo) -> ConfigFile {
+        todo!()
+    }
+}
+
+#[derive(Default, Debug, Clone)]
 pub struct ConfigGroup {
     pub namespace: String,
     pub group: String,

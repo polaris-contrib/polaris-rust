@@ -13,5 +13,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-pub mod local;
-pub mod remotehttp;
+use super::api::{LoadBalanceAPI, RouterAPI};
+
+#[derive(Default)]
+pub struct DefaultRouterAPI {}
+
+#[async_trait::async_trait]
+impl RouterAPI for DefaultRouterAPI {
+    async fn router(&self, req: super::req::ProcessRouteRequest) -> super::req::ProcessRouteResponse {
+        todo!()
+    }
+}
+
+#[derive(Default)]
+pub struct DefaultLoadBalancerAPI {}
+
+#[async_trait::async_trait]
+impl LoadBalanceAPI for DefaultLoadBalancerAPI {
+    async fn load_balance(
+        &self,
+        req: super::req::ProcessLoadBalanceRequest,
+    ) -> super::req::ProcessLoadBalanceResponse {
+        todo!()
+    }
+}

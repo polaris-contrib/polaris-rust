@@ -13,15 +13,26 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::router::req::{ProcessLoadBalanceRequest, ProcessLoadBalanceResponse, ProcessRouteRequest, ProcessRouteResponse};
+use crate::router::req::{
+    ProcessLoadBalanceRequest, ProcessLoadBalanceResponse, ProcessRouteRequest,
+    ProcessRouteResponse,
+};
 
-pub trait RouterAPI {
-    fn router(&self, req: ProcessRouteRequest) -> ProcessRouteResponse;
+#[async_trait::async_trait]
+pub trait RouterAPI
+where
+    Self: Send + Sync,
+{
+    async fn router(&self, req: ProcessRouteRequest) -> ProcessRouteResponse;
 }
 
-pub trait LoadBalanceAPI {
+#[async_trait::async_trait]
+pub(crate) trait LoadBalanceAPI
+where
+    Self: Send + Sync,
+{
     // load_balance 执行北极星负载均衡执行逻辑
-    fn load_balance(&self, req: ProcessLoadBalanceRequest) -> ProcessLoadBalanceResponse;
+    async fn load_balance(&self, req: ProcessLoadBalanceRequest) -> ProcessLoadBalanceResponse;
 }
 
 // ------ impl ------
