@@ -20,8 +20,6 @@ use crate::core::config::global::{CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNE
 use crate::core::engine::Engine;
 use crate::core::model::error::{ErrorCode, PolarisError};
 
-use super::engine;
-
 pub struct SDKContext {
     engine: Arc<Engine>,
 }

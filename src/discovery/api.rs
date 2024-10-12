@@ -29,10 +29,15 @@ pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultProviderAPI::new(Arc::new(context_ret.unwrap()), true))
+    Ok(DefaultProviderAPI::new(
+        Arc::new(context_ret.unwrap()),
+        true,
+    ))
 }
 
-pub fn new_provider_api_by_context(context: Arc<SDKContext>) -> Result<impl ProviderAPI, PolarisError> {
+pub fn new_provider_api_by_context(
+    context: Arc<SDKContext>,
+) -> Result<impl ProviderAPI, PolarisError> {
     Ok(DefaultProviderAPI::new(context, false))
 }
 
@@ -74,7 +79,9 @@ pub fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
     Ok(DefaultConsumerAPI::new(Arc::new(context_ret.unwrap())))
 }
 
-pub fn new_consumer_api_by_context(context: Arc<SDKContext>) -> Result<impl ConsumerAPI, PolarisError> {
+pub fn new_consumer_api_by_context(
+    context: Arc<SDKContext>,
+) -> Result<impl ConsumerAPI, PolarisError> {
     Ok(DefaultConsumerAPI::new(context))
 }
 
@@ -99,10 +106,7 @@ where
         req: GetAllInstanceRequest,
     ) -> Result<InstancesResponse, PolarisError>;
 
-    async fn watch_instance(
-        &self,
-        req: WatchInstanceRequest,
-    ) -> Result<WatchInstanceResponse, PolarisError>;
+    async fn watch_instance(&self, req: WatchInstanceRequest) -> Result<(), PolarisError>;
 
     async fn get_service_rule(
         &self,

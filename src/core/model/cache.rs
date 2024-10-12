@@ -19,7 +19,7 @@ use std::{
     time::{self, Duration},
 };
 
-use tokio::{sync::RwLock, task::yield_now};
+use tokio::sync::RwLock;
 
 use super::{
     config::ConfigFile,
@@ -87,6 +87,15 @@ pub enum CacheItemType {
     ConfigGroup(ConfigGroupCacheItem),
 }
 
+impl CacheItemType {
+    pub fn to_service_instances(&self) -> Option<ServiceInstancesCacheItem> {
+        match self {
+            CacheItemType::Instance(item) => Some(item.clone()),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RemoteData {
     pub event_key: ResourceEventKey,
@@ -116,68 +125,69 @@ pub struct ResourceEventKey {
 }
 
 impl ResourceEventKey {
-    pub fn to_discover_request(&self) -> Option<DiscoverRequest> {
+    pub fn to_discover_request(&self, revision: String) -> Option<DiscoverRequest> {
         match self.event_type {
             crate::core::model::cache::EventType::Instance => Some(DiscoverRequest {
                 r#type: DiscoverRequestType::Instance.into(),
-                service: Some(self.to_spec_service()),
+                service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
             crate::core::model::cache::EventType::RouterRule => Some(DiscoverRequest {
                 r#type: DiscoverRequestType::Routing.into(),
-                service: Some(self.to_spec_service()),
+                service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
             crate::core::model::cache::EventType::CircuitBreakerRule => Some(DiscoverRequest {
                 r#type: DiscoverRequestType::CircuitBreaker.into(),
-                service: Some(self.to_spec_service()),
+                service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
             crate::core::model::cache::EventType::RateLimitRule => Some(DiscoverRequest {
                 r#type: DiscoverRequestType::RateLimit.into(),
-                service: Some(self.to_spec_service()),
+                service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
             crate::core::model::cache::EventType::Service => Some(DiscoverRequest {
                 r#type: DiscoverRequestType::Services.into(),
-                service: Some(self.to_spec_service()),
+                service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
             crate::core::model::cache::EventType::FaultDetectRule => Some(DiscoverRequest {
                 r#type: DiscoverRequestType::FaultDetector.into(),
-                service: Some(self.to_spec_service()),
+                service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
             crate::core::model::cache::EventType::LaneRule => Some(DiscoverRequest {
                 r#type: DiscoverRequestType::Lane.into(),
-                service: Some(self.to_spec_service()),
+                service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
             _ => None,
         }
     }
 
-    pub fn to_config_request(&self) -> Option<ConfigDiscoverRequest> {
+    pub fn to_config_request(&self, revision: String) -> Option<ConfigDiscoverRequest> {
         match self.event_type {
             crate::core::model::cache::EventType::ConfigFile => Some(ConfigDiscoverRequest {
                 r#type: ConfigDiscoverRequestType::ConfigFile.into(),
                 config_file: Some(self.to_spec_config_file()),
-                revision: "".to_string(),
+                revision: revision,
             }),
             crate::core::model::cache::EventType::ConfigGroup => Some(ConfigDiscoverRequest {
                 r#type: ConfigDiscoverRequestType::ConfigFileNames.into(),
                 config_file: Some(self.to_spec_config_group()),
-                revision: "".to_string(),
+                revision: revision,
             }),
             _ => None,
         }
     }
 
-    pub fn to_spec_service(&self) -> Service {
+    pub fn to_spec_service(&self, revision: String) -> Service {
         let svc = self.filter.get("service").clone().unwrap().to_string();
         Service {
             namespace: Some(self.namespace.clone()),
             name: Some(svc),
+            revision: Some(revision),
             ..Service::default()
         }
     }
@@ -231,6 +241,7 @@ impl ToString for ResourceEventKey {
     }
 }
 
+#[async_trait::async_trait]
 pub trait RegistryCacheValue {
     fn is_loaded_from_file(&self) -> bool;
 
@@ -269,6 +280,7 @@ impl Clone for ServicesCacheItem {
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for ServicesCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -324,6 +336,10 @@ impl ServiceInstancesCacheItem {
         }
     }
 
+    pub async fn list_instances(&self) -> Vec<Instance> {
+        self.value.read().await.clone()
+    }
+
     pub fn get_service_info(&self) -> ServiceInfo {
         let svc_info = &self.svc_info;
         let id = svc_info.id.clone();
@@ -354,6 +370,7 @@ impl Clone for ServiceInstancesCacheItem {
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for ServiceInstancesCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -385,6 +402,7 @@ impl RegistryCacheValue for ServiceInstancesCacheItem {
 // RouterRulesCacheItem 路由规则
 pub struct RouterRulesCacheItem {
     initialized: AtomicBool,
+    pub revision: String,
     pub value: Arc<RwLock<Vec<Routing>>>,
 }
 
@@ -393,7 +411,17 @@ impl RouterRulesCacheItem {
         Self {
             initialized: AtomicBool::new(false),
             value: Arc::new(RwLock::new(Vec::new())),
+            revision: String::new(),
         }
+    }
+
+    pub fn finish_initialize(&self) {
+        let _ = self.initialized.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 }
 
@@ -404,10 +432,12 @@ impl Clone for RouterRulesCacheItem {
                 self.initialized.load(std::sync::atomic::Ordering::SeqCst),
             ),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for RouterRulesCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -428,11 +458,11 @@ impl RegistryCacheValue for RouterRulesCacheItem {
     }
 
     fn is_initialized(&self) -> bool {
-        todo!()
+        self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn revision(&self) -> String {
-        todo!()
+        self.revision.clone()
     }
 }
 
@@ -440,6 +470,7 @@ impl RegistryCacheValue for RouterRulesCacheItem {
 pub struct LaneRulesCacheItem {
     initialized: AtomicBool,
     value: Vec<LaneGroup>,
+    revision: String,
 }
 
 impl Clone for LaneRulesCacheItem {
@@ -447,10 +478,12 @@ impl Clone for LaneRulesCacheItem {
         Self {
             initialized: AtomicBool::new(false),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for LaneRulesCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -471,11 +504,11 @@ impl RegistryCacheValue for LaneRulesCacheItem {
     }
 
     fn is_initialized(&self) -> bool {
-        todo!()
+        self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn revision(&self) -> String {
-        todo!()
+        self.revision.clone()
     }
 }
 
@@ -483,6 +516,7 @@ impl RegistryCacheValue for LaneRulesCacheItem {
 pub struct RatelimitRulesCacheItem {
     initialized: AtomicBool,
     pub value: RateLimit,
+    pub revision: String,
 }
 
 impl RatelimitRulesCacheItem {
@@ -490,7 +524,17 @@ impl RatelimitRulesCacheItem {
         Self {
             initialized: AtomicBool::new(false),
             value: RateLimit::default(),
+            revision: String::new(),
         }
+    }
+
+    pub fn finish_initialize(&self) {
+        let _ = self.initialized.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 }
 
@@ -501,10 +545,12 @@ impl Clone for RatelimitRulesCacheItem {
                 self.initialized.load(std::sync::atomic::Ordering::SeqCst),
             ),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for RatelimitRulesCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -525,11 +571,11 @@ impl RegistryCacheValue for RatelimitRulesCacheItem {
     }
 
     fn is_initialized(&self) -> bool {
-        todo!()
+        self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn revision(&self) -> String {
-        todo!()
+        self.revision.clone()
     }
 }
 
@@ -537,6 +583,7 @@ impl RegistryCacheValue for RatelimitRulesCacheItem {
 pub struct CircuitBreakerRulesCacheItem {
     initialized: AtomicBool,
     pub value: CircuitBreaker,
+    pub revision: String,
 }
 
 impl CircuitBreakerRulesCacheItem {
@@ -544,7 +591,17 @@ impl CircuitBreakerRulesCacheItem {
         Self {
             initialized: AtomicBool::new(false),
             value: CircuitBreaker::default(),
+            revision: String::new(),
         }
+    }
+
+    pub fn finish_initialize(&self) {
+        let _ = self.initialized.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 }
 
@@ -555,10 +612,12 @@ impl Clone for CircuitBreakerRulesCacheItem {
                 self.initialized.load(std::sync::atomic::Ordering::SeqCst),
             ),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for CircuitBreakerRulesCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -579,11 +638,11 @@ impl RegistryCacheValue for CircuitBreakerRulesCacheItem {
     }
 
     fn is_initialized(&self) -> bool {
-        todo!()
+        self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn revision(&self) -> String {
-        todo!()
+        self.revision.clone()
     }
 }
 
@@ -591,6 +650,7 @@ impl RegistryCacheValue for CircuitBreakerRulesCacheItem {
 pub struct FaultDetectRulesCacheItem {
     initialized: AtomicBool,
     pub value: FaultDetector,
+    pub revision: String,
 }
 
 impl FaultDetectRulesCacheItem {
@@ -598,7 +658,17 @@ impl FaultDetectRulesCacheItem {
         Self {
             initialized: AtomicBool::new(false),
             value: FaultDetector::default(),
+            revision: String::new(),
         }
+    }
+
+    pub fn finish_initialize(&self) {
+        let _ = self.initialized.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 }
 
@@ -609,10 +679,12 @@ impl Clone for FaultDetectRulesCacheItem {
                 self.initialized.load(std::sync::atomic::Ordering::SeqCst),
             ),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for FaultDetectRulesCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -633,11 +705,11 @@ impl RegistryCacheValue for FaultDetectRulesCacheItem {
     }
 
     fn is_initialized(&self) -> bool {
-        todo!()
+        self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn revision(&self) -> String {
-        todo!()
+        self.revision.clone()
     }
 }
 
@@ -647,6 +719,7 @@ pub struct ConfigGroupCacheItem {
     pub namespace: String,
     pub group: String,
     pub files: Arc<RwLock<Vec<ConfigFile>>>,
+    pub revision: String,
 }
 
 impl ConfigGroupCacheItem {
@@ -656,7 +729,17 @@ impl ConfigGroupCacheItem {
             namespace: String::new(),
             group: String::new(),
             files: Arc::new(RwLock::new(Vec::new())),
+            revision: String::new(),
         }
+    }
+
+    pub fn finish_initialize(&self) {
+        let _ = self.initialized.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 }
 
@@ -669,10 +752,12 @@ impl Clone for ConfigGroupCacheItem {
             namespace: self.namespace.clone(),
             group: self.group.clone(),
             files: self.files.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for ConfigGroupCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -693,11 +778,11 @@ impl RegistryCacheValue for ConfigGroupCacheItem {
     }
 
     fn is_initialized(&self) -> bool {
-        todo!()
+        self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn revision(&self) -> String {
-        todo!()
+        self.revision.clone()
     }
 }
 
@@ -705,6 +790,7 @@ impl RegistryCacheValue for ConfigGroupCacheItem {
 pub struct ConfigFileCacheItem {
     initialized: AtomicBool,
     pub value: ClientConfigFileInfo,
+    pub revision: String,
 }
 
 impl ConfigFileCacheItem {
@@ -712,7 +798,17 @@ impl ConfigFileCacheItem {
         Self {
             initialized: AtomicBool::new(false),
             value: ClientConfigFileInfo::default(),
+            revision: String::new(),
         }
+    }
+
+    pub fn finish_initialize(&self) {
+        let _ = self.initialized.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 }
 
@@ -723,10 +819,12 @@ impl Clone for ConfigFileCacheItem {
                 self.initialized.load(std::sync::atomic::Ordering::SeqCst),
             ),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
 
+#[async_trait::async_trait]
 impl RegistryCacheValue for ConfigFileCacheItem {
     fn is_loaded_from_file(&self) -> bool {
         todo!()
@@ -747,10 +845,10 @@ impl RegistryCacheValue for ConfigFileCacheItem {
     }
 
     fn is_initialized(&self) -> bool {
-        todo!()
+        self.initialized.load(std::sync::atomic::Ordering::Acquire)
     }
 
     fn revision(&self) -> String {
-        todo!()
+        self.revision.clone()
     }
 }

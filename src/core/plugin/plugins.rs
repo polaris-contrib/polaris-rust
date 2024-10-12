@@ -14,12 +14,10 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::config::config::Configuration;
-use crate::core::config::global::{
-    LocalCacheConfig, ServerConnectorConfig, CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNECTOR,
-};
+use crate::core::config::global::{LocalCacheConfig, ServerConnectorConfig};
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::plugin::cache::ResourceCache;
-use crate::core::plugin::connector::{Connector, NoopConnector};
+use crate::core::plugin::connector::Connector;
 use crate::core::plugin::router::ServiceRouter;
 use crate::plugins::cache::memory::memory::MemoryCache;
 use crate::plugins::connector::grpc::connector::GrpcConnector;
@@ -27,14 +25,10 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::net::{IpAddr, ToSocketAddrs};
-use std::ptr::eq;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::{env, fmt};
 use tokio::runtime::Runtime;
-use tonic::transport::Server;
-
-use super::cache::NoopResourceCache;
 
 static SEQ: AtomicU64 = AtomicU64::new(1);
 

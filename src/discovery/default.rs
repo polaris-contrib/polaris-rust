@@ -14,39 +14,89 @@
 // specific language governing permissions and limitations under the License.
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::core::context::SDKContext;
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::ServiceInstances;
+use crate::core::model::naming::{ServiceInstances, ServiceInstancesChangeEvent};
+use crate::core::plugin::cache::ResourceListener;
 use crate::discovery::api::{ConsumerAPI, LosslessAPI, ProviderAPI};
 use crate::discovery::req::{
     BaseInstance, GetAllInstanceRequest, GetHealthInstanceRequest, GetOneInstanceRequest,
     GetServiceRuleRequest, InstanceDeregisterRequest, InstanceHeartbeatRequest,
     InstanceRegisterRequest, InstanceRegisterResponse, InstancesResponse, LosslessActionProvider,
     ReportServiceContractRequest, ServiceCallResult, ServiceRuleResponse, WatchInstanceRequest,
-    WatchInstanceResponse,
 };
 use crate::router::api::{LoadBalanceAPI, RouterAPI};
 use crate::router::default::{DefaultLoadBalancerAPI, DefaultRouterAPI};
 use crate::router::req::{ProcessLoadBalanceRequest, ProcessRouteRequest};
+
+struct InstanceWatcher {
+    req: WatchInstanceRequest,
+}
+
+struct InstanceResourceListener {
+    // watchers: namespace#service -> InstanceWatcher
+    watchers: Arc<RwLock<HashMap<String, Vec<InstanceWatcher>>>>,
+}
+
+#[async_trait::async_trait]
+impl ResourceListener for InstanceResourceListener {
+    async fn on_event(
+        &self,
+        action: crate::core::plugin::cache::Action,
+        val: crate::core::model::cache::ServerEvent,
+    ) {
+        let event_key = val.event_key;
+        let mut watch_key = event_key.namespace.clone();
+        let service = event_key.filter.get("service");
+        watch_key.push_str(service.unwrap().as_str());
+
+        let watchers = self.watchers.read().await;
+        if let Some(watchers) = watchers.get(&watch_key) {
+            let ins_cache_opt = val.value.to_service_instances();
+            if ins_cache_opt.is_none() {
+                return;
+            }
+            let ins_cache = ins_cache_opt.unwrap();
+            for watcher in watchers {
+                (watcher.req.call_back)(ServiceInstancesChangeEvent {
+                    service: ins_cache.get_service_info(),
+                    instances: ins_cache.list_instances().await,
+                })
+            }
+        }
+    }
+
+    fn watch_key(&self) -> crate::core::model::cache::EventType {
+        crate::core::model::cache::EventType::Instance
+    }
+}
 
 /// DefaultConsumerAPI
 pub struct DefaultConsumerAPI {
     context: Arc<SDKContext>,
     router_api: Box<DefaultRouterAPI>,
     loadbalance_api: Box<DefaultLoadBalancerAPI>,
+    // watchers: namespace#service -> InstanceWatcher
+    watchers: Arc<InstanceResourceListener>,
 }
 
 impl DefaultConsumerAPI {
     pub fn new(context: Arc<SDKContext>) -> Self {
-        Self {
-            context,
+        let consumer = DefaultConsumerAPI {
+            context: context,
             router_api: Box::new(DefaultRouterAPI::default()),
             loadbalance_api: Box::new(DefaultLoadBalancerAPI::default()),
-        }
+            watchers: Arc::new(InstanceResourceListener {
+                watchers: Arc::new(RwLock::new(HashMap::new())),
+            }),
+        };
+
+        consumer
     }
 }
 
@@ -157,11 +207,16 @@ impl ConsumerAPI for DefaultConsumerAPI {
         }
     }
 
-    async fn watch_instance(
-        &self,
-        req: WatchInstanceRequest,
-    ) -> Result<WatchInstanceResponse, PolarisError> {
-        todo!()
+    async fn watch_instance(&self, req: WatchInstanceRequest) -> Result<(), PolarisError> {
+        let mut watchers = self.watchers.watchers.write().await;
+
+        let watch_key = req.get_key();
+        let items = watchers
+            .entry(watch_key.clone())
+            .or_insert_with(|| Vec::new());
+
+        items.push(InstanceWatcher { req });
+        Ok(())
     }
 
     async fn get_service_rule(
@@ -232,7 +287,7 @@ impl ProviderAPI for DefaultProviderAPI {
                     }
                 }
             });
-            self.beat_tasks.write().unwrap().insert(task_key, handler);
+            self.beat_tasks.write().await.insert(task_key, handler);
         }
         return rsp;
     }
@@ -240,7 +295,7 @@ impl ProviderAPI for DefaultProviderAPI {
     async fn deregister(&self, req: InstanceDeregisterRequest) -> Result<(), PolarisError> {
         let beat_req = req.to_heartbeat_request();
         let task_key = beat_req.beat_key();
-        let wait_remove_task = self.beat_tasks.write().unwrap().remove(&task_key);
+        let wait_remove_task = self.beat_tasks.write().await.remove(&task_key);
         if let Some(task) = wait_remove_task {
             tracing::info!(
                 "[polaris][discovery][heartbeat] remove one auto_beat task={}",

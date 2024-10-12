@@ -22,7 +22,10 @@ use polaris_rust::{
     },
     discovery::{
         api::{new_consumer_api_by_context, new_provider_api_by_context, ConsumerAPI, ProviderAPI},
-        req::{GetAllInstanceRequest, InstanceDeregisterRequest, InstanceRegisterRequest},
+        req::{
+            GetAllInstanceRequest, InstanceDeregisterRequest, InstanceRegisterRequest,
+            WatchInstanceRequest,
+        },
     },
 };
 use tracing::level_filters::LevelFilter;
@@ -37,7 +40,7 @@ async fn main() -> Result<(), PolarisError> {
         .with_level(true)
         .with_line_number(true)
         .with_thread_ids(true)
-        .with_max_level(LevelFilter::INFO)
+        .with_max_level(LevelFilter::DEBUG)
         // sets this to be the default, global collector for this application.
         .init();
 
@@ -101,9 +104,9 @@ async fn main() -> Result<(), PolarisError> {
             zone: "1".to_string(),
             campus: "1".to_string(),
         },
-        ttl: 0,
+        ttl: 5,
         // 这里开启心跳的自动上报能力
-        auto_heartbeat: false,
+        auto_heartbeat: true,
     };
     let _ret = provider.register(req).await;
     match _ret {
@@ -113,9 +116,24 @@ async fn main() -> Result<(), PolarisError> {
         Ok(_) => {}
     }
 
-    // for _ in 0..120 {
-    //     std::thread::sleep(Duration::from_secs(1));
-    // }
+    let watch_rsp = consumer.watch_instance(WatchInstanceRequest {
+        namespace: "rust-demo".to_string(),
+        service: "polaris-rust-provider".to_string(),
+        call_back: Box::new(|instances| {
+            tracing::info!("watch instance: {:?}", instances.instances);
+        }),
+    }).await;
+
+    match watch_rsp {
+        Err(err) => {
+            tracing::error!("watch instance fail: {}", err.to_string());
+        }
+        Ok(_) => {}
+    }
+
+    for _ in 0..120 {
+        std::thread::sleep(Duration::from_secs(1));
+    }
 
     let instances_ret = consumer
         .get_all_instance(GetAllInstanceRequest {
@@ -143,6 +161,7 @@ async fn main() -> Result<(), PolarisError> {
         service: "polaris-rust-provider".to_string(),
         ip: "1.1.1.1".to_string(),
         port: 8080,
+        vpc_id: "1".to_string(),
     };
 
     let _ret = provider.deregister(deregister_req).await;

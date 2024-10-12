@@ -40,11 +40,12 @@ pub enum Action {
     Delete,
 }
 
+#[async_trait::async_trait]
 pub trait ResourceListener: Send + Sync {
     // 处理事件
-    fn on_event(&self, action: Action, val: ServerEvent);
+    async fn on_event(&self, action: Action, val: ServerEvent);
     // 获取监听的key
-    fn watch_key(&self) -> ResourceEventKey;
+    fn watch_key(&self) -> EventType;
 }
 
 /// 资源缓存

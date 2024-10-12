@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations under the License.
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
@@ -33,11 +32,9 @@ use crate::discovery::req::{
     ServiceRuleResponse,
 };
 
-use super::plugin::cache::{Filter, ResourceCache};
+use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
 use super::plugin::connector::Connector;
 use super::plugin::location::{LocationProvider, LocationSupplier};
-
-static SEQ: AtomicU64 = AtomicU64::new(1);
 
 pub struct Engine
 where
@@ -207,16 +204,19 @@ impl Engine {
         let mut filter = HashMap::<String, String>::new();
         filter.insert("service".to_string(), req.service.clone());
 
-        let ret = self.local_cache.load_service_instances(Filter {
-            resource_key: ResourceEventKey {
-                namespace: req.namespace.clone(),
-                event_type: EventType::Instance,
-                filter: filter,
-            },
-            internal_request: false,
-            include_cache: true,
-            timeout: req.timeout,
-        }).await;
+        let ret = self
+            .local_cache
+            .load_service_instances(Filter {
+                resource_key: ResourceEventKey {
+                    namespace: req.namespace.clone(),
+                    event_type: EventType::Instance,
+                    filter: filter,
+                },
+                internal_request: false,
+                include_cache: true,
+                timeout: req.timeout,
+            })
+            .await;
 
         if ret.is_err() {
             return Err(ret.err().unwrap());
@@ -245,16 +245,18 @@ impl Engine {
         let local_cache = self.local_cache.clone();
         let mut filter = HashMap::<String, String>::new();
         filter.insert("service".to_string(), req.service.clone());
-        let ret = local_cache.load_service_rule(Filter {
-            resource_key: ResourceEventKey {
-                namespace: req.namespace.clone(),
-                event_type: req.rule_type.to_event_type(),
-                filter,
-            },
-            internal_request: false,
-            include_cache: true,
-            timeout: req.timeout,
-        }).await;
+        let ret = local_cache
+            .load_service_rule(Filter {
+                resource_key: ResourceEventKey {
+                    namespace: req.namespace.clone(),
+                    event_type: req.rule_type.to_event_type(),
+                    filter,
+                },
+                internal_request: false,
+                include_cache: true,
+                timeout: req.timeout,
+            })
+            .await;
 
         if ret.is_err() {
             return Err(ret.err().unwrap());
@@ -263,6 +265,10 @@ impl Engine {
         Ok(ServiceRuleResponse {
             rules: ret.unwrap().rules,
         })
+    }
+
+    pub async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>) {
+        self.local_cache.register_resource_listener(listener).await;
     }
 
     pub fn get_executor(&self) -> Arc<Runtime> {

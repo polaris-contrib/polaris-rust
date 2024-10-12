@@ -47,6 +47,11 @@ use tracing::Instrument;
 
 use super::manager::EmptyConnectionSwitchListener;
 
+struct ResourceHandlerWrapper {
+    handler: Box<dyn ResourceHandler>,
+    revision: String,
+}
+
 #[derive(Clone)]
 pub struct GrpcConnector {
     discover_channel: Channel,
@@ -60,7 +65,7 @@ pub struct GrpcConnector {
     discover_spec_sender: Arc<UnboundedSender<DiscoverRequest>>,
     config_spec_sender: Arc<UnboundedSender<ConfigDiscoverRequest>>,
 
-    watch_resources: Arc<RwLock<HashMap<String, Box<dyn ResourceHandler>>>>,
+    watch_resources: Arc<RwLock<HashMap<String, ResourceHandlerWrapper>>>,
 }
 
 fn new_connector(
@@ -130,7 +135,7 @@ fn new_connector(
                 // 额外一个方法块，减少 lock 的占用时间
                 let watch_resources = send_c.watch_resources.read().await;
                 watch_resources.iter().for_each(|(_key, handler)| {
-                    let key = handler.interest_resource();
+                    let key = handler.handler.interest_resource();
                     let filter = key.clone().filter;
                     tracing::debug!(
                         "[polaris][discovery][connector] send discover request: {:?} filter: {:?}",
@@ -138,8 +143,8 @@ fn new_connector(
                         filter.clone()
                     );
 
-                    let discover_request = key.to_discover_request();
-                    let config_request = key.to_config_request();
+                    let discover_request = key.to_discover_request(handler.revision.clone());
+                    let config_request = key.to_config_request(handler.revision.clone());
 
                     if discover_request.is_some() {
                         let _ = send_c.discover_spec_sender.send(discover_request.unwrap());
@@ -240,11 +245,23 @@ impl GrpcConnector {
     }
 
     async fn receive_discover_response(&self, resp: DiscoverResponse) {
-        tracing::debug!(
-            "[polaris][discovery][connector] receive naming_discover response: {:?}",
-            resp
-        );
         let remote_rsp = resp.clone();
+        if remote_rsp.code.unwrap() == Code::DataNoChange as u32 {
+            tracing::error!(
+                "[polaris][discovery][connector] receive naming_discover no_change response: {:?}",
+                resp
+            );
+            return;
+        }
+
+        if remote_rsp.code.unwrap() != Code::ExecuteSuccess as u32 {
+            tracing::error!(
+                "[polaris][discovery][connector] receive naming_discover failure response: {:?}",
+                resp
+            );
+            return;
+        }
+
         let mut watch_key = "".to_string();
         match resp.r#type() {
             crate::core::model::pb::lib::discover_response::DiscoverResponseType::Services => {
@@ -276,10 +293,11 @@ impl GrpcConnector {
             },
             _ => {},
         }
-        let handlers = self.watch_resources.read().await;
-        if let Some(handle) = handlers.get(watch_key.as_str()) {
-            handle.handle_event(RemoteData {
-                event_key: handle.interest_resource(),
+        let mut handlers = self.watch_resources.write().await;
+        if let Some(handle) = handlers.get_mut(watch_key.as_str()) {
+            handle.revision = remote_rsp.service.clone().unwrap().revision.clone().unwrap();
+            handle.handler.handle_event(RemoteData {
+                event_key: handle.handler.interest_resource(),
                 discover_value: Some(remote_rsp),
                 config_value: None,
             });
@@ -320,12 +338,18 @@ impl Connector for GrpcConnector {
             ));
         }
 
-        handlers.insert(watch_key_str.clone(), handler);
+        handlers.insert(
+            watch_key_str.clone(),
+            ResourceHandlerWrapper {
+                handler: handler,
+                revision: String::new(),
+            },
+        );
 
         // 立即发送一个数据通知
 
-        let discover_request = watch_key.to_discover_request();
-        let config_request = watch_key.to_config_request();
+        let discover_request = watch_key.to_discover_request("".to_string());
+        let config_request = watch_key.to_config_request("".to_string());
 
         if discover_request.is_some() {
             let _ = self.discover_spec_sender.send(discover_request.unwrap());
@@ -419,7 +443,10 @@ impl Connector for GrpcConnector {
     }
 
     async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
-        tracing::debug!("[polaris][discovery][connector] send heartbeat instance request={req:?}");
+        tracing::debug!(
+            "[polaris][discovery][connector] send heartbeat instance request={:?}",
+            req.convert_beat_spec()
+        );
 
         let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
         let ret = client

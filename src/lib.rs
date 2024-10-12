@@ -113,6 +113,7 @@ mod tests {
                                 service: "polaris-rust-provider".to_string(),
                                 ip: "1.1.1.1".to_string(),
                                 port: 8080,
+                                vpc_id: "1".to_string(),
                             })
                             .await;
                         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -128,6 +129,7 @@ mod tests {
                     service: "polaris-rust-provider".to_string(),
                     ip: "1.1.1.1".to_string(),
                     port: 8080,
+                    vpc_id: "1".to_string(),
                 };
 
                 let _ret = arc_provider.clone().deregister(deregister_req).await;

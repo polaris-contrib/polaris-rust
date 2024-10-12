@@ -134,8 +134,8 @@ impl MemoryCache {
             EventType::Instance => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
-                let safe_map = handler.instances.read().await;
-                let cache_val_opt = safe_map.get(
+                let mut safe_map = handler.instances.write().await;
+                let cache_val_opt = safe_map.get_mut(
                     format!(
                         "{}#{}",
                         svc.namespace.clone().unwrap(),
@@ -159,14 +159,16 @@ impl MemoryCache {
                 for (_, val) in remote_instances.iter().enumerate() {
                     instances.push(Instance::convert_from_spec(val.clone()));
                 }
+
+                cache_val.revision = svc.revision.unwrap();
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::Instance(cache_val.clone());
             }
             EventType::RouterRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
-                let safe_map = handler.router_rules.read().await;
-                let cache_val_opt = safe_map.get(
+                let mut safe_map = handler.router_rules.write().await;
+                let cache_val_opt = safe_map.get_mut(
                     format!(
                         "{}#{}",
                         svc.namespace.clone().unwrap(),
@@ -187,13 +189,16 @@ impl MemoryCache {
                 rules.clear();
                 let remote_rules = remote_val.routing.unwrap_or_default();
                 rules.push(remote_rules);
+
+                cache_val.revision = svc.revision.unwrap();
+                cache_val.finish_initialize();
                 notify_event.value = CacheItemType::RouterRule(cache_val.clone());
             }
             EventType::CircuitBreakerRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
-                let safe_map = handler.circuitbreaker_rules.read().await;
-                let cache_val_opt = safe_map.get(
+                let mut safe_map = handler.circuitbreaker_rules.write().await;
+                let cache_val_opt = safe_map.get_mut(
                     format!(
                         "{}#{}",
                         svc.namespace.clone().unwrap(),
@@ -213,13 +218,16 @@ impl MemoryCache {
                 let rules = &cache_val.value;
                 let remote_rules = remote_val.circuit_breaker.unwrap_or_default();
                 rules.to_owned().clone_from(&remote_rules);
+
+                cache_val.revision = svc.revision.unwrap();
+                cache_val.finish_initialize();
                 notify_event.value = CacheItemType::CircuitBreakerRule(cache_val.clone());
             }
             EventType::RateLimitRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
-                let safe_map = handler.ratelimit_rules.read().await;
-                let cache_val_opt = safe_map.get(
+                let mut safe_map = handler.ratelimit_rules.write().await;
+                let cache_val_opt = safe_map.get_mut(
                     format!(
                         "{}#{}",
                         svc.namespace.clone().unwrap(),
@@ -239,13 +247,16 @@ impl MemoryCache {
                 let rules = &cache_val.value;
                 let remote_rules = remote_val.rate_limit.unwrap_or_default();
                 rules.to_owned().clone_from(&remote_rules);
+
+                cache_val.revision = svc.revision.unwrap();
+                cache_val.finish_initialize();
                 notify_event.value = CacheItemType::RateLimitRule(cache_val.clone());
             }
             EventType::FaultDetectRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
-                let safe_map = handler.faultdetect_rules.read().await;
-                let cache_val_opt = safe_map.get(
+                let mut safe_map = handler.faultdetect_rules.write().await;
+                let cache_val_opt = safe_map.get_mut(
                     format!(
                         "{}#{}",
                         svc.namespace.clone().unwrap(),
@@ -265,6 +276,9 @@ impl MemoryCache {
                 let rules = &cache_val.value;
                 let remote_rules = remote_val.fault_detector.unwrap_or_default();
                 rules.to_owned().clone_from(&remote_rules);
+
+                cache_val.revision = svc.revision.unwrap();
+                cache_val.finish_initialize();
                 notify_event.value = CacheItemType::FaultDetectRule(cache_val.clone());
             }
             EventType::ConfigFile => {
@@ -275,8 +289,8 @@ impl MemoryCache {
                     filter.get("file").unwrap()
                 );
 
-                let safe_map = handler.config_files.read().await;
-                let cache_val_opt = safe_map.get(search_key.as_str());
+                let mut safe_map = handler.config_files.write().await;
+                let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
                     tracing::error!(
                         "[polaris][resource_cache][memory] config_file cache not found: namespace={} group={} file={}",
@@ -290,17 +304,21 @@ impl MemoryCache {
                 let rules = &cache_val.value;
                 let remote_rules = event.config_value.unwrap().config_file.unwrap_or_default();
                 rules.to_owned().clone_from(&remote_rules);
+
+                cache_val.revision = remote_rules.version.unwrap().to_string();
+                cache_val.finish_initialize();
                 notify_event.value = CacheItemType::ConfigFile(cache_val.clone());
             }
             EventType::ConfigGroup => {
+                let remote_val = event.config_value.unwrap();
                 let search_key = format!(
                     "{}#{}",
                     event_key.namespace.clone(),
                     filter.get("group").unwrap(),
                 );
 
-                let safe_map = handler.config_groups.read().await;
-                let cache_val_opt = safe_map.get(search_key.as_str());
+                let mut safe_map = handler.config_groups.write().await;
+                let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
                     tracing::error!(
                         "[polaris][resource_cache][memory] config_group cache not found: namespace={} group={}",
@@ -311,11 +329,14 @@ impl MemoryCache {
                 }
                 let cache_val = cache_val_opt.unwrap();
                 let files = &mut cache_val.files.write().await;
-                let remote_rules = event.config_value.unwrap().config_file_names;
+                let remote_rules = remote_val.config_file_names;
                 files.clear();
                 for ele in remote_rules {
                     files.push(ConfigFile::convert_from_spec(ele));
                 }
+
+                cache_val.revision = remote_val.revision;
+                cache_val.finish_initialize();
                 notify_event.value = CacheItemType::ConfigGroup(cache_val.clone());
             }
             _ => todo!(),
@@ -326,7 +347,9 @@ impl MemoryCache {
         let expect_watcher_opt = listeners.get(&event_type);
         if let Some(expect_watcher) = expect_watcher_opt {
             for (_index, listener) in expect_watcher.iter().enumerate() {
-                listener.on_event(Action::Update, notify_event.clone());
+                listener
+                    .on_event(Action::Update, notify_event.clone())
+                    .await;
             }
         }
     }
@@ -631,9 +654,7 @@ impl ResourceCache for MemoryCache {
     async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>) {
         let watch_key = listener.watch_key();
         let mut safe_map = self.handler.listeners.write().await;
-        let listeners = safe_map
-            .entry(watch_key.event_type)
-            .or_insert_with(|| Vec::new());
+        let listeners = safe_map.entry(watch_key).or_insert_with(|| Vec::new());
 
         listeners.push(listener);
     }

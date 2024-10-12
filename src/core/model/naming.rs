@@ -181,11 +181,11 @@ impl InstanceRequest {
     pub fn convert_beat_spec(&self) -> crate::core::model::pb::lib::Instance {
         crate::core::model::pb::lib::Instance {
             id: None,
-            namespace: Some(self.instance.namespace.to_string()),
-            service: Some(self.instance.service.to_string()),
-            host: Some(self.instance.ip.to_string()),
+            namespace: Some(self.instance.namespace.clone()),
+            service: Some(self.instance.service.clone()),
+            host: Some(self.instance.ip.clone()),
             port: Some(self.instance.port.clone()),
-            vpc_id: None,
+            vpc_id: Some(self.instance.vpc_id.clone()),
             protocol: None,
             version: None,
             priority: None,
@@ -282,7 +282,5 @@ impl InstanceResponse {
 
 pub struct ServiceInstancesChangeEvent {
     pub service: ServiceInfo,
-    pub add_instances: Vec<Instance>,
-    pub remove_instances: Vec<Instance>,
-    pub update_instances: Vec<Instance>,
+    pub instances: Vec<Instance>,
 }

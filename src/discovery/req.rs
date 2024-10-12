@@ -20,6 +20,7 @@ use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{Instance, Location, ServiceInfo, ServiceInstancesChangeEvent};
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 use std::collections::HashMap;
+use std::future::Future;
 use std::time::Duration;
 
 #[derive(Clone, Debug)]
@@ -79,11 +80,12 @@ impl InstanceRegisterRequest {
         InstanceHeartbeatRequest {
             flow_id: "".to_string(),
             timeout: self.timeout.clone(),
-            id: self.id.clone(),
+            id: None,
             namespace: self.namespace.clone(),
             service: self.service.clone(),
             ip: self.ip.clone(),
             port: self.port,
+            vpc_id: self.vpc_id.clone(),
         }
     }
 }
@@ -101,6 +103,7 @@ pub struct InstanceDeregisterRequest {
     pub service: String,
     pub ip: String,
     pub port: u32,
+    pub vpc_id: String,
 }
 
 impl InstanceDeregisterRequest {
@@ -111,7 +114,7 @@ impl InstanceDeregisterRequest {
             service: self.service.clone(),
             ip: self.ip.clone(),
             port: self.port.clone(),
-            vpc_id: "".to_string(),
+            vpc_id: self.vpc_id.clone(),
             version: "".to_string(),
             protocol: "".to_string(),
             health: false,
@@ -133,6 +136,7 @@ impl InstanceDeregisterRequest {
             service: self.service.clone(),
             ip: self.ip.clone(),
             port: self.port,
+            vpc_id: self.vpc_id.clone(),
         }
     }
 }
@@ -147,6 +151,7 @@ pub struct InstanceHeartbeatRequest {
     pub service: String,
     pub ip: String,
     pub port: u32,
+    pub vpc_id: String,
 }
 
 impl InstanceHeartbeatRequest {
@@ -154,8 +159,9 @@ impl InstanceHeartbeatRequest {
         let namespace = self.namespace.clone();
         let service = self.service.clone();
         let ip = self.ip.clone();
-        let port = self.port;
-        return format!("{}_{}_{}_{}", namespace, service, ip, port);
+        let port: u32 = self.port;
+        let vpc_id = self.vpc_id.clone();
+        return format!("{}_{}_{}_{}_{}", namespace, service, ip, port, vpc_id);
     }
 
     pub fn convert_instance(&self) -> Instance {
@@ -164,13 +170,14 @@ impl InstanceHeartbeatRequest {
         let namespace = self.namespace.clone();
         let service = self.service.clone();
         let port = self.port;
+        let vpc_id = self.vpc_id.clone();
         Instance {
             id: instance_id.as_ref().unwrap_or(&"".to_string()).clone(),
             namespace: namespace,
             service: service,
             ip: ip,
             port: port,
-            vpc_id: "".to_string(),
+            vpc_id: vpc_id,
             version: "".to_string(),
             protocol: "".to_string(),
             health: false,
@@ -278,11 +285,32 @@ pub struct InstancesResponse {
 pub struct WatchInstanceRequest {
     pub namespace: String,
     pub service: String,
-    pub call_back: fn(ServiceInstancesChangeEvent),
+    pub call_back: Box<dyn Fn(ServiceInstancesChangeEvent) + Send + Sync>,
 }
 
-pub struct WatchInstanceResponse {
-    pub cancel: fn(),
+impl WatchInstanceRequest {
+    pub fn check_valid(&self) -> Result<(), PolarisError> {
+        if self.service.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "service is empty".to_string(),
+            ));
+        }
+
+        if self.namespace.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "namespace is empty".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn get_key(&self) -> String {
+        let namespace = self.namespace.clone();
+        let service = self.service.clone();
+        return format!("{}#{}", namespace, service);
+    }
 }
 
 pub struct ServiceCallResult {}
