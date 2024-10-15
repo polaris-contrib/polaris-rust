@@ -40,7 +40,7 @@ async fn main() -> Result<(), PolarisError> {
         .with_level(true)
         .with_line_number(true)
         .with_thread_ids(true)
-        .with_max_level(LevelFilter::DEBUG)
+        .with_max_level(LevelFilter::INFO)
         // sets this to be the default, global collector for this application.
         .init();
 
@@ -116,23 +116,22 @@ async fn main() -> Result<(), PolarisError> {
         Ok(_) => {}
     }
 
-    let watch_rsp = consumer.watch_instance(WatchInstanceRequest {
-        namespace: "rust-demo".to_string(),
-        service: "polaris-rust-provider".to_string(),
-        call_back: Box::new(|instances| {
-            tracing::info!("watch instance: {:?}", instances.instances);
-        }),
-    }).await;
+    tracing::info!("begin do watch service_instances change");
+    let watch_rsp = consumer
+        .watch_instance(WatchInstanceRequest {
+            namespace: "rust-demo".to_string(),
+            service: "polaris-rust-provider".to_string(),
+            call_back: Arc::new(|instances| {
+                tracing::info!("watch instance: {:?}", instances.instances);
+            }),
+        })
+        .await;
 
     match watch_rsp {
         Err(err) => {
             tracing::error!("watch instance fail: {}", err.to_string());
         }
         Ok(_) => {}
-    }
-
-    for _ in 0..120 {
-        std::thread::sleep(Duration::from_secs(1));
     }
 
     let instances_ret = consumer
@@ -151,6 +150,10 @@ async fn main() -> Result<(), PolarisError> {
         Ok(instances) => {
             tracing::info!("get all instance: {:?}", instances);
         }
+    }
+
+    for _ in 0..120 {
+        std::thread::sleep(Duration::from_secs(1));
     }
 
     // 反注册

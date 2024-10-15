@@ -15,7 +15,10 @@
 
 use std::{
     collections::HashMap,
+    future::Future,
+    pin::Pin,
     sync::{atomic::AtomicBool, Arc},
+    thread::sleep,
     time::{self, Duration},
 };
 
@@ -241,13 +244,25 @@ impl ToString for ResourceEventKey {
     }
 }
 
+fn build_waiter(initialized: Arc<AtomicBool>, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    Box::new(move || {
+        let start = std::time::Instant::now();
+        while !initialized.load(std::sync::atomic::Ordering::Acquire) {
+            if start.elapsed() > timeout {
+                break;
+            }
+            sleep(Duration::from_millis(100));
+        }
+    })
+}
+
 #[async_trait::async_trait]
 pub trait RegistryCacheValue {
     fn is_loaded_from_file(&self) -> bool;
 
     fn event_type(&self) -> EventType;
 
-    async fn wait_initialize(&self, timeout: Duration);
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send>;
 
     fn is_initialized(&self) -> bool;
 
@@ -256,14 +271,14 @@ pub trait RegistryCacheValue {
 
 // ServicesCacheItem 服务列表
 pub struct ServicesCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub value: Arc<RwLock<Vec<ServiceInfo>>>,
 }
 
 impl ServicesCacheItem {
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             value: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -272,9 +287,7 @@ impl ServicesCacheItem {
 impl Clone for ServicesCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             value: self.value.clone(),
         }
     }
@@ -290,14 +303,8 @@ impl RegistryCacheValue for ServicesCacheItem {
         crate::core::model::cache::EventType::Service
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -311,7 +318,7 @@ impl RegistryCacheValue for ServicesCacheItem {
 
 // ServiceInstancesCacheItem 服务实例
 pub struct ServiceInstancesCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub svc_info: Service,
     pub value: Arc<RwLock<Vec<Instance>>>,
     pub revision: String,
@@ -329,7 +336,7 @@ impl ServiceInstancesCacheItem {
 
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             svc_info: Service::default(),
             value: Arc::new(RwLock::new(Vec::new())),
             revision: String::new(),
@@ -360,9 +367,7 @@ impl ServiceInstancesCacheItem {
 impl Clone for ServiceInstancesCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             svc_info: self.svc_info.clone(),
             value: self.value.clone(),
             revision: self.revision.clone(),
@@ -380,14 +385,8 @@ impl RegistryCacheValue for ServiceInstancesCacheItem {
         crate::core::model::cache::EventType::Instance
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -401,7 +400,7 @@ impl RegistryCacheValue for ServiceInstancesCacheItem {
 
 // RouterRulesCacheItem 路由规则
 pub struct RouterRulesCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub revision: String,
     pub value: Arc<RwLock<Vec<Routing>>>,
 }
@@ -409,7 +408,7 @@ pub struct RouterRulesCacheItem {
 impl RouterRulesCacheItem {
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             value: Arc::new(RwLock::new(Vec::new())),
             revision: String::new(),
         }
@@ -428,9 +427,7 @@ impl RouterRulesCacheItem {
 impl Clone for RouterRulesCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             value: self.value.clone(),
             revision: self.revision.clone(),
         }
@@ -447,14 +444,8 @@ impl RegistryCacheValue for RouterRulesCacheItem {
         crate::core::model::cache::EventType::RouterRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -468,7 +459,7 @@ impl RegistryCacheValue for RouterRulesCacheItem {
 
 // LaneRulesCacheItem 泳道规则
 pub struct LaneRulesCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     value: Vec<LaneGroup>,
     revision: String,
 }
@@ -476,7 +467,7 @@ pub struct LaneRulesCacheItem {
 impl Clone for LaneRulesCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             value: self.value.clone(),
             revision: self.revision.clone(),
         }
@@ -493,14 +484,8 @@ impl RegistryCacheValue for LaneRulesCacheItem {
         crate::core::model::cache::EventType::LaneRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -514,7 +499,7 @@ impl RegistryCacheValue for LaneRulesCacheItem {
 
 // RatelimitRulesCacheItem 限流规则
 pub struct RatelimitRulesCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub value: RateLimit,
     pub revision: String,
 }
@@ -522,7 +507,7 @@ pub struct RatelimitRulesCacheItem {
 impl RatelimitRulesCacheItem {
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             value: RateLimit::default(),
             revision: String::new(),
         }
@@ -541,9 +526,7 @@ impl RatelimitRulesCacheItem {
 impl Clone for RatelimitRulesCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             value: self.value.clone(),
             revision: self.revision.clone(),
         }
@@ -560,14 +543,8 @@ impl RegistryCacheValue for RatelimitRulesCacheItem {
         crate::core::model::cache::EventType::RateLimitRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -581,7 +558,7 @@ impl RegistryCacheValue for RatelimitRulesCacheItem {
 
 // CircuitBreakerRulesCacheItem 熔断规则
 pub struct CircuitBreakerRulesCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub value: CircuitBreaker,
     pub revision: String,
 }
@@ -589,7 +566,7 @@ pub struct CircuitBreakerRulesCacheItem {
 impl CircuitBreakerRulesCacheItem {
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             value: CircuitBreaker::default(),
             revision: String::new(),
         }
@@ -608,9 +585,7 @@ impl CircuitBreakerRulesCacheItem {
 impl Clone for CircuitBreakerRulesCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             value: self.value.clone(),
             revision: self.revision.clone(),
         }
@@ -627,14 +602,8 @@ impl RegistryCacheValue for CircuitBreakerRulesCacheItem {
         crate::core::model::cache::EventType::CircuitBreakerRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -648,7 +617,7 @@ impl RegistryCacheValue for CircuitBreakerRulesCacheItem {
 
 // FaultDetectRulesCacheItem 主动探测规则
 pub struct FaultDetectRulesCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub value: FaultDetector,
     pub revision: String,
 }
@@ -656,7 +625,7 @@ pub struct FaultDetectRulesCacheItem {
 impl FaultDetectRulesCacheItem {
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             value: FaultDetector::default(),
             revision: String::new(),
         }
@@ -675,9 +644,7 @@ impl FaultDetectRulesCacheItem {
 impl Clone for FaultDetectRulesCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             value: self.value.clone(),
             revision: self.revision.clone(),
         }
@@ -694,14 +661,8 @@ impl RegistryCacheValue for FaultDetectRulesCacheItem {
         crate::core::model::cache::EventType::FaultDetectRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -715,7 +676,7 @@ impl RegistryCacheValue for FaultDetectRulesCacheItem {
 
 // ConfigGroupCacheItem 当个配置分组下已发布的文件列表信息
 pub struct ConfigGroupCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub namespace: String,
     pub group: String,
     pub files: Arc<RwLock<Vec<ConfigFile>>>,
@@ -725,7 +686,7 @@ pub struct ConfigGroupCacheItem {
 impl ConfigGroupCacheItem {
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             namespace: String::new(),
             group: String::new(),
             files: Arc::new(RwLock::new(Vec::new())),
@@ -746,9 +707,7 @@ impl ConfigGroupCacheItem {
 impl Clone for ConfigGroupCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             namespace: self.namespace.clone(),
             group: self.group.clone(),
             files: self.files.clone(),
@@ -767,14 +726,8 @@ impl RegistryCacheValue for ConfigGroupCacheItem {
         crate::core::model::cache::EventType::ConfigGroup
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {
@@ -788,7 +741,7 @@ impl RegistryCacheValue for ConfigGroupCacheItem {
 
 // ConfigFileCacheItem 单个配置文件的最新发布信息
 pub struct ConfigFileCacheItem {
-    initialized: AtomicBool,
+    initialized: Arc<AtomicBool>,
     pub value: ClientConfigFileInfo,
     pub revision: String,
 }
@@ -796,7 +749,7 @@ pub struct ConfigFileCacheItem {
 impl ConfigFileCacheItem {
     pub fn new() -> Self {
         Self {
-            initialized: AtomicBool::new(false),
+            initialized: Arc::new(AtomicBool::new(false)),
             value: ClientConfigFileInfo::default(),
             revision: String::new(),
         }
@@ -815,9 +768,7 @@ impl ConfigFileCacheItem {
 impl Clone for ConfigFileCacheItem {
     fn clone(&self) -> Self {
         Self {
-            initialized: AtomicBool::new(
-                self.initialized.load(std::sync::atomic::Ordering::SeqCst),
-            ),
+            initialized: self.initialized.clone(),
             value: self.value.clone(),
             revision: self.revision.clone(),
         }
@@ -834,14 +785,8 @@ impl RegistryCacheValue for ConfigFileCacheItem {
         crate::core::model::cache::EventType::ConfigFile
     }
 
-    async fn wait_initialize(&self, timeout: Duration) {
-        let start = std::time::Instant::now();
-        while !self.initialized.load(std::sync::atomic::Ordering::Acquire) {
-            if start.elapsed() > timeout {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+        build_waiter(self.initialized.clone(), timeout)
     }
 
     fn is_initialized(&self) -> bool {

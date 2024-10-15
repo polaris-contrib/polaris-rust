@@ -35,7 +35,7 @@ use std::sync::Arc;
 
 struct MemoryResourceHandler {
     // 资源类型变化监听
-    listeners: Arc<RwLock<HashMap<EventType, Vec<Box<dyn ResourceListener>>>>>,
+    listeners: Arc<RwLock<HashMap<EventType, Vec<Arc<dyn ResourceListener>>>>>,
     // services 服务列表缓存
     services: Arc<RwLock<HashMap<String, ServicesCacheItem>>>,
     // instances 服务实例缓存 key: namespace#service
@@ -125,7 +125,7 @@ impl MemoryCache {
             value: CacheItemType::Unknown,
         };
 
-        let event_key = event.event_key;
+        let event_key = event.event_key.clone();
         let event_type = event_key.event_type;
         let filter = event_key.filter;
 
@@ -339,11 +339,11 @@ impl MemoryCache {
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::ConfigGroup(cache_val.clone());
             }
-            _ => todo!(),
+            _ => {}
         }
 
         // 通知所有的 listener
-        let listeners = handler.listeners.read().await;
+        let listeners = { handler.listeners.read().await.clone() };
         let expect_watcher_opt = listeners.get(&event_type);
         if let Some(expect_watcher) = expect_watcher_opt {
             for (_index, listener) in expect_watcher.iter().enumerate() {
@@ -405,17 +405,32 @@ impl ResourceCache for MemoryCache {
     async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
         let event_type = filter.get_event_type();
         let search_namespace = filter.resource_key.namespace.clone();
-        let handler = self.handler.clone();
+        let search_service = filter.resource_key.filter.get("service").unwrap();
+        let search_key = format!("{}#{}", search_namespace.clone(), search_service);
 
         match event_type {
             EventType::RouterRule => {
-                let mut safe_map = handler.router_rules.write().await;
-                let cache_val = safe_map.entry(search_namespace.clone()).or_insert_with(|| {
-                    self.submit_resource_watch(EventType::RouterRule, filter.resource_key);
-                    RouterRulesCacheItem::new()
-                });
                 // 等待资源
-                cache_val.wait_initialize(filter.timeout).await;
+                {
+                    let resource_key = filter.resource_key.clone();
+                    let mut safe_map = self.handler.router_rules.write().await;
+                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                        self.submit_resource_watch(EventType::RouterRule, resource_key);
+                        RouterRulesCacheItem::new()
+                    });
+                }
+
+                // 这里进行无锁等待资源的加载完成
+                let waiter = {
+                    let safe_map = self.handler.router_rules.read().await;
+                    let cache_val = safe_map.get(&search_key).unwrap();
+                    let waiter = cache_val.wait_initialize(filter.timeout).await;
+                    waiter
+                };
+                waiter();
+
+                let safe_map = self.handler.router_rules.read().await;
+                let cache_val = safe_map.get(&search_key).unwrap();
                 // 如果还是没有初始化
                 if !cache_val.is_initialized() {
                     return Err(PolarisError::new(
@@ -435,13 +450,27 @@ impl ResourceCache for MemoryCache {
                 })
             }
             EventType::RateLimitRule => {
-                let mut safe_map = handler.ratelimit_rules.write().await;
-                let cache_val = safe_map.entry(search_namespace.clone()).or_insert_with(|| {
-                    self.submit_resource_watch(EventType::RateLimitRule, filter.resource_key);
-                    RatelimitRulesCacheItem::new()
-                });
                 // 等待资源
-                cache_val.wait_initialize(filter.timeout).await;
+                {
+                    let resource_key = filter.resource_key.clone();
+                    let mut safe_map = self.handler.ratelimit_rules.write().await;
+                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                        self.submit_resource_watch(EventType::RateLimitRule, resource_key);
+                        RatelimitRulesCacheItem::new()
+                    });
+                }
+
+                // 这里进行无锁等待资源的加载完成
+                let waiter = {
+                    let safe_map = self.handler.ratelimit_rules.read().await;
+                    let cache_val = safe_map.get(&search_key).unwrap();
+                    let waiter = cache_val.wait_initialize(filter.timeout).await;
+                    waiter
+                };
+                waiter();
+
+                let safe_map = self.handler.ratelimit_rules.read().await;
+                let cache_val = safe_map.get(&search_key).unwrap();
                 // 如果还是没有初始化
                 if !cache_val.is_initialized() {
                     return Err(PolarisError::new(
@@ -457,13 +486,27 @@ impl ResourceCache for MemoryCache {
                 })
             }
             EventType::CircuitBreakerRule => {
-                let mut safe_map = handler.circuitbreaker_rules.write().await;
-                let cache_val = safe_map.entry(search_namespace.clone()).or_insert_with(|| {
-                    self.submit_resource_watch(EventType::CircuitBreakerRule, filter.resource_key);
-                    CircuitBreakerRulesCacheItem::new()
-                });
                 // 等待资源
-                cache_val.wait_initialize(filter.timeout).await;
+                {
+                    let resource_key = filter.resource_key.clone();
+                    let mut safe_map = self.handler.circuitbreaker_rules.write().await;
+                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                        self.submit_resource_watch(EventType::CircuitBreakerRule, resource_key);
+                        CircuitBreakerRulesCacheItem::new()
+                    });
+                }
+
+                // 这里进行无锁等待资源的加载完成
+                let waiter = {
+                    let safe_map = self.handler.circuitbreaker_rules.read().await;
+                    let cache_val = safe_map.get(&search_key).unwrap();
+                    let waiter = cache_val.wait_initialize(filter.timeout).await;
+                    waiter
+                };
+                waiter();
+
+                let safe_map = self.handler.circuitbreaker_rules.read().await;
+                let cache_val = safe_map.get(&search_key).unwrap();
                 // 如果还是没有初始化
                 if !cache_val.is_initialized() {
                     return Err(PolarisError::new(
@@ -479,13 +522,27 @@ impl ResourceCache for MemoryCache {
                 })
             }
             EventType::FaultDetectRule => {
-                let mut safe_map = handler.faultdetect_rules.write().await;
-                let cache_val = safe_map.entry(search_namespace.clone()).or_insert_with(|| {
-                    self.submit_resource_watch(EventType::FaultDetectRule, filter.resource_key);
-                    FaultDetectRulesCacheItem::new()
-                });
                 // 等待资源
-                cache_val.wait_initialize(filter.timeout).await;
+                {
+                    let resource_key = filter.resource_key.clone();
+                    let mut safe_map = self.handler.faultdetect_rules.write().await;
+                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                        self.submit_resource_watch(EventType::FaultDetectRule, resource_key);
+                        FaultDetectRulesCacheItem::new()
+                    });
+                }
+
+                // 这里进行无锁等待资源的加载完成
+                let waiter = {
+                    let safe_map = self.handler.faultdetect_rules.read().await;
+                    let cache_val = safe_map.get(&search_key).unwrap();
+                    let waiter = cache_val.wait_initialize(filter.timeout).await;
+                    waiter
+                };
+                waiter();
+
+                let safe_map = self.handler.faultdetect_rules.read().await;
+                let cache_val = safe_map.get(&search_key).unwrap();
                 // 如果还是没有初始化
                 if !cache_val.is_initialized() {
                     return Err(PolarisError::new(
@@ -510,14 +567,27 @@ impl ResourceCache for MemoryCache {
     }
 
     async fn load_services(&self, filter: Filter) -> Result<Services, PolarisError> {
-        let search_namespace = filter.resource_key.namespace.clone();
-        let mut safe_map = self.handler.services.write().await;
-        let cache_val = safe_map.entry(search_namespace.clone()).or_insert_with(|| {
-            self.submit_resource_watch(EventType::Service, filter.resource_key);
-            ServicesCacheItem::new()
-        });
-        // 等待资源
-        cache_val.wait_initialize(filter.timeout).await;
+        let search_key = filter.resource_key.namespace.clone();
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.services.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::Service, resource_key);
+                ServicesCacheItem::new()
+            });
+        }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.services.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+            let waiter = cache_val.wait_initialize(filter.timeout).await;
+            waiter
+        };
+        waiter();
+
+        let safe_map = self.handler.services.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
             return Err(PolarisError::new(
@@ -541,21 +611,28 @@ impl ResourceCache for MemoryCache {
     ) -> Result<ServiceInstances, PolarisError> {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_service = filter.resource_key.filter.get("service").unwrap();
+        let search_key = format!("{}#{}", search_namespace.clone(), search_service);
         {
             let resource_key = filter.resource_key.clone();
             let mut safe_map = self.handler.instances.write().await;
-            let search_key = format!("{}#{}", search_namespace.clone(), search_service);
             let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
                 self.submit_resource_watch(EventType::Instance, resource_key);
                 ServiceInstancesCacheItem::new()
             });
         }
 
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.instances.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+            let waiter = cache_val.wait_initialize(filter.timeout).await;
+            waiter
+        };
+        waiter();
+
         let safe_map = self.handler.instances.read().await;
-        let search_key = format!("{}#{}", search_namespace.clone(), search_service);
         let cache_val = safe_map.get(&search_key).unwrap();
-        // 等待资源
-        cache_val.wait_initialize(filter.timeout).await;
+        // 等待资源，这里直接 clone 出来一个对象做数据拷贝，避免 read 锁长期持有
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
             return Err(PolarisError::new(
@@ -584,19 +661,31 @@ impl ResourceCache for MemoryCache {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_group = filter.resource_key.filter.get("group").unwrap();
         let search_file = filter.resource_key.filter.get("file").unwrap();
-        let mut safe_map = self.handler.config_files.write().await;
         let search_key = format!(
             "{}#{}#{}",
             search_namespace.clone(),
             search_group,
             search_file
         );
-        let cache_val = safe_map.entry(search_key.clone()).or_insert_with(|| {
-            self.submit_resource_watch(EventType::ConfigFile, filter.resource_key);
-            ConfigFileCacheItem::new()
-        });
-        // 等待资源
-        cache_val.wait_initialize(filter.timeout).await;
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.config_files.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::ConfigFile, resource_key);
+                ConfigFileCacheItem::new()
+            });
+        }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.config_files.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+            let waiter = cache_val.wait_initialize(filter.timeout).await;
+            waiter
+        };
+        waiter();
+        let safe_map = self.handler.config_files.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
             return Err(PolarisError::new(
@@ -628,13 +717,26 @@ impl ResourceCache for MemoryCache {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_group = filter.resource_key.filter.get("group").unwrap();
         let search_key = format!("{}#{}", search_namespace.clone(), search_group);
-        let mut safe_map = self.handler.config_groups.write().await;
-        let cache_val = safe_map.entry(search_key.clone()).or_insert_with(|| {
-            self.submit_resource_watch(EventType::ConfigGroup, filter.resource_key);
-            ConfigGroupCacheItem::new()
-        });
-        // 等待资源
-        cache_val.wait_initialize(filter.timeout).await;
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.config_groups.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::ConfigGroup, resource_key);
+                ConfigGroupCacheItem::new()
+            });
+        }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.config_groups.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+            let waiter = cache_val.wait_initialize(filter.timeout).await;
+            waiter
+        };
+        waiter();
+
+        let safe_map = self.handler.config_groups.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
             return Err(PolarisError::new(
@@ -651,7 +753,7 @@ impl ResourceCache for MemoryCache {
         Ok(ret)
     }
 
-    async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>) {
+    async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
         let watch_key = listener.watch_key();
         let mut safe_map = self.handler.listeners.write().await;
         let listeners = safe_map.entry(watch_key).or_insert_with(|| Vec::new());

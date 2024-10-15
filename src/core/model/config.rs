@@ -15,6 +15,12 @@
 
 use std::collections::HashMap;
 
+#[derive(Clone, Debug)]
+pub struct ConfigFileRequest {
+    pub flow_id: String,
+    pub config_file: ConfigFile,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct ConfigFile {
     pub namespace: String,

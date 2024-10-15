@@ -23,10 +23,10 @@ pub mod router;
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::BorrowMut, collections::HashMap, pin::Pin, sync::Arc, time::Duration};
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
     use crate::{
-        core::model::{error::PolarisError, naming::Location},
+        core::model::naming::Location,
         discovery::{
             api::{new_provider_api, ProviderAPI},
             req::{InstanceDeregisterRequest, InstanceHeartbeatRequest, InstanceRegisterRequest},

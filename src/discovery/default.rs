@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -47,26 +48,30 @@ struct InstanceResourceListener {
 impl ResourceListener for InstanceResourceListener {
     async fn on_event(
         &self,
-        action: crate::core::plugin::cache::Action,
+        _action: crate::core::plugin::cache::Action,
         val: crate::core::model::cache::ServerEvent,
     ) {
         let event_key = val.event_key;
         let mut watch_key = event_key.namespace.clone();
         let service = event_key.filter.get("service");
+        watch_key.push_str("#");
         watch_key.push_str(service.unwrap().as_str());
 
         let watchers = self.watchers.read().await;
         if let Some(watchers) = watchers.get(&watch_key) {
             let ins_cache_opt = val.value.to_service_instances();
-            if ins_cache_opt.is_none() {
-                return;
-            }
-            let ins_cache = ins_cache_opt.unwrap();
-            for watcher in watchers {
-                (watcher.req.call_back)(ServiceInstancesChangeEvent {
-                    service: ins_cache.get_service_info(),
-                    instances: ins_cache.list_instances().await,
-                })
+            match ins_cache_opt {
+                Some(ins_cache_val) => {
+                    for watcher in watchers {
+                        (watcher.req.call_back)(ServiceInstancesChangeEvent {
+                            service: ins_cache_val.get_service_info(),
+                            instances: ins_cache_val.list_instances().await,
+                        })
+                    }
+                }
+                None => {
+                    // do nothing
+                }
             }
         }
     }
@@ -83,19 +88,22 @@ pub struct DefaultConsumerAPI {
     loadbalance_api: Box<DefaultLoadBalancerAPI>,
     // watchers: namespace#service -> InstanceWatcher
     watchers: Arc<InstanceResourceListener>,
+    //
+    register_resource_watcher: AtomicBool,
 }
 
 impl DefaultConsumerAPI {
     pub fn new(context: Arc<SDKContext>) -> Self {
+        let watcher = Arc::new(InstanceResourceListener {
+            watchers: Arc::new(RwLock::new(HashMap::new())),
+        });
         let consumer = DefaultConsumerAPI {
-            context: context,
+            context: context.clone(),
             router_api: Box::new(DefaultRouterAPI::default()),
             loadbalance_api: Box::new(DefaultLoadBalancerAPI::default()),
-            watchers: Arc::new(InstanceResourceListener {
-                watchers: Arc::new(RwLock::new(HashMap::new())),
-            }),
+            watchers: watcher,
+            register_resource_watcher: AtomicBool::new(false),
         };
-
         consumer
     }
 }
@@ -208,6 +216,18 @@ impl ConsumerAPI for DefaultConsumerAPI {
     }
 
     async fn watch_instance(&self, req: WatchInstanceRequest) -> Result<(), PolarisError> {
+        if self
+            .register_resource_watcher
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::SeqCst)
+            .is_ok()
+        {
+            // 延迟注册资源监听器
+            self.context
+                .get_engine()
+                .register_resource_listener(self.watchers.clone())
+                .await;
+        }
+
         let mut watchers = self.watchers.watchers.write().await;
 
         let watch_key = req.get_key();

@@ -13,10 +13,77 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-pub trait ConfigFileAPI {
+use std::sync::Arc;
 
+use crate::{
+    config::default::DefaultConfigFileAPI,
+    core::{
+        context::SDKContext,
+        model::{config::ConfigFile, error::PolarisError},
+    },
+};
+
+use super::req::{
+    DeleteConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
+    UpdateConfigFileRequest, WatchConfigFileRequest, WatchConfigFileResponse,
+    WatchConfigGroupRequest, WatchConfigGroupResponse,
+};
+
+/// new_config_file_api
+pub fn new_config_file_api() -> Result<impl ConfigFileAPI, PolarisError> {
+    let start_time = std::time::Instant::now();
+    let context_ret = SDKContext::default();
+    tracing::info!("create sdk context cost: {:?}", start_time.elapsed());
+    if context_ret.is_err() {
+        return Err(context_ret.err().unwrap());
+    }
+    Ok(DefaultConfigFileAPI::new(
+        Arc::new(context_ret.unwrap()),
+        true,
+    ))
 }
 
-pub trait ConfigGroupAPI {
+/// new_config_file_api_by_context
+pub fn new_config_file_api_by_context(
+    context: Arc<SDKContext>,
+) -> Result<impl ConfigFileAPI, PolarisError> {
+    Ok(DefaultConfigFileAPI::new(context, false))
+}
 
+#[async_trait::async_trait]
+pub trait ConfigFileAPI
+where
+    Self: Send + Sync,
+{
+    async fn get_config_file(&self, req: GetConfigFileRequest) -> Result<ConfigFile, PolarisError>;
+
+    async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PolarisError>;
+
+    async fn delete_config_file(&self, req: DeleteConfigFileRequest) -> Result<bool, PolarisError>;
+
+    async fn publish_config_file(
+        &self,
+        req: PublishConfigFileRequest,
+    ) -> Result<bool, PolarisError>;
+
+    async fn watch_config_file(
+        &self,
+        req: WatchConfigFileRequest,
+    ) -> Result<WatchConfigFileResponse, PolarisError>;
+}
+
+#[async_trait::async_trait]
+pub trait ConfigGroupAPI
+where
+    Self: Send + Sync,
+{
+    async fn get_publish_config_files(
+        &self,
+        req: GetConfigGroupRequest,
+    ) -> Result<Vec<ConfigFile>, PolarisError>;
+
+    async fn watch_publish_config_files(
+        &self,
+        req: WatchConfigGroupRequest,
+    ) -> Result<WatchConfigGroupResponse, PolarisError>;
 }

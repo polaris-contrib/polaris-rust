@@ -101,6 +101,7 @@ where
         req: GetHealthInstanceRequest,
     ) -> Result<InstancesResponse, PolarisError>;
 
+    /// get_all_instance 拉取所有实例
     async fn get_all_instance(
         &self,
         req: GetAllInstanceRequest,

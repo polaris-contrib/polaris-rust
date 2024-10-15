@@ -20,7 +20,7 @@ use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{Instance, Location, ServiceInfo, ServiceInstancesChangeEvent};
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 use std::collections::HashMap;
-use std::future::Future;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Clone, Debug)]
@@ -285,7 +285,7 @@ pub struct InstancesResponse {
 pub struct WatchInstanceRequest {
     pub namespace: String,
     pub service: String,
-    pub call_back: Box<dyn Fn(ServiceInstancesChangeEvent) + Send + Sync>,
+    pub call_back: Arc<dyn Fn(ServiceInstancesChangeEvent) + Send + Sync>,
 }
 
 impl WatchInstanceRequest {

@@ -15,6 +15,7 @@
 
 use crate::core::config::global::ServerConnectorConfig;
 use crate::core::model::cache::{EventType, RemoteData};
+use crate::core::model::config::ConfigFileRequest;
 use crate::core::model::error::ErrorCode::{ServerError, ServerUserError};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
@@ -247,7 +248,7 @@ impl GrpcConnector {
     async fn receive_discover_response(&self, resp: DiscoverResponse) {
         let remote_rsp = resp.clone();
         if remote_rsp.code.unwrap() == Code::DataNoChange as u32 {
-            tracing::error!(
+            tracing::debug!(
                 "[polaris][discovery][connector] receive naming_discover no_change response: {:?}",
                 resp
             );
@@ -295,7 +296,13 @@ impl GrpcConnector {
         }
         let mut handlers = self.watch_resources.write().await;
         if let Some(handle) = handlers.get_mut(watch_key.as_str()) {
-            handle.revision = remote_rsp.service.clone().unwrap().revision.clone().unwrap();
+            handle.revision = remote_rsp
+                .service
+                .clone()
+                .unwrap()
+                .revision
+                .clone()
+                .unwrap();
             handle.handler.handle_event(RemoteData {
                 event_key: handle.handler.interest_resource(),
                 discover_value: Some(remote_rsp),
@@ -489,15 +496,19 @@ impl Connector for GrpcConnector {
         todo!()
     }
 
-    async fn create_config_file(&self) -> Result<bool, PolarisError> {
+    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    async fn update_config_file(&self) -> Result<bool, PolarisError> {
+    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    async fn release_config_file(&self) -> Result<bool, PolarisError> {
+    async fn delete_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
+        todo!()
+    }
+
+    async fn release_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 

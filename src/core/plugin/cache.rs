@@ -18,6 +18,7 @@ use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{ServiceInstances, ServiceRule, Services};
 use crate::core::plugin::plugins::Plugin;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Clone, Default)]
@@ -65,7 +66,7 @@ pub trait ResourceCache: Plugin {
     // 加载配置文件组
     async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
     // 注册资源监听器
-    async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>);
+    async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>);
 }
 
 pub struct NoopResourceCache {}
@@ -115,7 +116,7 @@ impl ResourceCache for NoopResourceCache {
         todo!()
     }
 
-    async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>) {
+    async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
         todo!()
     }
 }

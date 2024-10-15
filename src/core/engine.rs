@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
 
+use crate::config::req::{CreateConfigFileRequest, GetConfigFileRequest};
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey};
 use crate::core::model::error::PolarisError;
@@ -32,6 +33,7 @@ use crate::discovery::req::{
     ServiceRuleResponse,
 };
 
+use super::model::config::ConfigFile;
 use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
 use super::plugin::connector::Connector;
 use super::plugin::location::{LocationProvider, LocationSupplier};
@@ -267,7 +269,52 @@ impl Engine {
         })
     }
 
-    pub async fn register_resource_listener(&self, listener: Box<dyn ResourceListener>) {
+    /// get_config_file 获取配置文件
+    pub async fn get_config_file(
+        &self,
+        req: GetConfigFileRequest,
+    ) -> Result<ConfigFile, PolarisError> {
+        let local_cache = self.local_cache.clone();
+        let mut filter = HashMap::<String, String>::new();
+        filter.insert("group".to_string(), req.group.clone());
+        filter.insert("file".to_string(), req.file.clone());
+        let ret = local_cache
+            .load_config_file(Filter {
+                resource_key: ResourceEventKey {
+                    namespace: req.namespace.clone(),
+                    event_type: EventType::ConfigFile,
+                    filter,
+                },
+                internal_request: false,
+                include_cache: true,
+                timeout: req.timeout,
+            })
+            .await;
+
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
+        }
+
+        Ok(ret.unwrap())
+    }
+
+    /// create_config_file 创建配置文件
+    pub async fn create_config_file(
+        &self,
+        req: CreateConfigFileRequest,
+    ) -> Result<bool, PolarisError> {
+        let config_file = req.to_config_request();
+
+        let connector = self.server_connector.clone();
+        let rsp = connector.create_config_file(config_file).await;
+
+        return match rsp {
+            Ok(ret_rsp) => Ok(ret_rsp),
+            Err(err) => Err(err),
+        };
+    }
+
+    pub async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
         self.local_cache.register_resource_listener(listener).await;
     }
 

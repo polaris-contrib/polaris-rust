@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::core::model::cache::{RemoteData, ResourceEventKey, ServerEvent};
+use crate::core::model::config::ConfigFileRequest;
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::plugin::plugins::{Extensions, Plugin};
@@ -58,13 +59,16 @@ pub trait Connector: Plugin {
     async fn get_service_contract(&self) -> Result<String, PolarisError>;
 
     /// create_config_file 创建配置文件
-    async fn create_config_file(&self) -> Result<bool, PolarisError>;
+    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
 
     /// update_config_file 更新配置文件
-    async fn update_config_file(&self) -> Result<bool, PolarisError>;
+    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
 
     /// release_config_file 删除配置文件
-    async fn release_config_file(&self) -> Result<bool, PolarisError>;
+    async fn delete_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
+
+    /// release_config_file 删除配置文件
+    async fn release_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
 
     /// upsert_publish_config_file 更新发布配置文件
     async fn upsert_publish_config_file(&self) -> Result<bool, PolarisError>;
@@ -128,15 +132,19 @@ impl Connector for NoopConnector {
         todo!()
     }
 
-    async fn create_config_file(&self) -> Result<bool, PolarisError> {
+    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    async fn update_config_file(&self) -> Result<bool, PolarisError> {
+    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    async fn release_config_file(&self) -> Result<bool, PolarisError> {
+    async fn delete_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
+        todo!()
+    }
+
+    async fn release_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 
