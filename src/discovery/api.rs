@@ -91,11 +91,13 @@ pub trait ConsumerAPI
 where
     Self: Send + Sync,
 {
+    /// get_one_instance 拉取一个实例
     async fn get_one_instance(
         &self,
         req: GetOneInstanceRequest,
     ) -> Result<InstancesResponse, PolarisError>;
 
+    /// get_health_instance 拉取健康实例
     async fn get_health_instance(
         &self,
         req: GetHealthInstanceRequest,
@@ -107,13 +109,19 @@ where
         req: GetAllInstanceRequest,
     ) -> Result<InstancesResponse, PolarisError>;
 
-    async fn watch_instance(&self, req: WatchInstanceRequest) -> Result<(), PolarisError>;
+    /// watch_instance 监听实例变化
+    async fn watch_instance(
+        &self,
+        req: WatchInstanceRequest,
+    ) -> Result<WatchInstanceResponse, PolarisError>;
 
+    /// get_service_rule 获取服务规则
     async fn get_service_rule(
         &self,
         req: GetServiceRuleRequest,
     ) -> Result<ServiceRuleResponse, PolarisError>;
 
+    /// report_service_call 上报服务调用结果
     async fn report_service_call(&self, req: ServiceCallResult);
 }
 

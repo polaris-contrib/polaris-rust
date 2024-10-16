@@ -18,7 +18,10 @@ use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
 
-use crate::config::req::{CreateConfigFileRequest, GetConfigFileRequest};
+use crate::config::req::{
+    CreateConfigFileRequest, DeleteConfigFileRequest, GetConfigFileRequest,
+    PublishConfigFileRequest, UpdateConfigFileRequest,
+};
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey};
 use crate::core::model::error::PolarisError;
@@ -62,12 +65,6 @@ impl Engine {
         let arc_conf = Arc::new(conf);
         let client_id = crate::core::plugin::plugins::acquire_client_id(arc_conf.clone());
 
-        let mut containers = PluginContainer::default();
-        // 初始化所有的插件
-        let start_time = std::time::Instant::now();
-        containers.register_all_plugin();
-        tracing::info!("register_all_plugin cost: {:?}", start_time.elapsed());
-
         // 初始化 extensions
         let extensions_ret = Extensions::build(client_id, arc_conf.clone(), runtime.clone());
         if extensions_ret.is_err() {
@@ -78,7 +75,7 @@ impl Engine {
 
         // 初始化 server_connector
         let connector_opt = &arc_conf.global.server_connectors;
-        let connector_ret = init_server_connector(connector_opt, &containers, arc_exts.clone());
+        let connector_ret = init_server_connector(connector_opt, arc_exts.clone());
         if connector_ret.is_err() {
             return Err(connector_ret.err().unwrap());
         }
@@ -87,11 +84,7 @@ impl Engine {
         // 初始化 local_cache
         let mut copy_ext = extension.clone();
         copy_ext.server_connector = Some(arc_connector.clone());
-        let cache_ret = init_resource_cache(
-            &arc_conf.global.local_cache,
-            &containers,
-            Arc::new(copy_ext),
-        );
+        let cache_ret = init_resource_cache(&arc_conf.global.local_cache, Arc::new(copy_ext));
         if cache_ret.is_err() {
             return Err(cache_ret.err().unwrap());
         }
@@ -314,6 +307,39 @@ impl Engine {
         };
     }
 
+    /// update_config_file 更新配置文件
+    pub async fn update_config_file(
+        &self,
+        req: UpdateConfigFileRequest,
+    ) -> Result<bool, PolarisError> {
+        let config_file = req.to_config_request();
+
+        let connector = self.server_connector.clone();
+        let rsp = connector.update_config_file(config_file).await;
+
+        return match rsp {
+            Ok(ret_rsp) => Ok(ret_rsp),
+            Err(err) => Err(err),
+        };
+    }
+
+    /// publish_config_file 发布配置文件
+    pub async fn publish_config_file(
+        &self,
+        req: PublishConfigFileRequest,
+    ) -> Result<bool, PolarisError> {
+        let config_file = req.to_config_request();
+
+        let connector = self.server_connector.clone();
+        let rsp = connector.release_config_file(config_file).await;
+
+        return match rsp {
+            Ok(ret_rsp) => Ok(ret_rsp),
+            Err(err) => Err(err),
+        };
+    }
+
+    /// register_resource_listener 注册资源监听器
     pub async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
         self.local_cache.register_resource_listener(listener).await;
     }

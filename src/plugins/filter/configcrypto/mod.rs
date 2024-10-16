@@ -13,22 +13,4 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::collections::HashMap;
-
-use serde::Deserialize;
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ConfigFileConfig {
-    pub properties_value_cache_size: u32,
-    pub properties_value_expire_time: u32,
-    pub config_filter: ConfigFilter,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ConfigFilter {
-    pub enable: bool,
-    pub chain: Vec<String>,
-    pub plugin: HashMap<String, serde_yaml::Value>,
-}
+pub mod crypto;

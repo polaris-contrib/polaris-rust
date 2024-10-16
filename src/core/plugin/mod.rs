@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 pub mod cache;
 pub mod connector;
+pub mod filter;
 pub mod location;
 pub mod lossless;
 pub mod plugins;

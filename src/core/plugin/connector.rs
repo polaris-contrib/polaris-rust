@@ -13,14 +13,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use crate::core::model::cache::{RemoteData, ResourceEventKey, ServerEvent};
-use crate::core::model::config::ConfigFileRequest;
+use crate::core::model::cache::{RemoteData, ResourceEventKey};
+use crate::core::model::config::{ConfigFileRequest, ConfigReleaseRequest};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
-use crate::core::plugin::plugins::{Extensions, Plugin};
+use crate::core::plugin::plugins::Plugin;
 
 pub trait ResourceHandler: Send + Sync {
     // handle_event 处理资源事件
@@ -65,10 +62,7 @@ pub trait Connector: Plugin {
     async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
 
     /// release_config_file 删除配置文件
-    async fn delete_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
-
-    /// release_config_file 删除配置文件
-    async fn release_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
+    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PolarisError>;
 
     /// upsert_publish_config_file 更新发布配置文件
     async fn upsert_publish_config_file(&self) -> Result<bool, PolarisError>;
@@ -140,11 +134,7 @@ impl Connector for NoopConnector {
         todo!()
     }
 
-    async fn delete_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
-        todo!()
-    }
-
-    async fn release_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
+    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 

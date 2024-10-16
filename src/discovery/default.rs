@@ -35,6 +35,8 @@ use crate::router::api::{LoadBalanceAPI, RouterAPI};
 use crate::router::default::{DefaultLoadBalancerAPI, DefaultRouterAPI};
 use crate::router::req::{ProcessLoadBalanceRequest, ProcessRouteRequest};
 
+use super::req::WatchInstanceResponse;
+
 struct InstanceWatcher {
     req: WatchInstanceRequest,
 }
@@ -88,23 +90,21 @@ pub struct DefaultConsumerAPI {
     loadbalance_api: Box<DefaultLoadBalancerAPI>,
     // watchers: namespace#service -> InstanceWatcher
     watchers: Arc<InstanceResourceListener>,
-    //
+    // register_resource_watcher: 是否已经注册资源监听器
     register_resource_watcher: AtomicBool,
 }
 
 impl DefaultConsumerAPI {
     pub fn new(context: Arc<SDKContext>) -> Self {
-        let watcher = Arc::new(InstanceResourceListener {
-            watchers: Arc::new(RwLock::new(HashMap::new())),
-        });
-        let consumer = DefaultConsumerAPI {
+        Self {
             context: context.clone(),
             router_api: Box::new(DefaultRouterAPI::default()),
             loadbalance_api: Box::new(DefaultLoadBalancerAPI::default()),
-            watchers: watcher,
+            watchers: Arc::new(InstanceResourceListener {
+                watchers: Arc::new(RwLock::new(HashMap::new())),
+            }),
             register_resource_watcher: AtomicBool::new(false),
-        };
-        consumer
+        }
     }
 }
 
@@ -215,7 +215,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
         }
     }
 
-    async fn watch_instance(&self, req: WatchInstanceRequest) -> Result<(), PolarisError> {
+    async fn watch_instance(&self, req: WatchInstanceRequest) -> Result<WatchInstanceResponse, PolarisError> {
         if self
             .register_resource_watcher
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::SeqCst)
@@ -236,7 +236,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
             .or_insert_with(|| Vec::new());
 
         items.push(InstanceWatcher { req });
-        Ok(())
+        Ok(WatchInstanceResponse{})
     }
 
     async fn get_service_rule(

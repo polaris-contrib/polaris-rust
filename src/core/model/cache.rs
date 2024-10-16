@@ -15,8 +15,6 @@
 
 use std::{
     collections::HashMap,
-    future::Future,
-    pin::Pin,
     sync::{atomic::AtomicBool, Arc},
     thread::sleep,
     time::{self, Duration},
@@ -94,6 +92,13 @@ impl CacheItemType {
     pub fn to_service_instances(&self) -> Option<ServiceInstancesCacheItem> {
         match self {
             CacheItemType::Instance(item) => Some(item.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn to_config_file(&self) -> Option<ConfigFileCacheItem> {
+        match self {
+            CacheItemType::ConfigFile(item) => Some(item.clone()),
             _ => None,
         }
     }
@@ -752,6 +757,24 @@ impl ConfigFileCacheItem {
             initialized: Arc::new(AtomicBool::new(false)),
             value: ClientConfigFileInfo::default(),
             revision: String::new(),
+        }
+    }
+
+    pub fn to_config_file(&self) -> ConfigFile {
+        let mut labels = HashMap::<String, String>::new();
+        for label in self.value.tags.iter() {
+            labels.insert(label.key.clone().unwrap(), label.value.clone().unwrap());
+        }
+
+        ConfigFile {
+            namespace: self.value.namespace.clone().unwrap_or_default(),
+            group: self.value.group.clone().unwrap_or_default(),
+            name: self.value.file_name.clone().unwrap_or_default(),
+            version: self.value.version.clone().unwrap_or_default(),
+            content: self.value.content.clone().unwrap_or_default(),
+            labels: labels,
+            encrypt_algo: String::new(),
+            encrypt_key: String::new(),
         }
     }
 

@@ -24,9 +24,9 @@ use crate::{
 };
 
 use super::req::{
-    DeleteConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
-    UpdateConfigFileRequest, WatchConfigFileRequest, WatchConfigFileResponse,
-    WatchConfigGroupRequest, WatchConfigGroupResponse,
+    CreateConfigFileRequest, DeleteConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest,
+    PublishConfigFileRequest, UpdateConfigFileRequest, WatchConfigFileRequest,
+    WatchConfigFileResponse, WatchConfigGroupRequest, WatchConfigGroupResponse,
 };
 
 /// new_config_file_api
@@ -57,9 +57,9 @@ where
 {
     async fn get_config_file(&self, req: GetConfigFileRequest) -> Result<ConfigFile, PolarisError>;
 
-    async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PolarisError>;
+    async fn create_config_file(&self, req: CreateConfigFileRequest) -> Result<bool, PolarisError>;
 
-    async fn delete_config_file(&self, req: DeleteConfigFileRequest) -> Result<bool, PolarisError>;
+    async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PolarisError>;
 
     async fn publish_config_file(
         &self,

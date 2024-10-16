@@ -57,6 +57,8 @@ pub enum ErrorCode {
     AesEncryptError = 30005,
     AesDecryptError = 30006,
     ParameterError = 40000,
+
+    ConfigCryptoError = 50001,
 }
 
 impl Default for ErrorCode {

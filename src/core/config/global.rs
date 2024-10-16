@@ -169,3 +169,10 @@ pub struct LocalCacheConfig {
 fn default_local_cache_name() -> String {
     "memory".to_string()
 }
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginConfig {
+    pub name: String,
+    pub options: Option<HashMap<String, String>>,
+}

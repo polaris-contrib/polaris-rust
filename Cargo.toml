@@ -33,7 +33,7 @@ tokio-stream = {version = "0.1.16"}
 tower = {version = "0.4.13"}
 
 # gRPC dep
-futures = "0.3.30"
+futures = {version = "0.3.30"}
 once_cell = {version = "1.19.0"}
 prost = {version = "0.12.4"}
 prost-build = {version = "0.12.4"}
@@ -42,6 +42,14 @@ tonic = {version = "0.11.0"}
 
 # logging
 tracing = {version = "0.1.36"}
+
+# crypto
+aes = {version = "0.7.4"}
+base64 = {version = "0.22.1"}
+block-modes = {version = "0.8.1"}
+hex = {version = "0.4.3"}
+rand = {version = "0.8.4"}
+rsa = {version = "0.9.6"}
 
 [dev-dependencies]
 tracing-subscriber = {version = "0.3", features = ["default"]}

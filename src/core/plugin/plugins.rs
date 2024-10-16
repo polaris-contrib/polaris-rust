@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::config::config::Configuration;
+use crate::core::config::config_file::ConfigFilter;
 use crate::core::config::global::{LocalCacheConfig, ServerConnectorConfig};
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::plugin::cache::ResourceCache;
@@ -21,6 +22,7 @@ use crate::core::plugin::connector::Connector;
 use crate::core::plugin::router::ServiceRouter;
 use crate::plugins::cache::memory::memory::MemoryCache;
 use crate::plugins::connector::grpc::connector::GrpcConnector;
+use crate::plugins::filter::configcrypto::crypto::ConfigFileCryptoFilter;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
@@ -29,6 +31,8 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::{env, fmt};
 use tokio::runtime::Runtime;
+
+use super::filter::DiscoverFilter;
 
 static SEQ: AtomicU64 = AtomicU64::new(1);
 
@@ -65,10 +69,13 @@ pub struct Extensions
 where
     Self: Send + Sync,
 {
+    pub plugin_container: Arc<PluginContainer>,
     pub runtime: Arc<Runtime>,
     pub client_id: String,
     pub conf: Arc<Configuration>,
     pub server_connector: Option<Arc<Box<dyn Connector>>>,
+    // config_filters
+    pub config_filters: Arc<Vec<Box<dyn DiscoverFilter>>>,
 }
 
 impl Extensions {
@@ -77,12 +84,56 @@ impl Extensions {
         conf: Arc<Configuration>,
         runetime: Arc<Runtime>,
     ) -> Result<Self, PolarisError> {
+        let mut containers = PluginContainer::default();
+        // 初始化所有的插件
+        let start_time = std::time::Instant::now();
+        containers.register_all_plugin();
+        tracing::info!("register_all_plugin cost: {:?}", start_time.elapsed());
+
+        let config_filters = Extensions::load_config_file_filter(&conf.config.config_filter);
+        if config_filters.is_err() {
+            return Err(config_filters.err().unwrap());
+        }
+
         Ok(Self {
+            plugin_container: Arc::new(containers),
             runtime: runetime,
             client_id: client_id,
             conf: conf,
             server_connector: None,
+            config_filters: Arc::new(config_filters.unwrap()),
         })
+    }
+
+    fn load_config_file_filter(
+        filter_conf: &ConfigFilter,
+    ) -> Result<Vec<Box<dyn DiscoverFilter>>, PolarisError> {
+        let mut filters = Vec::<Box<dyn DiscoverFilter>>::new();
+        if filter_conf.enable {
+            for (_i, name) in filter_conf.chain.iter().enumerate() {
+                if name == "crypto" {
+                    let plugin_opt = filter_conf.plugin.get(name).unwrap();
+                    let item = ConfigFileCryptoFilter::new(plugin_opt.clone());
+                    match item {
+                        Ok(filter) => {
+                            filters.push(Box::new(filter));
+                        }
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(filters)
+    }
+
+    pub fn get_config_file_filters(&self) -> Arc<Vec<Box<dyn DiscoverFilter>>> {
+        self.config_filters.clone()
+    }
+
+    pub fn get_plugin_container(&self) -> Arc<PluginContainer> {
+        self.plugin_container.clone()
     }
 
     pub fn get_client_id(&self) -> String {
@@ -101,7 +152,6 @@ pub struct ConnectorResult {
 
 pub fn init_server_connector(
     connector_opt: &ServerConnectorConfig,
-    containers: &PluginContainer,
     extensions: Arc<Extensions>,
 ) -> Result<Box<dyn Connector>, PolarisError> {
     if connector_opt.addresses.is_empty() {
@@ -109,8 +159,10 @@ pub fn init_server_connector(
     }
 
     let protocol = connector_opt.get_protocol();
-    let supplier = containers.get_connector_supplier(&protocol);
-    let mut active_connector = supplier(protocol, connector_opt, extensions.clone());
+    let supplier = extensions
+        .get_plugin_container()
+        .get_connector_supplier(&protocol);
+    let mut active_connector = supplier(connector_opt, extensions.clone());
     active_connector.init();
 
     Ok(active_connector)
@@ -118,7 +170,6 @@ pub fn init_server_connector(
 
 pub fn init_resource_cache(
     cache_opt: &LocalCacheConfig,
-    containers: &PluginContainer,
     extensions: Arc<Extensions>,
 ) -> Result<Box<dyn ResourceCache>, PolarisError> {
     let cache_name = cache_opt.name.clone();
@@ -126,7 +177,9 @@ pub fn init_resource_cache(
         return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
     }
 
-    let supplier = containers.get_cache_supplier(&cache_name);
+    let supplier = extensions
+        .get_plugin_container()
+        .get_cache_supplier(&cache_name);
     let mut active_cache = supplier(cache_name, cache_opt, extensions.clone());
     active_cache.init();
 
@@ -134,8 +187,7 @@ pub fn init_resource_cache(
 }
 
 pub struct PluginContainer {
-    connectors:
-        HashMap<String, fn(String, &ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector>>,
+    connectors: HashMap<String, fn(&ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector>>,
     routers: HashMap<String, fn(&Configuration) -> Box<dyn ServiceRouter>>,
     caches:
         HashMap<String, fn(String, &LocalCacheConfig, Arc<Extensions>) -> Box<dyn ResourceCache>>,
@@ -178,7 +230,7 @@ impl PluginContainer {
     fn get_connector_supplier(
         &self,
         name: &str,
-    ) -> fn(String, &ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector> {
+    ) -> fn(&ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector> {
         *self.connectors.get(name).unwrap()
     }
 

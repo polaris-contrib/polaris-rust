@@ -313,6 +313,8 @@ impl WatchInstanceRequest {
     }
 }
 
+pub struct WatchInstanceResponse {}
+
 pub struct ServiceCallResult {}
 
 pub enum ServiceRuleType {

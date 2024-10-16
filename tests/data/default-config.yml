@@ -184,3 +184,14 @@ config:
   propertiesValueCacheSize: 100
   # 类型转化缓存的过期时间，默认为1分钟
   propertiesValueExpireTime: 60000
+  # 配置过滤器
+  configFilter:
+    enable: true
+    chain:
+      # 启用配置解密插件
+      - crypto
+    plugin:
+      crypto:
+        # 配置解密插件的算法插件类型
+        entries:
+          - name: AES

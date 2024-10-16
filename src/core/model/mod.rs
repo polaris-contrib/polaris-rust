@@ -13,14 +13,52 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-pub mod config;
-pub mod naming;
-pub mod router;
-pub mod loadbalance;
-pub mod ratelimit;
-pub mod circuitbreaker;
-pub mod pb;
-pub mod error;
+use pb::lib::{ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse};
+
 pub mod cache;
+pub mod circuitbreaker;
 pub mod cluster;
+pub mod config;
+pub mod error;
+pub mod loadbalance;
+pub mod naming;
+pub mod pb;
+pub mod ratelimit;
+pub mod router;
 pub mod stat;
+
+#[derive(Clone)]
+pub enum DiscoverRequestInfo {
+    Unknown,
+    Naming(DiscoverRequest),
+    Configuration(ConfigDiscoverRequest),
+}
+
+impl DiscoverRequestInfo {
+    pub fn to_config_request(&self) -> pb::lib::ConfigDiscoverRequest {
+        match self {
+            DiscoverRequestInfo::Configuration(req) => req.clone().into(),
+            _ => {
+                panic!("DiscoverRequestInfo is not ConfigDiscoverRequest");
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum DiscoverResponseInfo {
+    Unknown,
+    Naming(DiscoverResponse),
+    Configuration(ConfigDiscoverResponse),
+}
+
+impl DiscoverResponseInfo {
+    pub fn to_config_response(&self) -> pb::lib::ConfigDiscoverResponse {
+        match self {
+            DiscoverResponseInfo::Configuration(resp) => resp.clone().into(),
+            _ => {
+                panic!("DiscoverResponseInfo is not ConfigDiscoverResponse");
+            }
+        }
+    }
+}
