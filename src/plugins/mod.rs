@@ -16,5 +16,6 @@
 pub mod cache;
 pub mod connector;
 pub mod filter;
+pub mod loadbalance;
 pub mod location;
 pub mod router;

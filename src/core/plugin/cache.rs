@@ -13,6 +13,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey, ServerEvent};
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;
@@ -20,6 +21,8 @@ use crate::core::model::naming::{ServiceInstances, ServiceRule, Services};
 use crate::core::plugin::plugins::Plugin;
 use std::sync::Arc;
 use std::time::Duration;
+
+use super::connector::Connector;
 
 #[derive(Clone, Default)]
 pub struct Filter {
@@ -47,6 +50,12 @@ pub trait ResourceListener: Send + Sync {
     async fn on_event(&self, action: Action, val: ServerEvent);
     // 获取监听的key
     fn watch_key(&self) -> EventType;
+}
+
+pub struct InitResourceCacheOption {
+    pub conf: Arc<Configuration>,
+    pub runtime: Arc<tokio::runtime::Runtime>,
+    pub server_connector: Arc<Box<dyn Connector>>,
 }
 
 /// 资源缓存

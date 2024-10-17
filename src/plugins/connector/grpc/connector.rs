@@ -25,8 +25,8 @@ use crate::core::model::pb::lib::Code::{ExecuteSuccess, ExistedResource};
 use crate::core::model::pb::lib::{
     Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
 };
-use crate::core::plugin::connector::{Connector, ResourceHandler};
-use crate::core::plugin::plugins::{Extensions, Plugin};
+use crate::core::plugin::connector::{Connector, InitConnectorOption, ResourceHandler};
+use crate::core::plugin::plugins::Plugin;
 use crate::plugins::connector::grpc::manager::ConnectionManager;
 use std::cmp::PartialEq;
 use std::collections::HashMap;
@@ -55,9 +55,9 @@ struct ResourceHandlerWrapper {
 
 #[derive(Clone)]
 pub struct GrpcConnector {
+    opt: InitConnectorOption,
     discover_channel: Channel,
     config_channel: Channel,
-    extensions: Arc<Extensions>,
     connection_manager: Arc<ConnectionManager>,
     discover_grpc_client: PolarisGrpcClient<Channel>,
     config_grpc_client: PolarisConfigGrpcClient<Channel>,
@@ -68,10 +68,12 @@ pub struct GrpcConnector {
     watch_resources: Arc<RwLock<HashMap<String, ResourceHandlerWrapper>>>,
 }
 
-fn new_connector(conf: &ServerConnectorConfig, extensions: Arc<Extensions>) -> Box<dyn Connector> {
+fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
+    let conf = &opt.conf.global.server_connectors.clone();
     let (discover_channel, config_channel) = create_channel(conf);
 
-    let client_id = extensions.get_client_id();
+    let client_id = opt.client_id.clone();
+
     let connect_timeout = conf.connect_timeout;
     let server_switch_interval = conf.server_switch_interval;
 
@@ -79,15 +81,15 @@ fn new_connector(conf: &ServerConnectorConfig, extensions: Arc<Extensions>) -> B
     let config_grpc_client = create_config_grpc_client(config_channel.clone());
 
     let (discover_sender, mut discover_reciver) =
-        run_discover_spec_stream(discover_channel.clone(), extensions.runtime.clone()).unwrap();
+        run_discover_spec_stream(discover_channel.clone(), opt.runtime.clone()).unwrap();
 
     let (config_sender, mut config_reciver) =
-        run_config_spec_stream(config_channel.clone(), extensions.runtime.clone()).unwrap();
+        run_config_spec_stream(config_channel.clone(), opt.runtime.clone()).unwrap();
 
     let c = GrpcConnector {
+        opt: opt,
         discover_channel: discover_channel.clone(),
         config_channel: config_channel.clone(),
-        extensions: extensions.clone(),
         connection_manager: Arc::new(ConnectionManager::new(
             connect_timeout,
             server_switch_interval,
@@ -105,7 +107,7 @@ fn new_connector(conf: &ServerConnectorConfig, extensions: Arc<Extensions>) -> B
 
     let receive_c = c.clone();
     // 创建一个新的线程，用于处理grpc的消息
-    extensions.runtime.spawn(async move {
+    c.opt.runtime.spawn(async move {
         loop {
             tokio::select! {
                 discover_ret = discover_reciver.recv() => {
@@ -124,7 +126,7 @@ fn new_connector(conf: &ServerConnectorConfig, extensions: Arc<Extensions>) -> B
 
     let send_c = c.clone();
     // 开启一个异步任务，定期发送请求到服务端
-    extensions.runtime.spawn(async move {
+    c.opt.runtime.spawn(async move {
         loop {
             {
                 // 额外一个方法块，减少 lock 的占用时间
@@ -218,10 +220,7 @@ impl Plugin for GrpcConnector {
 }
 
 impl GrpcConnector {
-    pub fn builder() -> (
-        fn(&ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector>,
-        String,
-    ) {
+    pub fn builder() -> (fn(opt: InitConnectorOption) -> Box<dyn Connector>, String) {
         return (new_connector, "grpc".to_string());
     }
 
@@ -325,7 +324,7 @@ impl GrpcConnector {
             resp
         );
 
-        let filters = self.extensions.get_config_file_filters();
+        let filters = self.opt.config_filters.clone();
         for (_i, filter) in filters.iter().enumerate() {
             let ret = filter.response_process(
                 crate::core::model::DiscoverResponseInfo::Configuration(resp.clone()),
@@ -357,7 +356,7 @@ impl GrpcConnector {
     }
 
     fn send_config_discover_request(&self, mut req: ConfigDiscoverRequest) {
-        let filters = self.extensions.get_config_file_filters();
+        let filters = self.opt.config_filters.clone();
         for (_i, filter) in filters.iter().enumerate() {
             let ret = filter.request_process(
                 crate::core::model::DiscoverRequestInfo::Configuration(req.clone()),
@@ -783,7 +782,7 @@ impl Interceptor for GrpcConnectorInterceptor {
         for ele in metadata {
             let meta_key = AsciiMetadataKey::from_str(ele.0.to_string().as_str());
             if meta_key.is_err() {
-                return Err(tonic::Status::internal("invalid metadata value"));
+                return Err(tonic::Status::internal("invalid metadata key"));
             }
             let meta_val: Result<MetadataValue<_>, _> = ele.1.to_string().parse();
             if meta_val.is_err() {

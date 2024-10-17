@@ -13,13 +13,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-pub mod cache;
-pub mod connector;
-pub mod filter;
-pub mod loadbalance;
-pub mod location;
-pub mod lossless;
-pub mod plugins;
-pub mod router;
-pub mod server;
-pub mod stat;
+use crate::core::model::{
+    loadbalance::Criteria,
+    naming::{Instance, ServiceInstances},
+};
+
+use super::plugins::Plugin;
+
+/// LoadBalancer 负载均衡器
+pub trait LoadBalancer
+where
+    Self: Plugin,
+{
+    /// choose_instance 选择一个实例
+    fn choose_instance(&self, criteria: Criteria, instances: ServiceInstances) -> Option<Instance>;
+}

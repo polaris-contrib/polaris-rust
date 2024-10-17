@@ -27,7 +27,9 @@ use crate::core::model::cache::{
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{Instance, ServiceInstances, ServiceRule, Services};
-use crate::core::plugin::cache::{Action, Filter, ResourceCache, ResourceListener};
+use crate::core::plugin::cache::{
+    Action, Filter, InitResourceCacheOption, ResourceCache, ResourceListener,
+};
 use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::{Extensions, Plugin};
 use std::collections::HashMap;
@@ -55,7 +57,7 @@ struct MemoryResourceHandler {
 }
 
 pub struct MemoryCache {
-    extensions: Arc<Extensions>,
+    opt: InitResourceCacheOption,
     // 资源连接器
     server_connector: Arc<Box<dyn Connector>>,
     handler: Arc<MemoryResourceHandler>,
@@ -64,7 +66,7 @@ pub struct MemoryCache {
 
 impl MemoryCache {
     pub fn builder() -> (
-        fn(String, &LocalCacheConfig, Arc<Extensions>) -> Box<dyn ResourceCache>,
+        fn(InitResourceCacheOption) -> Box<dyn ResourceCache>,
         String,
     ) {
         return (new_resource_cache, "memory".to_string());
@@ -94,7 +96,7 @@ impl MemoryCache {
         let server_connector = self.server_connector.clone();
         let remote_reciver = self.remote_sender.clone();
         // 提交数据异步同步任务
-        self.extensions.runtime.spawn(async move {
+        self.opt.runtime.spawn(async move {
             let register_ret = server_connector
                 .register_resource_handler(Box::new(MemoryResourceWatcher::new(
                     remote_reciver,
@@ -355,19 +357,13 @@ impl MemoryCache {
     }
 }
 
-fn new_resource_cache(
-    _label: String,
-    _conf: &LocalCacheConfig,
-    extensions: Arc<Extensions>,
-) -> Box<dyn ResourceCache> {
-    let extensions_clone = extensions.clone();
-    let server_connector = extensions.server_connector.as_ref().unwrap();
-
+fn new_resource_cache(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
     let (sx, mut rx) = mpsc::unbounded_channel::<RemoteData>();
+    let server_connector = opt.server_connector.clone();
 
     let mc = MemoryCache {
-        extensions: extensions_clone,
-        server_connector: server_connector.to_owned(),
+        opt: opt,
+        server_connector: server_connector,
         handler: Arc::new(MemoryResourceHandler {
             listeners: Arc::new(RwLock::new(HashMap::new())),
             services: Arc::new(RwLock::new(HashMap::new())),
@@ -383,7 +379,7 @@ fn new_resource_cache(
     };
 
     let handler = mc.handler.clone();
-    extensions.runtime.spawn(async move {
+    mc.opt.runtime.spawn(async move {
         MemoryCache::run_remote_data_recive(handler, &mut rx).await;
     });
 

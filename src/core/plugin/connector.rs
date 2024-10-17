@@ -13,17 +13,34 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::sync::Arc;
+
+use tokio::runtime::Runtime;
+
+use crate::core::config::config::Configuration;
 use crate::core::model::cache::{RemoteData, ResourceEventKey};
 use crate::core::model::config::{ConfigFileRequest, ConfigReleaseRequest};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::plugin::plugins::Plugin;
 
+use super::filter::DiscoverFilter;
+
 pub trait ResourceHandler: Send + Sync {
     // handle_event 处理资源事件
     fn handle_event(&self, event: RemoteData);
     /// interest_resource 获取感兴趣的资源
     fn interest_resource(&self) -> ResourceEventKey;
+}
+
+/// InitConnectorOption
+#[derive(Clone)]
+pub struct InitConnectorOption {
+    pub runtime: Arc<Runtime>,
+    pub client_id: String,
+    pub conf: Arc<Configuration>,
+    // config_filters
+    pub config_filters: Arc<Vec<Box<dyn DiscoverFilter>>>,
 }
 
 #[async_trait::async_trait]

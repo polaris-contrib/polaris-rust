@@ -57,3 +57,7 @@ tracing-subscriber = {version = "0.3", features = ["default"]}
 [[example]]
 name = "discover"
 path = "examples/discover.rs"
+
+[[example]]
+name = "config"
+path = "examples/config.rs"

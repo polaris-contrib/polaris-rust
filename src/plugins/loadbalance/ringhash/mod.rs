@@ -13,13 +13,4 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-pub mod cache;
-pub mod connector;
-pub mod filter;
-pub mod loadbalance;
-pub mod location;
-pub mod lossless;
-pub mod plugins;
-pub mod router;
-pub mod server;
-pub mod stat;
+pub mod ringhash;

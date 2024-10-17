@@ -32,6 +32,8 @@ use std::sync::Arc;
 use std::{env, fmt};
 use tokio::runtime::Runtime;
 
+use super::cache::InitResourceCacheOption;
+use super::connector::InitConnectorOption;
 use super::filter::DiscoverFilter;
 
 static SEQ: AtomicU64 = AtomicU64::new(1);
@@ -73,9 +75,10 @@ where
     pub runtime: Arc<Runtime>,
     pub client_id: String,
     pub conf: Arc<Configuration>,
-    pub server_connector: Option<Arc<Box<dyn Connector>>>,
     // config_filters
-    pub config_filters: Arc<Vec<Box<dyn DiscoverFilter>>>,
+    pub config_filters: Option<Arc<Vec<Box<dyn DiscoverFilter>>>>,
+    // server_connector
+    pub server_connector: Option<Arc<Box<dyn Connector>>>,
 }
 
 impl Extensions {
@@ -90,107 +93,94 @@ impl Extensions {
         containers.register_all_plugin();
         tracing::info!("register_all_plugin cost: {:?}", start_time.elapsed());
 
-        let config_filters = Extensions::load_config_file_filter(&conf.config.config_filter);
-        if config_filters.is_err() {
-            return Err(config_filters.err().unwrap());
-        }
+        let arc_container = Arc::new(containers);
 
         Ok(Self {
-            plugin_container: Arc::new(containers),
+            plugin_container: arc_container,
             runtime: runetime,
             client_id: client_id,
             conf: conf,
+            config_filters: None,
             server_connector: None,
-            config_filters: Arc::new(config_filters.unwrap()),
         })
     }
 
-    fn load_config_file_filter(
+    pub fn load_server_connector(
+        &mut self,
+        connector_opt: &ServerConnectorConfig,
+    ) -> Result<Arc<Box<dyn Connector>>, PolarisError> {
+        if connector_opt.addresses.is_empty() {
+            return Err(PolarisError::new(
+                ErrorCode::InvalidConfig,
+                "server_connector addresses is empty".to_string(),
+            ));
+        }
+
+        let protocol = connector_opt.get_protocol();
+        let supplier = self.plugin_container.get_connector_supplier(&protocol);
+        let mut active_connector = supplier(InitConnectorOption {
+            runtime: self.runtime.clone(),
+            conf: self.conf.clone(),
+            client_id: self.client_id.clone(),
+            config_filters: self.config_filters.clone().unwrap().clone(),
+        });
+        active_connector.init();
+
+        let active_connector = Arc::new(active_connector);
+
+        self.server_connector = Some(active_connector.clone());
+        Ok(active_connector)
+    }
+
+    pub fn load_resource_cache(
+        &mut self,
+        cache_opt: &LocalCacheConfig,
+    ) -> Result<Box<dyn ResourceCache>, PolarisError> {
+        let cache_name = cache_opt.name.clone();
+        if cache_name.is_empty() {
+            return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
+        }
+
+        let supplier = self.plugin_container.get_cache_supplier(&cache_name);
+        let mut active_cache = supplier(InitResourceCacheOption {
+            runtime: self.runtime.clone(),
+            conf: self.conf.clone(),
+            server_connector: self.server_connector.clone().unwrap().clone(),
+        });
+        active_cache.init();
+
+        Ok(active_cache)
+    }
+
+    pub fn load_config_file_filters(
+        &mut self,
         filter_conf: &ConfigFilter,
-    ) -> Result<Vec<Box<dyn DiscoverFilter>>, PolarisError> {
+    ) -> Result<(), PolarisError> {
         let mut filters = Vec::<Box<dyn DiscoverFilter>>::new();
         if filter_conf.enable {
             for (_i, name) in filter_conf.chain.iter().enumerate() {
                 if name == "crypto" {
                     let plugin_opt = filter_conf.plugin.get(name).unwrap();
-                    let item = ConfigFileCryptoFilter::new(plugin_opt.clone());
-                    match item {
-                        Ok(filter) => {
-                            filters.push(Box::new(filter));
-                        }
-                        Err(e) => {
-                            return Err(e);
-                        }
+                    let supplier = self.plugin_container.get_discover_filter_supplier(name);
+                    let filter = supplier(plugin_opt.clone());
+                    if filter.is_err() {
+                        return Err(filter.err().unwrap());
                     }
+                    filters.push(filter.unwrap());
                 }
             }
         }
-        Ok(filters)
+        self.config_filters = Some(Arc::new(filters));
+        Ok(())
     }
-
-    pub fn get_config_file_filters(&self) -> Arc<Vec<Box<dyn DiscoverFilter>>> {
-        self.config_filters.clone()
-    }
-
-    pub fn get_plugin_container(&self) -> Arc<PluginContainer> {
-        self.plugin_container.clone()
-    }
-
-    pub fn get_client_id(&self) -> String {
-        self.client_id.clone()
-    }
-
-    pub fn set_server_connector(&mut self, server_connector: Arc<Box<dyn Connector>>) {
-        self.server_connector = Some(server_connector)
-    }
-}
-
-pub struct ConnectorResult {
-    pub discover: Option<Box<dyn Connector>>,
-    pub config: Option<Box<dyn Connector>>,
-}
-
-pub fn init_server_connector(
-    connector_opt: &ServerConnectorConfig,
-    extensions: Arc<Extensions>,
-) -> Result<Box<dyn Connector>, PolarisError> {
-    if connector_opt.addresses.is_empty() {
-        return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
-    }
-
-    let protocol = connector_opt.get_protocol();
-    let supplier = extensions
-        .get_plugin_container()
-        .get_connector_supplier(&protocol);
-    let mut active_connector = supplier(connector_opt, extensions.clone());
-    active_connector.init();
-
-    Ok(active_connector)
-}
-
-pub fn init_resource_cache(
-    cache_opt: &LocalCacheConfig,
-    extensions: Arc<Extensions>,
-) -> Result<Box<dyn ResourceCache>, PolarisError> {
-    let cache_name = cache_opt.name.clone();
-    if cache_name.is_empty() {
-        return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
-    }
-
-    let supplier = extensions
-        .get_plugin_container()
-        .get_cache_supplier(&cache_name);
-    let mut active_cache = supplier(cache_name, cache_opt, extensions.clone());
-    active_cache.init();
-
-    Ok(active_cache)
 }
 
 pub struct PluginContainer {
-    connectors: HashMap<String, fn(&ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector>>,
+    connectors: HashMap<String, fn(InitConnectorOption) -> Box<dyn Connector>>,
     routers: HashMap<String, fn(&Configuration) -> Box<dyn ServiceRouter>>,
-    caches:
-        HashMap<String, fn(String, &LocalCacheConfig, Arc<Extensions>) -> Box<dyn ResourceCache>>,
+    caches: HashMap<String, fn(InitResourceCacheOption) -> Box<dyn ResourceCache>>,
+    discover_filters:
+        HashMap<String, fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError>>,
 }
 
 impl Default for PluginContainer {
@@ -199,6 +189,7 @@ impl Default for PluginContainer {
             connectors: Default::default(),
             routers: Default::default(),
             caches: Default::default(),
+            discover_filters: Default::default(),
         };
 
         return c;
@@ -209,6 +200,7 @@ impl PluginContainer {
     pub fn register_all_plugin(&mut self) {
         self.register_resource_cache();
         self.register_connector();
+        self.register_discover_filter();
     }
 
     fn register_connector(&mut self) {
@@ -227,18 +219,33 @@ impl PluginContainer {
         }
     }
 
+    fn register_discover_filter(&mut self) {
+        let vec = vec![ConfigFileCryptoFilter::builder];
+        for c in vec {
+            let (supplier, name) = c();
+            self.discover_filters.insert(name, supplier);
+        }
+    }
+
     fn get_connector_supplier(
         &self,
         name: &str,
-    ) -> fn(&ServerConnectorConfig, Arc<Extensions>) -> Box<dyn Connector> {
+    ) -> fn(opt: InitConnectorOption) -> Box<dyn Connector> {
         *self.connectors.get(name).unwrap()
     }
 
     fn get_cache_supplier(
         &self,
         name: &str,
-    ) -> fn(String, &LocalCacheConfig, Arc<Extensions>) -> Box<dyn ResourceCache> {
+    ) -> fn(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
         *self.caches.get(name).unwrap()
+    }
+
+    fn get_discover_filter_supplier(
+        &self,
+        name: &str,
+    ) -> fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError> {
+        *self.discover_filters.get(name).unwrap()
     }
 }
 

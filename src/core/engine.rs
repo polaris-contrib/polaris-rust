@@ -19,17 +19,15 @@ use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::config::req::{
-    CreateConfigFileRequest, DeleteConfigFileRequest, GetConfigFileRequest,
-    PublishConfigFileRequest, UpdateConfigFileRequest,
+    CreateConfigFileRequest, GetConfigFileRequest, PublishConfigFileRequest,
+    UpdateConfigFileRequest,
 };
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::InstanceRequest;
 use crate::core::plugin::location::new_location_provider;
-use crate::core::plugin::plugins::{
-    init_resource_cache, init_server_connector, Extensions, PluginContainer,
-};
+use crate::core::plugin::plugins::Extensions;
 use crate::discovery::req::{
     GetAllInstanceRequest, GetServiceRuleRequest, InstanceDeregisterRequest,
     InstanceHeartbeatRequest, InstanceRegisterRequest, InstanceRegisterResponse, InstancesResponse,
@@ -70,36 +68,39 @@ impl Engine {
         if extensions_ret.is_err() {
             return Err(extensions_ret.err().unwrap());
         }
-        let extension = extensions_ret.unwrap();
-        let arc_exts = Arc::new(extension.clone());
+        let mut extension = extensions_ret.unwrap();
+
+        let ret = extension.load_config_file_filters(&arc_conf.config.config_filter);
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
+        }
 
         // 初始化 server_connector
-        let connector_opt = &arc_conf.global.server_connectors;
-        let connector_ret = init_server_connector(connector_opt, arc_exts.clone());
-        if connector_ret.is_err() {
-            return Err(connector_ret.err().unwrap());
+        let ret = extension.load_server_connector(&arc_conf.global.server_connectors);
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
         }
-        let arc_connector = Arc::new(connector_ret.unwrap());
+        let server_connector = ret.unwrap();
 
         // 初始化 local_cache
-        let mut copy_ext = extension.clone();
-        copy_ext.server_connector = Some(arc_connector.clone());
-        let cache_ret = init_resource_cache(&arc_conf.global.local_cache, Arc::new(copy_ext));
-        if cache_ret.is_err() {
-            return Err(cache_ret.err().unwrap());
+        let ret = extension.load_resource_cache(&arc_conf.global.local_cache);
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
         }
+        let local_cache = ret.unwrap();
 
         // 初始化 location_provider
-        let location_provider_ret = new_location_provider(&arc_conf.global.location);
-        if location_provider_ret.is_err() {
-            return Err(location_provider_ret.err().unwrap());
+        let ret = new_location_provider(&arc_conf.global.location);
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
         }
+        let location_provider = ret.unwrap();
 
         Ok(Self {
             runtime,
-            local_cache: Arc::new(cache_ret.unwrap()),
-            server_connector: arc_connector,
-            location_provider: Arc::new(location_provider_ret.unwrap()),
+            local_cache: Arc::new(local_cache),
+            server_connector: server_connector,
+            location_provider: Arc::new(location_provider),
         })
     }
 

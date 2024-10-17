@@ -85,24 +85,31 @@ fn load_cryptors(conf: CryptoConfig) -> HashMap<String, Box<dyn Cryptor>> {
     repo
 }
 
+pub fn new_filter(plugin_opt: serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError> {
+    let rsa_cryptor = RSACryptor::new();
+    if rsa_cryptor.is_err() {
+        return Err(rsa_cryptor.err().unwrap());
+    }
+
+    let conf: CryptoConfig = serde_yaml::from_value(plugin_opt).unwrap();
+
+    Ok(Box::new(ConfigFileCryptoFilter {
+        rsa_cryptor: rsa_cryptor.unwrap(),
+        cryptors: Arc::new(RwLock::new(load_cryptors(conf))),
+    }) as Box<dyn DiscoverFilter>)
+}
+
 pub struct ConfigFileCryptoFilter {
     rsa_cryptor: RSACryptor,
     cryptors: Arc<RwLock<HashMap<String, Box<dyn Cryptor>>>>,
 }
 
 impl ConfigFileCryptoFilter {
-    pub fn new(plugin_opt: serde_yaml::Value) -> Result<Self, PolarisError> {
-        let rsa_cryptor = RSACryptor::new();
-        if rsa_cryptor.is_err() {
-            return Err(rsa_cryptor.err().unwrap());
-        }
-
-        let conf: CryptoConfig = serde_yaml::from_value(plugin_opt).unwrap();
-
-        Ok(ConfigFileCryptoFilter {
-            rsa_cryptor: rsa_cryptor.unwrap(),
-            cryptors: Arc::new(RwLock::new(load_cryptors(conf))),
-        })
+    pub fn builder() -> (
+        fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError>,
+        String,
+    ) {
+        (new_filter, "crypto".to_string())
     }
 }
 
