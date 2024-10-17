@@ -20,7 +20,10 @@ pub struct DefaultRouterAPI {}
 
 #[async_trait::async_trait]
 impl RouterAPI for DefaultRouterAPI {
-    async fn router(&self, req: super::req::ProcessRouteRequest) -> super::req::ProcessRouteResponse {
+    async fn router(
+        &self,
+        req: super::req::ProcessRouteRequest,
+    ) -> super::req::ProcessRouteResponse {
         todo!()
     }
 }

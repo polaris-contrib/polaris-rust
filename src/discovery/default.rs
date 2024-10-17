@@ -215,7 +215,10 @@ impl ConsumerAPI for DefaultConsumerAPI {
         }
     }
 
-    async fn watch_instance(&self, req: WatchInstanceRequest) -> Result<WatchInstanceResponse, PolarisError> {
+    async fn watch_instance(
+        &self,
+        req: WatchInstanceRequest,
+    ) -> Result<WatchInstanceResponse, PolarisError> {
         if self
             .register_resource_watcher
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::SeqCst)
@@ -236,7 +239,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
             .or_insert_with(|| Vec::new());
 
         items.push(InstanceWatcher { req });
-        Ok(WatchInstanceResponse{})
+        Ok(WatchInstanceResponse {})
     }
 
     async fn get_service_rule(

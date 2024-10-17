@@ -21,17 +21,7 @@ pub struct MatchString {
 }
 /// Nested message and enum types in `MatchString`.
 pub mod match_string {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum MatchStringType {
         /// Equivalent match
@@ -75,17 +65,7 @@ pub mod match_string {
             }
         }
     }
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum ValueType {
         Text = 0,
@@ -151,10 +131,8 @@ pub struct Service {
     #[prost(message, optional, tag = "2")]
     pub namespace: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(map = "string, string", tag = "3")]
-    pub metadata: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub metadata:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
     #[prost(message, optional, tag = "4")]
     pub ports: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "5")]
@@ -262,10 +240,8 @@ pub struct Instance {
     #[prost(message, optional, tag = "13")]
     pub location: ::core::option::Option<Location>,
     #[prost(map = "string, string", tag = "14")]
-    pub metadata: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub metadata:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
     #[prost(message, optional, tag = "15")]
     pub logic_set: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "16")]
@@ -287,17 +263,7 @@ pub struct HealthCheck {
 }
 /// Nested message and enum types in `HealthCheck`.
 pub mod health_check {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum HealthCheckType {
         Unknown = 0,
@@ -378,17 +344,7 @@ pub struct Client {
 }
 /// Nested message and enum types in `Client`.
 pub mod client {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum ClientType {
         Unknown = 0,
@@ -523,17 +479,7 @@ pub struct InterfaceDescriptor {
 }
 /// Nested message and enum types in `InterfaceDescriptor`.
 pub mod interface_descriptor {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Source {
         Unknown = 0,
@@ -581,17 +527,7 @@ pub struct DiscoverRequest {
 }
 /// Nested message and enum types in `DiscoverRequest`.
 pub mod discover_request {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum DiscoverRequestType {
         Unknown = 0,
@@ -717,10 +653,8 @@ pub struct Route {
     /// extendInfo 用于承载一些额外信息
     /// case 1: 升级到 v2 版本时，记录对应到 v2 版本的 id 信息
     #[prost(map = "string, string", tag = "3")]
-    pub extend_info: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub extend_info:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 /// deprecated: only for compatible to the old version server
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -734,10 +668,7 @@ pub struct Source {
     /// 主调方服务实例标签或者请求标签
     /// value支持正则匹配
     #[prost(map = "string, message", tag = "3")]
-    pub metadata: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        MatchString,
-    >,
+    pub metadata: ::std::collections::HashMap<::prost::alloc::string::String, MatchString>,
 }
 /// deprecated: only for compatible to the old version server
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -751,10 +682,7 @@ pub struct Destination {
     /// 被调方服务实例标签
     /// value支持正则匹配
     #[prost(map = "string, message", tag = "3")]
-    pub metadata: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        MatchString,
-    >,
+    pub metadata: ::std::collections::HashMap<::prost::alloc::string::String, MatchString>,
     /// 根据服务名和服务实例metadata筛选符合条件的服务实例子集
     /// 服务实例子集可以设置优先级和权重
     /// 优先级：整型，范围\[0, 9\]，最高优先级为0
@@ -821,10 +749,8 @@ pub struct RouteRule {
     /// extendInfo 用于承载一些额外信息
     /// case 1: 升级到 v2 版本时，记录对应到 v1 版本的 id 信息
     #[prost(map = "string, string", tag = "20")]
-    pub extend_info: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub extend_info:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -834,24 +760,12 @@ pub struct MetadataFailover {
     pub failover_range: i32,
     /// only use to failover_range == OTHER_KEYS
     #[prost(map = "string, string", tag = "2")]
-    pub labels: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub labels:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 /// Nested message and enum types in `MetadataFailover`.
 pub mod metadata_failover {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum FailoverRange {
         /// ALL return all instances
@@ -895,10 +809,8 @@ pub struct MetadataRoutingConfig {
     #[prost(string, tag = "2")]
     pub namespace: ::prost::alloc::string::String,
     #[prost(map = "string, string", tag = "3")]
-    pub labels: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub labels:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
     /// When metadata not found, it will fall back to the
     #[prost(message, optional, tag = "4")]
     pub failover: ::core::option::Option<MetadataFailover>,
@@ -999,17 +911,7 @@ pub struct SourceMatch {
 /// Nested message and enum types in `SourceMatch`.
 pub mod source_match {
     /// label type for gateway request
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Type {
         /// custom arguments
@@ -1181,17 +1083,7 @@ pub struct Rule {
 /// Nested message and enum types in `Rule`.
 pub mod rule {
     /// 限流资源
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Resource {
         /// 针对QPS进行限流
@@ -1221,17 +1113,7 @@ pub mod rule {
     }
     /// 限流类型
     /// global全局限流(默认)或者local单机限流
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Type {
         Global = 0,
@@ -1258,17 +1140,7 @@ pub mod rule {
         }
     }
     /// 限流阈值模
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum AmountMode {
         /// 总体阈值
@@ -1297,17 +1169,7 @@ pub mod rule {
         }
     }
     /// 与限流集群连接失败时降级模式
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum FailoverType {
         /// 降级成本地阈值
@@ -1351,17 +1213,7 @@ pub struct MatchArgument {
 /// Nested message and enum types in `MatchArgument`.
 pub mod match_argument {
     /// label type for gateway request
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Type {
         /// custom arguments
@@ -1680,17 +1532,7 @@ pub struct RecoverConfig {
 /// Nested message and enum types in `RecoverConfig`.
 pub mod recover_config {
     /// 主动探测配置
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum OutlierDetectWhen {
         /// 不开启监控探测
@@ -1821,10 +1663,7 @@ pub struct DestinationSet {
     pub namespace: ::core::option::Option<::prost::alloc::string::String>,
     /// 可选，SUBSET标识
     #[prost(map = "string, message", tag = "3")]
-    pub metadata: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        MatchString,
-    >,
+    pub metadata: ::std::collections::HashMap<::prost::alloc::string::String, MatchString>,
     #[prost(enumeration = "destination_set::Resource", tag = "4")]
     pub resource: i32,
     #[prost(enumeration = "destination_set::Type", tag = "5")]
@@ -1859,17 +1698,7 @@ pub struct DestinationSet {
 pub mod destination_set {
     /// 需要进行熔断的资源
     /// 支持SUBSET（子集群），以及INSTANCE（单个实例），默认为SUBSET
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Resource {
         /// 针对实例分组进行熔断
@@ -1899,17 +1728,7 @@ pub mod destination_set {
     }
     /// 熔断决策类型，支持GLOBAL（分布式决策）以及LOCAL(本地决策），默认GLOBAL
     /// 当指定为GLOBAL时，则会定期上报统计数据并根据汇总数据进行熔断决策
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Type {
         Global = 0,
@@ -1936,17 +1755,7 @@ pub mod destination_set {
         }
     }
     /// 熔断范围，是否扩散针对相同服务下所有接口进行熔断
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Scope {
         /// 触发熔断条件，扩散熔断所有接口
@@ -2081,17 +1890,7 @@ pub struct ErrorCondition {
 }
 /// Nested message and enum types in `ErrorCondition`.
 pub mod error_condition {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum InputType {
         Unknown = 0,
@@ -2138,17 +1937,7 @@ pub struct TriggerCondition {
 }
 /// Nested message and enum types in `TriggerCondition`.
 pub mod trigger_condition {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum TriggerType {
         Unknown = 0,
@@ -2353,17 +2142,7 @@ pub mod fault_detect_rule {
         pub method: ::core::option::Option<super::MatchString>,
     }
     /// detect protocol
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Protocol {
         Unknown = 0,
@@ -2773,17 +2552,7 @@ pub struct TrafficMatchRule {
 /// Nested message and enum types in `TrafficMatchRule`.
 pub mod traffic_match_rule {
     /// 多个 SourceMatch 之间的判断关系
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum TrafficMatchMode {
         /// 与模式
@@ -2855,17 +2624,7 @@ pub struct LaneRule {
 }
 /// Nested message and enum types in `LaneRule`.
 pub mod lane_rule {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum LaneMatchMode {
         /// 严格匹配模式
@@ -3026,17 +2785,7 @@ pub struct DiscoverResponse {
 }
 /// Nested message and enum types in `DiscoverResponse`.
 pub mod discover_response {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum DiscoverResponseType {
         Unknown = 0,
@@ -3091,10 +2840,8 @@ pub mod discover_response {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSwitch {
     #[prost(map = "string, string", tag = "1")]
-    pub options: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub options:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -3164,8 +2911,8 @@ pub struct DelHeartbeatsResponse {
 /// Generated client implementations.
 pub mod polaris_grpc_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct PolarisGrpcClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -3173,20 +2920,20 @@ pub mod polaris_grpc_client {
     impl PolarisGrpcClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
-            where
-                D: TryInto<tonic::transport::Endpoint>,
-                D::Error: Into<StdError>,
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
         {
             let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
             Ok(Self::new(conn))
         }
     }
     impl<T> PolarisGrpcClient<T>
-        where
-            T: tonic::client::GrpcService<tonic::body::BoxBody>,
-            T::Error: Into<StdError>,
-            T::ResponseBody: Body<Data = Bytes> + Send + 'static,
-            <T::ResponseBody as Body>::Error: Into<StdError> + Send,
+    where
+        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + Send,
     {
         pub fn new(inner: T) -> Self {
             let inner = tonic::client::Grpc::new(inner);
@@ -3200,18 +2947,17 @@ pub mod polaris_grpc_client {
             inner: T,
             interceptor: F,
         ) -> PolarisGrpcClient<InterceptedService<T, F>>
-            where
-                F: tonic::service::Interceptor,
-                T::ResponseBody: Default,
-                T: tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
-                    >,
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
-                <T as tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                >>::Error: Into<StdError> + Send + Sync,
+            >,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             PolarisGrpcClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -3251,19 +2997,14 @@ pub mod polaris_grpc_client {
             &mut self,
             request: impl tonic::IntoRequest<super::Client>,
         ) -> std::result::Result<tonic::Response<super::Response>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisGRPC/ReportClient",
-            );
+            let path = http::uri::PathAndQuery::from_static("/v1.PolarisGRPC/ReportClient");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisGRPC", "ReportClient"));
@@ -3274,19 +3015,14 @@ pub mod polaris_grpc_client {
             &mut self,
             request: impl tonic::IntoRequest<super::Instance>,
         ) -> std::result::Result<tonic::Response<super::Response>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisGRPC/RegisterInstance",
-            );
+            let path = http::uri::PathAndQuery::from_static("/v1.PolarisGRPC/RegisterInstance");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisGRPC", "RegisterInstance"));
@@ -3297,19 +3033,14 @@ pub mod polaris_grpc_client {
             &mut self,
             request: impl tonic::IntoRequest<super::Instance>,
         ) -> std::result::Result<tonic::Response<super::Response>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisGRPC/DeregisterInstance",
-            );
+            let path = http::uri::PathAndQuery::from_static("/v1.PolarisGRPC/DeregisterInstance");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisGRPC", "DeregisterInstance"));
@@ -3323,19 +3054,17 @@ pub mod polaris_grpc_client {
             tonic::Response<tonic::codec::Streaming<super::DiscoverResponse>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/v1.PolarisGRPC/Discover");
             let mut req = request.into_streaming_request();
-            req.extensions_mut().insert(GrpcMethod::new("v1.PolarisGRPC", "Discover"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("v1.PolarisGRPC", "Discover"));
             self.inner.streaming(req, path, codec).await
         }
         /// 被调方上报心跳
@@ -3343,19 +3072,17 @@ pub mod polaris_grpc_client {
             &mut self,
             request: impl tonic::IntoRequest<super::Instance>,
         ) -> std::result::Result<tonic::Response<super::Response>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/v1.PolarisGRPC/Heartbeat");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("v1.PolarisGRPC", "Heartbeat"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("v1.PolarisGRPC", "Heartbeat"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -3363,8 +3090,8 @@ pub mod polaris_grpc_client {
 /// Generated client implementations.
 pub mod polaris_heartbeat_grpc_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct PolarisHeartbeatGrpcClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -3372,20 +3099,20 @@ pub mod polaris_heartbeat_grpc_client {
     impl PolarisHeartbeatGrpcClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
-            where
-                D: TryInto<tonic::transport::Endpoint>,
-                D::Error: Into<StdError>,
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
         {
             let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
             Ok(Self::new(conn))
         }
     }
     impl<T> PolarisHeartbeatGrpcClient<T>
-        where
-            T: tonic::client::GrpcService<tonic::body::BoxBody>,
-            T::Error: Into<StdError>,
-            T::ResponseBody: Body<Data = Bytes> + Send + 'static,
-            <T::ResponseBody as Body>::Error: Into<StdError> + Send,
+    where
+        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + Send,
     {
         pub fn new(inner: T) -> Self {
             let inner = tonic::client::Grpc::new(inner);
@@ -3399,18 +3126,17 @@ pub mod polaris_heartbeat_grpc_client {
             inner: T,
             interceptor: F,
         ) -> PolarisHeartbeatGrpcClient<InterceptedService<T, F>>
-            where
-                F: tonic::service::Interceptor,
-                T::ResponseBody: Default,
-                T: tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
-                    >,
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
-                <T as tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                >>::Error: Into<StdError> + Send + Sync,
+            >,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             PolarisHeartbeatGrpcClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -3453,19 +3179,15 @@ pub mod polaris_heartbeat_grpc_client {
             tonic::Response<tonic::codec::Streaming<super::HeartbeatsResponse>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisHeartbeatGRPC/BatchHeartbeat",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/v1.PolarisHeartbeatGRPC/BatchHeartbeat");
             let mut req = request.into_streaming_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisHeartbeatGRPC", "BatchHeartbeat"));
@@ -3475,52 +3197,44 @@ pub mod polaris_heartbeat_grpc_client {
         pub async fn batch_get_heartbeat(
             &mut self,
             request: impl tonic::IntoRequest<super::GetHeartbeatsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetHeartbeatsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::GetHeartbeatsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisHeartbeatGRPC/BatchGetHeartbeat",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/v1.PolarisHeartbeatGRPC/BatchGetHeartbeat");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("v1.PolarisHeartbeatGRPC", "BatchGetHeartbeat"));
+            req.extensions_mut().insert(GrpcMethod::new(
+                "v1.PolarisHeartbeatGRPC",
+                "BatchGetHeartbeat",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// 批量删除心跳记录
         pub async fn batch_del_heartbeat(
             &mut self,
             request: impl tonic::IntoRequest<super::DelHeartbeatsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::DelHeartbeatsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::DelHeartbeatsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisHeartbeatGRPC/BatchDelHeartbeat",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/v1.PolarisHeartbeatGRPC/BatchDelHeartbeat");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("v1.PolarisHeartbeatGRPC", "BatchDelHeartbeat"));
+            req.extensions_mut().insert(GrpcMethod::new(
+                "v1.PolarisHeartbeatGRPC",
+                "BatchDelHeartbeat",
+            ));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -3528,8 +3242,8 @@ pub mod polaris_heartbeat_grpc_client {
 /// Generated client implementations.
 pub mod polaris_service_contract_grpc_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct PolarisServiceContractGrpcClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -3537,20 +3251,20 @@ pub mod polaris_service_contract_grpc_client {
     impl PolarisServiceContractGrpcClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
-            where
-                D: TryInto<tonic::transport::Endpoint>,
-                D::Error: Into<StdError>,
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
         {
             let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
             Ok(Self::new(conn))
         }
     }
     impl<T> PolarisServiceContractGrpcClient<T>
-        where
-            T: tonic::client::GrpcService<tonic::body::BoxBody>,
-            T::Error: Into<StdError>,
-            T::ResponseBody: Body<Data = Bytes> + Send + 'static,
-            <T::ResponseBody as Body>::Error: Into<StdError> + Send,
+    where
+        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + Send,
     {
         pub fn new(inner: T) -> Self {
             let inner = tonic::client::Grpc::new(inner);
@@ -3564,22 +3278,19 @@ pub mod polaris_service_contract_grpc_client {
             inner: T,
             interceptor: F,
         ) -> PolarisServiceContractGrpcClient<InterceptedService<T, F>>
-            where
-                F: tonic::service::Interceptor,
-                T::ResponseBody: Default,
-                T: tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
-                    >,
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
-                <T as tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                >>::Error: Into<StdError> + Send + Sync,
+            >,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
-            PolarisServiceContractGrpcClient::new(
-                InterceptedService::new(inner, interceptor),
-            )
+            PolarisServiceContractGrpcClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -3617,27 +3328,21 @@ pub mod polaris_service_contract_grpc_client {
             &mut self,
             request: impl tonic::IntoRequest<super::ServiceContract>,
         ) -> std::result::Result<tonic::Response<super::Response>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/v1.PolarisServiceContractGRPC/ReportServiceContract",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "v1.PolarisServiceContractGRPC",
-                        "ReportServiceContract",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "v1.PolarisServiceContractGRPC",
+                "ReportServiceContract",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// 查询服务契约
@@ -3645,27 +3350,21 @@ pub mod polaris_service_contract_grpc_client {
             &mut self,
             request: impl tonic::IntoRequest<super::ServiceContract>,
         ) -> std::result::Result<tonic::Response<super::Response>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/v1.PolarisServiceContractGRPC/GetServiceContract",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "v1.PolarisServiceContractGRPC",
-                        "GetServiceContract",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "v1.PolarisServiceContractGRPC",
+                "GetServiceContract",
+            ));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -3694,10 +3393,9 @@ pub mod polaris_grpc_server {
         ) -> std::result::Result<tonic::Response<super::Response>, tonic::Status>;
         /// Server streaming response type for the Discover method.
         type DiscoverStream: tonic::codegen::tokio_stream::Stream<
-            Item = std::result::Result<super::DiscoverResponse, tonic::Status>,
-        >
-        + Send
-        + 'static;
+                Item = std::result::Result<super::DiscoverResponse, tonic::Status>,
+            > + Send
+            + 'static;
         /// 统一发现接口
         async fn discover(
             &self,
@@ -3732,12 +3430,9 @@ pub mod polaris_grpc_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
-            where
-                F: tonic::service::Interceptor,
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
         {
             InterceptedService::new(Self::new(inner), interceptor)
         }
@@ -3771,10 +3466,10 @@ pub mod polaris_grpc_server {
         }
     }
     impl<T, B> tonic::codegen::Service<http::Request<B>> for PolarisGrpcServer<T>
-        where
-            T: PolarisGrpc,
-            B: Body + Send + 'static,
-            B::Error: Into<StdError> + Send + 'static,
+    where
+        T: PolarisGrpc,
+        B: Body + Send + 'static,
+        B::Error: Into<StdError> + Send + 'static,
     {
         type Response = http::Response<tonic::body::BoxBody>;
         type Error = std::convert::Infallible;
@@ -3791,17 +3486,10 @@ pub mod polaris_grpc_server {
                 "/v1.PolarisGRPC/ReportClient" => {
                     #[allow(non_camel_case_types)]
                     struct ReportClientSvc<T: PolarisGrpc>(pub Arc<T>);
-                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Client>
-                    for ReportClientSvc<T> {
+                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Client> for ReportClientSvc<T> {
                         type Response = super::Response;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::Client>,
-                        ) -> Self::Future {
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::Client>) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as PolarisGrpc>::report_client(&inner, request).await
@@ -3835,13 +3523,9 @@ pub mod polaris_grpc_server {
                 "/v1.PolarisGRPC/RegisterInstance" => {
                     #[allow(non_camel_case_types)]
                     struct RegisterInstanceSvc<T: PolarisGrpc>(pub Arc<T>);
-                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Instance>
-                    for RegisterInstanceSvc<T> {
+                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Instance> for RegisterInstanceSvc<T> {
                         type Response = super::Response;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::Instance>,
@@ -3879,21 +3563,16 @@ pub mod polaris_grpc_server {
                 "/v1.PolarisGRPC/DeregisterInstance" => {
                     #[allow(non_camel_case_types)]
                     struct DeregisterInstanceSvc<T: PolarisGrpc>(pub Arc<T>);
-                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Instance>
-                    for DeregisterInstanceSvc<T> {
+                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Instance> for DeregisterInstanceSvc<T> {
                         type Response = super::Response;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::Instance>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisGrpc>::deregister_instance(&inner, request)
-                                    .await
+                                <T as PolarisGrpc>::deregister_instance(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3924,26 +3603,18 @@ pub mod polaris_grpc_server {
                 "/v1.PolarisGRPC/Discover" => {
                     #[allow(non_camel_case_types)]
                     struct DiscoverSvc<T: PolarisGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisGrpc,
-                    > tonic::server::StreamingService<super::DiscoverRequest>
-                    for DiscoverSvc<T> {
+                    impl<T: PolarisGrpc> tonic::server::StreamingService<super::DiscoverRequest> for DiscoverSvc<T> {
                         type Response = super::DiscoverResponse;
                         type ResponseStream = T::DiscoverStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                tonic::Streaming<super::DiscoverRequest>,
-                            >,
+                            request: tonic::Request<tonic::Streaming<super::DiscoverRequest>>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as PolarisGrpc>::discover(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as PolarisGrpc>::discover(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -3973,21 +3644,16 @@ pub mod polaris_grpc_server {
                 "/v1.PolarisGRPC/Heartbeat" => {
                     #[allow(non_camel_case_types)]
                     struct HeartbeatSvc<T: PolarisGrpc>(pub Arc<T>);
-                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Instance>
-                    for HeartbeatSvc<T> {
+                    impl<T: PolarisGrpc> tonic::server::UnaryService<super::Instance> for HeartbeatSvc<T> {
                         type Response = super::Response;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::Instance>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as PolarisGrpc>::heartbeat(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as PolarisGrpc>::heartbeat(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4014,18 +3680,14 @@ pub mod polaris_grpc_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }
@@ -4064,34 +3726,24 @@ pub mod polaris_heartbeat_grpc_server {
     pub trait PolarisHeartbeatGrpc: Send + Sync + 'static {
         /// Server streaming response type for the BatchHeartbeat method.
         type BatchHeartbeatStream: tonic::codegen::tokio_stream::Stream<
-            Item = std::result::Result<super::HeartbeatsResponse, tonic::Status>,
-        >
-        + Send
-        + 'static;
+                Item = std::result::Result<super::HeartbeatsResponse, tonic::Status>,
+            > + Send
+            + 'static;
         /// 被调方批量上报心跳
         async fn batch_heartbeat(
             &self,
             request: tonic::Request<tonic::Streaming<super::HeartbeatsRequest>>,
-        ) -> std::result::Result<
-            tonic::Response<Self::BatchHeartbeatStream>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<Self::BatchHeartbeatStream>, tonic::Status>;
         /// 批量获取心跳记录
         async fn batch_get_heartbeat(
             &self,
             request: tonic::Request<super::GetHeartbeatsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetHeartbeatsResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::GetHeartbeatsResponse>, tonic::Status>;
         /// 批量删除心跳记录
         async fn batch_del_heartbeat(
             &self,
             request: tonic::Request<super::DelHeartbeatsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::DelHeartbeatsResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::DelHeartbeatsResponse>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct PolarisHeartbeatGrpcServer<T: PolarisHeartbeatGrpc> {
@@ -4116,12 +3768,9 @@ pub mod polaris_heartbeat_grpc_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
-            where
-                F: tonic::service::Interceptor,
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
         {
             InterceptedService::new(Self::new(inner), interceptor)
         }
@@ -4154,12 +3803,11 @@ pub mod polaris_heartbeat_grpc_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>>
-    for PolarisHeartbeatGrpcServer<T>
-        where
-            T: PolarisHeartbeatGrpc,
-            B: Body + Send + 'static,
-            B::Error: Into<StdError> + Send + 'static,
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for PolarisHeartbeatGrpcServer<T>
+    where
+        T: PolarisHeartbeatGrpc,
+        B: Body + Send + 'static,
+        B::Error: Into<StdError> + Send + 'static,
     {
         type Response = http::Response<tonic::body::BoxBody>;
         type Error = std::convert::Infallible;
@@ -4176,29 +3824,21 @@ pub mod polaris_heartbeat_grpc_server {
                 "/v1.PolarisHeartbeatGRPC/BatchHeartbeat" => {
                     #[allow(non_camel_case_types)]
                     struct BatchHeartbeatSvc<T: PolarisHeartbeatGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisHeartbeatGrpc,
-                    > tonic::server::StreamingService<super::HeartbeatsRequest>
-                    for BatchHeartbeatSvc<T> {
+                    impl<T: PolarisHeartbeatGrpc>
+                        tonic::server::StreamingService<super::HeartbeatsRequest>
+                        for BatchHeartbeatSvc<T>
+                    {
                         type Response = super::HeartbeatsResponse;
                         type ResponseStream = T::BatchHeartbeatStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                tonic::Streaming<super::HeartbeatsRequest>,
-                            >,
+                            request: tonic::Request<tonic::Streaming<super::HeartbeatsRequest>>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisHeartbeatGrpc>::batch_heartbeat(
-                                    &inner,
-                                    request,
-                                )
-                                    .await
+                                <T as PolarisHeartbeatGrpc>::batch_heartbeat(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4229,25 +3869,19 @@ pub mod polaris_heartbeat_grpc_server {
                 "/v1.PolarisHeartbeatGRPC/BatchGetHeartbeat" => {
                     #[allow(non_camel_case_types)]
                     struct BatchGetHeartbeatSvc<T: PolarisHeartbeatGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisHeartbeatGrpc,
-                    > tonic::server::UnaryService<super::GetHeartbeatsRequest>
-                    for BatchGetHeartbeatSvc<T> {
+                    impl<T: PolarisHeartbeatGrpc>
+                        tonic::server::UnaryService<super::GetHeartbeatsRequest>
+                        for BatchGetHeartbeatSvc<T>
+                    {
                         type Response = super::GetHeartbeatsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetHeartbeatsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisHeartbeatGrpc>::batch_get_heartbeat(
-                                    &inner,
-                                    request,
-                                )
+                                <T as PolarisHeartbeatGrpc>::batch_get_heartbeat(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4279,25 +3913,19 @@ pub mod polaris_heartbeat_grpc_server {
                 "/v1.PolarisHeartbeatGRPC/BatchDelHeartbeat" => {
                     #[allow(non_camel_case_types)]
                     struct BatchDelHeartbeatSvc<T: PolarisHeartbeatGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisHeartbeatGrpc,
-                    > tonic::server::UnaryService<super::DelHeartbeatsRequest>
-                    for BatchDelHeartbeatSvc<T> {
+                    impl<T: PolarisHeartbeatGrpc>
+                        tonic::server::UnaryService<super::DelHeartbeatsRequest>
+                        for BatchDelHeartbeatSvc<T>
+                    {
                         type Response = super::DelHeartbeatsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::DelHeartbeatsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisHeartbeatGrpc>::batch_del_heartbeat(
-                                    &inner,
-                                    request,
-                                )
+                                <T as PolarisHeartbeatGrpc>::batch_del_heartbeat(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4326,18 +3954,14 @@ pub mod polaris_heartbeat_grpc_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }
@@ -4363,8 +3987,7 @@ pub mod polaris_heartbeat_grpc_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: PolarisHeartbeatGrpc> tonic::server::NamedService
-    for PolarisHeartbeatGrpcServer<T> {
+    impl<T: PolarisHeartbeatGrpc> tonic::server::NamedService for PolarisHeartbeatGrpcServer<T> {
         const NAME: &'static str = "v1.PolarisHeartbeatGRPC";
     }
 }
@@ -4409,12 +4032,9 @@ pub mod polaris_service_contract_grpc_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
-            where
-                F: tonic::service::Interceptor,
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
         {
             InterceptedService::new(Self::new(inner), interceptor)
         }
@@ -4447,12 +4067,11 @@ pub mod polaris_service_contract_grpc_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>>
-    for PolarisServiceContractGrpcServer<T>
-        where
-            T: PolarisServiceContractGrpc,
-            B: Body + Send + 'static,
-            B::Error: Into<StdError> + Send + 'static,
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for PolarisServiceContractGrpcServer<T>
+    where
+        T: PolarisServiceContractGrpc,
+        B: Body + Send + 'static,
+        B::Error: Into<StdError> + Send + 'static,
     {
         type Response = http::Response<tonic::body::BoxBody>;
         type Error = std::convert::Infallible;
@@ -4468,18 +4087,13 @@ pub mod polaris_service_contract_grpc_server {
             match req.uri().path() {
                 "/v1.PolarisServiceContractGRPC/ReportServiceContract" => {
                     #[allow(non_camel_case_types)]
-                    struct ReportServiceContractSvc<T: PolarisServiceContractGrpc>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: PolarisServiceContractGrpc,
-                    > tonic::server::UnaryService<super::ServiceContract>
-                    for ReportServiceContractSvc<T> {
+                    struct ReportServiceContractSvc<T: PolarisServiceContractGrpc>(pub Arc<T>);
+                    impl<T: PolarisServiceContractGrpc>
+                        tonic::server::UnaryService<super::ServiceContract>
+                        for ReportServiceContractSvc<T>
+                    {
                         type Response = super::Response;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ServiceContract>,
@@ -4487,10 +4101,9 @@ pub mod polaris_service_contract_grpc_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as PolarisServiceContractGrpc>::report_service_contract(
-                                    &inner,
-                                    request,
+                                    &inner, request,
                                 )
-                                    .await
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4520,18 +4133,13 @@ pub mod polaris_service_contract_grpc_server {
                 }
                 "/v1.PolarisServiceContractGRPC/GetServiceContract" => {
                     #[allow(non_camel_case_types)]
-                    struct GetServiceContractSvc<T: PolarisServiceContractGrpc>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: PolarisServiceContractGrpc,
-                    > tonic::server::UnaryService<super::ServiceContract>
-                    for GetServiceContractSvc<T> {
+                    struct GetServiceContractSvc<T: PolarisServiceContractGrpc>(pub Arc<T>);
+                    impl<T: PolarisServiceContractGrpc>
+                        tonic::server::UnaryService<super::ServiceContract>
+                        for GetServiceContractSvc<T>
+                    {
                         type Response = super::Response;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ServiceContract>,
@@ -4539,10 +4147,9 @@ pub mod polaris_service_contract_grpc_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as PolarisServiceContractGrpc>::get_service_contract(
-                                    &inner,
-                                    request,
+                                    &inner, request,
                                 )
-                                    .await
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4570,18 +4177,14 @@ pub mod polaris_service_contract_grpc_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }
@@ -4608,7 +4211,8 @@ pub mod polaris_service_contract_grpc_server {
         }
     }
     impl<T: PolarisServiceContractGrpc> tonic::server::NamedService
-    for PolarisServiceContractGrpcServer<T> {
+        for PolarisServiceContractGrpcServer<T>
+    {
         const NAME: &'static str = "v1.PolarisServiceContractGRPC";
     }
 }
@@ -4650,10 +4254,8 @@ pub struct ConfigFileGroup {
     #[prost(message, optional, tag = "18")]
     pub department: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(map = "string, string", tag = "19")]
-    pub metadata: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub metadata:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -4903,17 +4505,15 @@ pub struct ConfigFileGroupRequest {
     pub config_file_group: ::core::option::Option<ConfigFileGroup>,
     /// 配置标签
     #[prost(map = "string, string", tag = "12")]
-    pub client_labels: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    pub client_labels:
+        ::std::collections::HashMap<::prost::alloc::string::String, ::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConfigDiscoverRequest {
     #[prost(
-    enumeration = "config_discover_request::ConfigDiscoverRequestType",
-    tag = "1"
+        enumeration = "config_discover_request::ConfigDiscoverRequestType",
+        tag = "1"
     )]
     pub r#type: i32,
     #[prost(message, optional, tag = "2")]
@@ -4923,17 +4523,7 @@ pub struct ConfigDiscoverRequest {
 }
 /// Nested message and enum types in `ConfigDiscoverRequest`.
 pub mod config_discover_request {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum ConfigDiscoverRequestType {
         Unknown = 0,
@@ -4976,8 +4566,8 @@ pub struct ConfigDiscoverResponse {
     #[prost(string, tag = "3")]
     pub revision: ::prost::alloc::string::String,
     #[prost(
-    enumeration = "config_discover_response::ConfigDiscoverResponseType",
-    tag = "4"
+        enumeration = "config_discover_response::ConfigDiscoverResponseType",
+        tag = "4"
     )]
     pub r#type: i32,
     #[prost(message, optional, tag = "5")]
@@ -4989,17 +4579,7 @@ pub struct ConfigDiscoverResponse {
 }
 /// Nested message and enum types in `ConfigDiscoverResponse`.
 pub mod config_discover_response {
-    #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum ConfigDiscoverResponseType {
         Unknown = 0,
@@ -5086,9 +4666,7 @@ pub struct ConfigBatchQueryResponse {
     #[prost(message, repeated, tag = "6")]
     pub config_file_releases: ::prost::alloc::vec::Vec<ConfigFileRelease>,
     #[prost(message, repeated, tag = "7")]
-    pub config_file_release_histories: ::prost::alloc::vec::Vec<
-        ConfigFileReleaseHistory,
-    >,
+    pub config_file_release_histories: ::prost::alloc::vec::Vec<ConfigFileReleaseHistory>,
     #[prost(message, repeated, tag = "8")]
     pub config_file_templates: ::prost::alloc::vec::Vec<ConfigFileTemplate>,
 }
@@ -5155,8 +4733,8 @@ pub struct ConfigClientListResponse {
 /// Generated client implementations.
 pub mod polaris_config_grpc_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct PolarisConfigGrpcClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -5164,20 +4742,20 @@ pub mod polaris_config_grpc_client {
     impl PolarisConfigGrpcClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
-            where
-                D: TryInto<tonic::transport::Endpoint>,
-                D::Error: Into<StdError>,
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
         {
             let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
             Ok(Self::new(conn))
         }
     }
     impl<T> PolarisConfigGrpcClient<T>
-        where
-            T: tonic::client::GrpcService<tonic::body::BoxBody>,
-            T::Error: Into<StdError>,
-            T::ResponseBody: Body<Data = Bytes> + Send + 'static,
-            <T::ResponseBody as Body>::Error: Into<StdError> + Send,
+    where
+        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + Send,
     {
         pub fn new(inner: T) -> Self {
             let inner = tonic::client::Grpc::new(inner);
@@ -5191,18 +4769,17 @@ pub mod polaris_config_grpc_client {
             inner: T,
             interceptor: F,
         ) -> PolarisConfigGrpcClient<InterceptedService<T, F>>
-            where
-                F: tonic::service::Interceptor,
-                T::ResponseBody: Default,
-                T: tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
-                    >,
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
-                <T as tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                >>::Error: Into<StdError> + Send + Sync,
+            >,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             PolarisConfigGrpcClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -5241,23 +4818,16 @@ pub mod polaris_config_grpc_client {
         pub async fn get_config_file(
             &mut self,
             request: impl tonic::IntoRequest<super::ClientConfigFileInfo>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisConfigGRPC/GetConfigFile",
-            );
+            let path = http::uri::PathAndQuery::from_static("/v1.PolarisConfigGRPC/GetConfigFile");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisConfigGRPC", "GetConfigFile"));
@@ -5267,23 +4837,17 @@ pub mod polaris_config_grpc_client {
         pub async fn create_config_file(
             &mut self,
             request: impl tonic::IntoRequest<super::ConfigFile>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisConfigGRPC/CreateConfigFile",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/v1.PolarisConfigGRPC/CreateConfigFile");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisConfigGRPC", "CreateConfigFile"));
@@ -5293,23 +4857,17 @@ pub mod polaris_config_grpc_client {
         pub async fn update_config_file(
             &mut self,
             request: impl tonic::IntoRequest<super::ConfigFile>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisConfigGRPC/UpdateConfigFile",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/v1.PolarisConfigGRPC/UpdateConfigFile");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisConfigGRPC", "UpdateConfigFile"));
@@ -5319,23 +4877,17 @@ pub mod polaris_config_grpc_client {
         pub async fn publish_config_file(
             &mut self,
             request: impl tonic::IntoRequest<super::ConfigFileRelease>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisConfigGRPC/PublishConfigFile",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/v1.PolarisConfigGRPC/PublishConfigFile");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisConfigGRPC", "PublishConfigFile"));
@@ -5345,51 +4897,40 @@ pub mod polaris_config_grpc_client {
         pub async fn upsert_and_publish_config_file(
             &mut self,
             request: impl tonic::IntoRequest<super::ConfigFilePublishInfo>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/v1.PolarisConfigGRPC/UpsertAndPublishConfigFile",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("v1.PolarisConfigGRPC", "UpsertAndPublishConfigFile"),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "v1.PolarisConfigGRPC",
+                "UpsertAndPublishConfigFile",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// 订阅配置变更
         pub async fn watch_config_files(
             &mut self,
             request: impl tonic::IntoRequest<super::ClientWatchConfigFileRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisConfigGRPC/WatchConfigFiles",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/v1.PolarisConfigGRPC/WatchConfigFiles");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisConfigGRPC", "WatchConfigFiles"));
@@ -5399,53 +4940,41 @@ pub mod polaris_config_grpc_client {
         pub async fn get_config_file_metadata_list(
             &mut self,
             request: impl tonic::IntoRequest<super::ConfigFileGroupRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientListResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientListResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/v1.PolarisConfigGRPC/GetConfigFileMetadataList",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("v1.PolarisConfigGRPC", "GetConfigFileMetadataList"),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "v1.PolarisConfigGRPC",
+                "GetConfigFileMetadataList",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// 统一发现接口
         pub async fn discover(
             &mut self,
-            request: impl tonic::IntoStreamingRequest<
-                Message = super::ConfigDiscoverRequest,
-            >,
+            request: impl tonic::IntoStreamingRequest<Message = super::ConfigDiscoverRequest>,
         ) -> std::result::Result<
             tonic::Response<tonic::codec::Streaming<super::ConfigDiscoverResponse>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/v1.PolarisConfigGRPC/Discover",
-            );
+            let path = http::uri::PathAndQuery::from_static("/v1.PolarisConfigGRPC/Discover");
             let mut req = request.into_streaming_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("v1.PolarisConfigGRPC", "Discover"));
@@ -5464,64 +4993,42 @@ pub mod polaris_config_grpc_server {
         async fn get_config_file(
             &self,
             request: tonic::Request<super::ClientConfigFileInfo>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>;
         /// 创建配置
         async fn create_config_file(
             &self,
             request: tonic::Request<super::ConfigFile>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>;
         /// 更新配置
         async fn update_config_file(
             &self,
             request: tonic::Request<super::ConfigFile>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>;
         /// 发布配置
         async fn publish_config_file(
             &self,
             request: tonic::Request<super::ConfigFileRelease>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>;
         /// 发布配置
         async fn upsert_and_publish_config_file(
             &self,
             request: tonic::Request<super::ConfigFilePublishInfo>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>;
         /// 订阅配置变更
         async fn watch_config_files(
             &self,
             request: tonic::Request<super::ClientWatchConfigFileRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientResponse>, tonic::Status>;
         /// 拉取指定配置分组下的配置文件列表
         async fn get_config_file_metadata_list(
             &self,
             request: tonic::Request<super::ConfigFileGroupRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::ConfigClientListResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ConfigClientListResponse>, tonic::Status>;
         /// Server streaming response type for the Discover method.
         type DiscoverStream: tonic::codegen::tokio_stream::Stream<
-            Item = std::result::Result<super::ConfigDiscoverResponse, tonic::Status>,
-        >
-        + Send
-        + 'static;
+                Item = std::result::Result<super::ConfigDiscoverResponse, tonic::Status>,
+            > + Send
+            + 'static;
         /// 统一发现接口
         async fn discover(
             &self,
@@ -5551,12 +5058,9 @@ pub mod polaris_config_grpc_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
-            where
-                F: tonic::service::Interceptor,
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        where
+            F: tonic::service::Interceptor,
         {
             InterceptedService::new(Self::new(inner), interceptor)
         }
@@ -5590,10 +5094,10 @@ pub mod polaris_config_grpc_server {
         }
     }
     impl<T, B> tonic::codegen::Service<http::Request<B>> for PolarisConfigGrpcServer<T>
-        where
-            T: PolarisConfigGrpc,
-            B: Body + Send + 'static,
-            B::Error: Into<StdError> + Send + 'static,
+    where
+        T: PolarisConfigGrpc,
+        B: Body + Send + 'static,
+        B::Error: Into<StdError> + Send + 'static,
     {
         type Response = http::Response<tonic::body::BoxBody>;
         type Error = std::convert::Infallible;
@@ -5610,23 +5114,19 @@ pub mod polaris_config_grpc_server {
                 "/v1.PolarisConfigGRPC/GetConfigFile" => {
                     #[allow(non_camel_case_types)]
                     struct GetConfigFileSvc<T: PolarisConfigGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::UnaryService<super::ClientConfigFileInfo>
-                    for GetConfigFileSvc<T> {
+                    impl<T: PolarisConfigGrpc>
+                        tonic::server::UnaryService<super::ClientConfigFileInfo>
+                        for GetConfigFileSvc<T>
+                    {
                         type Response = super::ConfigClientResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ClientConfigFileInfo>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisConfigGrpc>::get_config_file(&inner, request)
-                                    .await
+                                <T as PolarisConfigGrpc>::get_config_file(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5657,26 +5157,18 @@ pub mod polaris_config_grpc_server {
                 "/v1.PolarisConfigGRPC/CreateConfigFile" => {
                     #[allow(non_camel_case_types)]
                     struct CreateConfigFileSvc<T: PolarisConfigGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::UnaryService<super::ConfigFile>
-                    for CreateConfigFileSvc<T> {
+                    impl<T: PolarisConfigGrpc> tonic::server::UnaryService<super::ConfigFile>
+                        for CreateConfigFileSvc<T>
+                    {
                         type Response = super::ConfigClientResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ConfigFile>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisConfigGrpc>::create_config_file(
-                                    &inner,
-                                    request,
-                                )
-                                    .await
+                                <T as PolarisConfigGrpc>::create_config_file(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5707,26 +5199,18 @@ pub mod polaris_config_grpc_server {
                 "/v1.PolarisConfigGRPC/UpdateConfigFile" => {
                     #[allow(non_camel_case_types)]
                     struct UpdateConfigFileSvc<T: PolarisConfigGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::UnaryService<super::ConfigFile>
-                    for UpdateConfigFileSvc<T> {
+                    impl<T: PolarisConfigGrpc> tonic::server::UnaryService<super::ConfigFile>
+                        for UpdateConfigFileSvc<T>
+                    {
                         type Response = super::ConfigClientResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ConfigFile>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisConfigGrpc>::update_config_file(
-                                    &inner,
-                                    request,
-                                )
-                                    .await
+                                <T as PolarisConfigGrpc>::update_config_file(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5757,26 +5241,18 @@ pub mod polaris_config_grpc_server {
                 "/v1.PolarisConfigGRPC/PublishConfigFile" => {
                     #[allow(non_camel_case_types)]
                     struct PublishConfigFileSvc<T: PolarisConfigGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::UnaryService<super::ConfigFileRelease>
-                    for PublishConfigFileSvc<T> {
+                    impl<T: PolarisConfigGrpc> tonic::server::UnaryService<super::ConfigFileRelease>
+                        for PublishConfigFileSvc<T>
+                    {
                         type Response = super::ConfigClientResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ConfigFileRelease>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisConfigGrpc>::publish_config_file(
-                                    &inner,
-                                    request,
-                                )
-                                    .await
+                                <T as PolarisConfigGrpc>::publish_config_file(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5806,18 +5282,13 @@ pub mod polaris_config_grpc_server {
                 }
                 "/v1.PolarisConfigGRPC/UpsertAndPublishConfigFile" => {
                     #[allow(non_camel_case_types)]
-                    struct UpsertAndPublishConfigFileSvc<T: PolarisConfigGrpc>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::UnaryService<super::ConfigFilePublishInfo>
-                    for UpsertAndPublishConfigFileSvc<T> {
+                    struct UpsertAndPublishConfigFileSvc<T: PolarisConfigGrpc>(pub Arc<T>);
+                    impl<T: PolarisConfigGrpc>
+                        tonic::server::UnaryService<super::ConfigFilePublishInfo>
+                        for UpsertAndPublishConfigFileSvc<T>
+                    {
                         type Response = super::ConfigClientResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ConfigFilePublishInfo>,
@@ -5825,10 +5296,9 @@ pub mod polaris_config_grpc_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as PolarisConfigGrpc>::upsert_and_publish_config_file(
-                                    &inner,
-                                    request,
+                                    &inner, request,
                                 )
-                                    .await
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -5859,26 +5329,19 @@ pub mod polaris_config_grpc_server {
                 "/v1.PolarisConfigGRPC/WatchConfigFiles" => {
                     #[allow(non_camel_case_types)]
                     struct WatchConfigFilesSvc<T: PolarisConfigGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::UnaryService<super::ClientWatchConfigFileRequest>
-                    for WatchConfigFilesSvc<T> {
+                    impl<T: PolarisConfigGrpc>
+                        tonic::server::UnaryService<super::ClientWatchConfigFileRequest>
+                        for WatchConfigFilesSvc<T>
+                    {
                         type Response = super::ConfigClientResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ClientWatchConfigFileRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as PolarisConfigGrpc>::watch_config_files(
-                                    &inner,
-                                    request,
-                                )
-                                    .await
+                                <T as PolarisConfigGrpc>::watch_config_files(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5908,18 +5371,13 @@ pub mod polaris_config_grpc_server {
                 }
                 "/v1.PolarisConfigGRPC/GetConfigFileMetadataList" => {
                     #[allow(non_camel_case_types)]
-                    struct GetConfigFileMetadataListSvc<T: PolarisConfigGrpc>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::UnaryService<super::ConfigFileGroupRequest>
-                    for GetConfigFileMetadataListSvc<T> {
+                    struct GetConfigFileMetadataListSvc<T: PolarisConfigGrpc>(pub Arc<T>);
+                    impl<T: PolarisConfigGrpc>
+                        tonic::server::UnaryService<super::ConfigFileGroupRequest>
+                        for GetConfigFileMetadataListSvc<T>
+                    {
                         type Response = super::ConfigClientListResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ConfigFileGroupRequest>,
@@ -5927,10 +5385,9 @@ pub mod polaris_config_grpc_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as PolarisConfigGrpc>::get_config_file_metadata_list(
-                                    &inner,
-                                    request,
+                                    &inner, request,
                                 )
-                                    .await
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -5961,21 +5418,17 @@ pub mod polaris_config_grpc_server {
                 "/v1.PolarisConfigGRPC/Discover" => {
                     #[allow(non_camel_case_types)]
                     struct DiscoverSvc<T: PolarisConfigGrpc>(pub Arc<T>);
-                    impl<
-                        T: PolarisConfigGrpc,
-                    > tonic::server::StreamingService<super::ConfigDiscoverRequest>
-                    for DiscoverSvc<T> {
+                    impl<T: PolarisConfigGrpc>
+                        tonic::server::StreamingService<super::ConfigDiscoverRequest>
+                        for DiscoverSvc<T>
+                    {
                         type Response = super::ConfigDiscoverResponse;
                         type ResponseStream = T::DiscoverStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                tonic::Streaming<super::ConfigDiscoverRequest>,
-                            >,
+                            request: tonic::Request<tonic::Streaming<super::ConfigDiscoverRequest>>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -6007,18 +5460,14 @@ pub mod polaris_config_grpc_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }
@@ -6044,8 +5493,7 @@ pub mod polaris_config_grpc_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: PolarisConfigGrpc> tonic::server::NamedService
-    for PolarisConfigGrpcServer<T> {
+    impl<T: PolarisConfigGrpc> tonic::server::NamedService for PolarisConfigGrpcServer<T> {
         const NAME: &'static str = "v1.PolarisConfigGRPC";
     }
 }
@@ -6348,9 +5796,7 @@ impl Code {
             Code::NotAllowCreateAliasForAlias => "NotAllowCreateAliasForAlias",
             Code::NotAllowAliasCreateRateLimit => "NotAllowAliasCreateRateLimit",
             Code::NotAllowAliasBindRule => "NotAllowAliasBindRule",
-            Code::NotAllowDifferentNamespaceBindRule => {
-                "NotAllowDifferentNamespaceBindRule"
-            }
+            Code::NotAllowDifferentNamespaceBindRule => "NotAllowDifferentNamespaceBindRule",
             Code::Unauthorized => "Unauthorized",
             Code::NotAllowedAccess => "NotAllowedAccess",
             Code::CmdbNotFindHost => "CMDBNotFindHost",
@@ -6398,9 +5844,7 @@ impl Code {
             Code::NotAllowModifyDefaultStrategyPrincipal => {
                 "NotAllowModifyDefaultStrategyPrincipal"
             }
-            Code::NotAllowModifyOwnerDefaultStrategy => {
-                "NotAllowModifyOwnerDefaultStrategy"
-            }
+            Code::NotAllowModifyOwnerDefaultStrategy => "NotAllowModifyOwnerDefaultStrategy",
             Code::EmptyAutToken => "EmptyAutToken",
             Code::TokenDisabled => "TokenDisabled",
             Code::TokenNotExisted => "TokenNotExisted",
@@ -6461,15 +5905,11 @@ impl Code {
             "InvalidCircuitBreakerID" => Some(Self::InvalidCircuitBreakerId),
             "InvalidCircuitBreakerVersion" => Some(Self::InvalidCircuitBreakerVersion),
             "InvalidCircuitBreakerName" => Some(Self::InvalidCircuitBreakerName),
-            "InvalidCircuitBreakerNamespace" => {
-                Some(Self::InvalidCircuitBreakerNamespace)
-            }
+            "InvalidCircuitBreakerNamespace" => Some(Self::InvalidCircuitBreakerNamespace),
             "InvalidCircuitBreakerOwners" => Some(Self::InvalidCircuitBreakerOwners),
             "InvalidCircuitBreakerToken" => Some(Self::InvalidCircuitBreakerToken),
             "InvalidCircuitBreakerBusiness" => Some(Self::InvalidCircuitBreakerBusiness),
-            "InvalidCircuitBreakerDepartment" => {
-                Some(Self::InvalidCircuitBreakerDepartment)
-            }
+            "InvalidCircuitBreakerDepartment" => Some(Self::InvalidCircuitBreakerDepartment),
             "InvalidCircuitBreakerComment" => Some(Self::InvalidCircuitBreakerComment),
             "CircuitBreakerRuleExisted" => Some(Self::CircuitBreakerRuleExisted),
             "InvalidRoutingID" => Some(Self::InvalidRoutingId),
@@ -6507,9 +5947,7 @@ impl Code {
             "ServiceExistedCircuitBreakers" => Some(Self::ServiceExistedCircuitBreakers),
             "ServiceExistedAlias" => Some(Self::ServiceExistedAlias),
             "NamespaceExistedMeshResources" => Some(Self::NamespaceExistedMeshResources),
-            "NamespaceExistedCircuitBreakers" => {
-                Some(Self::NamespaceExistedCircuitBreakers)
-            }
+            "NamespaceExistedCircuitBreakers" => Some(Self::NamespaceExistedCircuitBreakers),
             "ServiceSubscribedByMeshes" => Some(Self::ServiceSubscribedByMeshes),
             "ServiceExistedFluxRateLimits" => Some(Self::ServiceExistedFluxRateLimits),
             "NamespaceExistedConfigGroups" => Some(Self::NamespaceExistedConfigGroups),
@@ -6532,9 +5970,7 @@ impl Code {
             "NotAllowCreateAliasForAlias" => Some(Self::NotAllowCreateAliasForAlias),
             "NotAllowAliasCreateRateLimit" => Some(Self::NotAllowAliasCreateRateLimit),
             "NotAllowAliasBindRule" => Some(Self::NotAllowAliasBindRule),
-            "NotAllowDifferentNamespaceBindRule" => {
-                Some(Self::NotAllowDifferentNamespaceBindRule)
-            }
+            "NotAllowDifferentNamespaceBindRule" => Some(Self::NotAllowDifferentNamespaceBindRule),
             "Unauthorized" => Some(Self::Unauthorized),
             "NotAllowedAccess" => Some(Self::NotAllowedAccess),
             "CMDBNotFindHost" => Some(Self::CmdbNotFindHost),
@@ -6552,9 +5988,7 @@ impl Code {
             "InstanceRegisTimeout" => Some(Self::InstanceRegisTimeout),
             "InvalidConfigFileGroupName" => Some(Self::InvalidConfigFileGroupName),
             "InvalidConfigFileName" => Some(Self::InvalidConfigFileName),
-            "InvalidConfigFileContentLength" => {
-                Some(Self::InvalidConfigFileContentLength)
-            }
+            "InvalidConfigFileContentLength" => Some(Self::InvalidConfigFileContentLength),
             "InvalidConfigFileFormat" => Some(Self::InvalidConfigFileFormat),
             "InvalidConfigFileTags" => Some(Self::InvalidConfigFileTags),
             "InvalidWatchConfigFileFormat" => Some(Self::InvalidWatchConfigFileFormat),
@@ -6584,9 +6018,7 @@ impl Code {
             "NotAllowModifyDefaultStrategyPrincipal" => {
                 Some(Self::NotAllowModifyDefaultStrategyPrincipal)
             }
-            "NotAllowModifyOwnerDefaultStrategy" => {
-                Some(Self::NotAllowModifyOwnerDefaultStrategy)
-            }
+            "NotAllowModifyOwnerDefaultStrategy" => Some(Self::NotAllowModifyOwnerDefaultStrategy),
             "EmptyAutToken" => Some(Self::EmptyAutToken),
             "TokenDisabled" => Some(Self::TokenDisabled),
             "TokenNotExisted" => Some(Self::TokenNotExisted),

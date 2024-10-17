@@ -46,33 +46,19 @@ pub struct ResourceStat {
     pub status: RetStatus,
 }
 
-pub trait Resource {
+pub trait Resource {}
 
-}
+pub struct ServiceResource {}
 
-pub struct ServiceResource {
+impl ServiceResource {}
 
-}
+pub struct MethodResource {}
 
-impl ServiceResource {
+impl MethodResource {}
 
-}
+pub struct InstanceResource {}
 
-pub struct MethodResource {
-
-}
-
-impl MethodResource {
-
-}
-
-pub struct InstanceResource {
-
-}
-
-impl InstanceResource {
-
-}
+impl InstanceResource {}
 
 pub struct CheckResult {
     pub pass: bool,
