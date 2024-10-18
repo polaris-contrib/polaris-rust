@@ -14,7 +14,9 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::config::config::Configuration;
-use crate::core::model::cache::{EventType, ResourceEventKey, ServerEvent};
+use crate::core::model::cache::{
+    EventType, ResourceEventKey, ServerEvent, ServiceInstancesCacheItem,
+};
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{ServiceInstances, ServiceRule, Services};
@@ -69,7 +71,7 @@ pub trait ResourceCache: Plugin {
     async fn load_service_instances(
         &self,
         filter: Filter,
-    ) -> Result<ServiceInstances, PolarisError>;
+    ) -> Result<ServiceInstancesCacheItem, PolarisError>;
     // 加载配置文件
     async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError>;
     // 加载配置文件组
@@ -113,7 +115,7 @@ impl ResourceCache for NoopResourceCache {
     async fn load_service_instances(
         &self,
         filter: Filter,
-    ) -> Result<ServiceInstances, PolarisError> {
+    ) -> Result<ServiceInstancesCacheItem, PolarisError> {
         todo!()
     }
 

@@ -326,6 +326,8 @@ pub struct ServiceInstancesCacheItem {
     initialized: Arc<AtomicBool>,
     pub svc_info: Service,
     pub value: Arc<RwLock<Vec<Instance>>>,
+    pub available_instances: Arc<RwLock<Vec<Instance>>>,
+    pub total_weight: u64,
     pub revision: String,
 }
 
@@ -344,11 +346,16 @@ impl ServiceInstancesCacheItem {
             initialized: Arc::new(AtomicBool::new(false)),
             svc_info: Service::default(),
             value: Arc::new(RwLock::new(Vec::new())),
+            available_instances: Arc::new(RwLock::new(Vec::new())),
+            total_weight: 0,
             revision: String::new(),
         }
     }
 
-    pub async fn list_instances(&self) -> Vec<Instance> {
+    pub async fn list_instances(&self, only_available: bool) -> Vec<Instance> {
+        if only_available {
+            return self.available_instances.read().await.clone();
+        }
         self.value.read().await.clone()
     }
 
@@ -375,6 +382,8 @@ impl Clone for ServiceInstancesCacheItem {
             initialized: self.initialized.clone(),
             svc_info: self.svc_info.clone(),
             value: self.value.clone(),
+            available_instances: self.available_instances.clone(),
+            total_weight: self.total_weight,
             revision: self.revision.clone(),
         }
     }

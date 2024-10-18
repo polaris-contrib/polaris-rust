@@ -13,30 +13,74 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use super::api::{LoadBalanceAPI, RouterAPI};
+use std::{fmt::format, sync::Arc};
 
-#[derive(Default)]
-pub struct DefaultRouterAPI {}
+use crate::core::{
+    context::SDKContext,
+    model::error::{ErrorCode, PolarisError},
+};
+
+use super::api::RouterAPI;
+
+pub struct DefaultRouterAPI {
+    context: Arc<SDKContext>,
+}
+
+impl DefaultRouterAPI {
+    pub fn new(context: Arc<SDKContext>) -> Self {
+        Self { context }
+    }
+}
 
 #[async_trait::async_trait]
 impl RouterAPI for DefaultRouterAPI {
     async fn router(
         &self,
         req: super::req::ProcessRouteRequest,
-    ) -> super::req::ProcessRouteResponse {
+    ) -> Result<super::req::ProcessRouteResponse, PolarisError> {
         todo!()
     }
-}
 
-#[derive(Default)]
-pub struct DefaultLoadBalancerAPI {}
-
-#[async_trait::async_trait]
-impl LoadBalanceAPI for DefaultLoadBalancerAPI {
     async fn load_balance(
         &self,
         req: super::req::ProcessLoadBalanceRequest,
-    ) -> super::req::ProcessLoadBalanceResponse {
-        todo!()
+    ) -> Result<super::req::ProcessLoadBalanceResponse, PolarisError> {
+        let mut criteria = req.criteria.clone();
+        let mut lb_policy = criteria.policy.clone();
+
+        if lb_policy.is_empty() {
+            lb_policy = self
+                .context
+                .conf
+                .consumer
+                .load_balancer
+                .default_policy
+                .clone();
+        }
+
+        let lb = self
+            .context
+            .get_engine()
+            .lookup_loadbalancer(&lb_policy)
+            .await;
+
+        if lb.is_none() {
+            tracing::error!(
+                "[polaris][router_api] load balancer {} not found",
+                lb_policy
+            );
+            return Err(PolarisError::new(
+                ErrorCode::PluginError,
+                format!("load balancer {} not found", lb_policy,),
+            ));
+        }
+
+        let lb = lb.unwrap();
+        let result = lb.choose_instance(req.criteria, req.service_instances);
+
+        match result {
+            Ok(instance) => Ok(super::req::ProcessLoadBalanceResponse { instance }),
+            Err(e) => Err(e),
+        }
     }
 }

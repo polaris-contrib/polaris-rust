@@ -45,6 +45,7 @@ pub struct ServiceRouterPluginConfig {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LoadBalancerConfig {
+    pub default_policy: String,
     pub plugins: Option<Vec<String>>,
 }
 

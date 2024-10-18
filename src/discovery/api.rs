@@ -95,7 +95,7 @@ where
     async fn get_one_instance(
         &self,
         req: GetOneInstanceRequest,
-    ) -> Result<InstancesResponse, PolarisError>;
+    ) -> Result<InstanceResponse, PolarisError>;
 
     /// get_health_instance 拉取健康实例
     async fn get_health_instance(

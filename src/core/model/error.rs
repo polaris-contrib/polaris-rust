@@ -78,7 +78,7 @@ where
 
 impl Display for PolarisError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "err_code={:?} err_msg={}", self.err_code, self.err_msg)
     }
 }
 

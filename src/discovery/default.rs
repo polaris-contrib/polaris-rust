@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 
 use crate::core::context::SDKContext;
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::{ServiceInstances, ServiceInstancesChangeEvent};
+use crate::core::model::naming::ServiceInstancesChangeEvent;
 use crate::core::plugin::cache::ResourceListener;
 use crate::discovery::api::{ConsumerAPI, LosslessAPI, ProviderAPI};
 use crate::discovery::req::{
@@ -31,11 +31,11 @@ use crate::discovery::req::{
     InstanceRegisterRequest, InstanceRegisterResponse, InstancesResponse, LosslessActionProvider,
     ReportServiceContractRequest, ServiceCallResult, ServiceRuleResponse, WatchInstanceRequest,
 };
-use crate::router::api::{LoadBalanceAPI, RouterAPI};
-use crate::router::default::{DefaultLoadBalancerAPI, DefaultRouterAPI};
+use crate::router::api::RouterAPI;
+use crate::router::default::DefaultRouterAPI;
 use crate::router::req::{ProcessLoadBalanceRequest, ProcessRouteRequest};
 
-use super::req::WatchInstanceResponse;
+use super::req::{InstanceResponse, WatchInstanceResponse};
 
 struct InstanceWatcher {
     req: WatchInstanceRequest,
@@ -67,7 +67,7 @@ impl ResourceListener for InstanceResourceListener {
                     for watcher in watchers {
                         (watcher.req.call_back)(ServiceInstancesChangeEvent {
                             service: ins_cache_val.get_service_info(),
-                            instances: ins_cache_val.list_instances().await,
+                            instances: ins_cache_val.list_instances(false).await,
                         })
                     }
                 }
@@ -87,7 +87,6 @@ impl ResourceListener for InstanceResourceListener {
 pub struct DefaultConsumerAPI {
     context: Arc<SDKContext>,
     router_api: Box<DefaultRouterAPI>,
-    loadbalance_api: Box<DefaultLoadBalancerAPI>,
     // watchers: namespace#service -> InstanceWatcher
     watchers: Arc<InstanceResourceListener>,
     // register_resource_watcher: 是否已经注册资源监听器
@@ -98,8 +97,7 @@ impl DefaultConsumerAPI {
     pub fn new(context: Arc<SDKContext>) -> Self {
         Self {
             context: context.clone(),
-            router_api: Box::new(DefaultRouterAPI::default()),
-            loadbalance_api: Box::new(DefaultLoadBalancerAPI::default()),
+            router_api: Box::new(DefaultRouterAPI::new(context.clone())),
             watchers: Arc::new(InstanceResourceListener {
                 watchers: Arc::new(RwLock::new(HashMap::new())),
             }),
@@ -113,7 +111,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
     async fn get_one_instance(
         &self,
         req: GetOneInstanceRequest,
-    ) -> Result<InstancesResponse, PolarisError> {
+    ) -> Result<InstanceResponse, PolarisError> {
         let check_ret = req.check_valid();
         if let Err(e) = check_ret {
             return Err(e);
@@ -133,35 +131,40 @@ impl ConsumerAPI for DefaultConsumerAPI {
             .await;
 
         match rsp {
-            Ok(mut rsp) => {
+            Ok(rsp) => {
                 let instances = rsp.instances;
-
                 let criteria = req.caller_info.clone().criteria;
 
                 // 执行路由逻辑
                 let route_ret = self
                     .router_api
                     .router(ProcessRouteRequest {
-                        service_instances: ServiceInstances {
-                            service: rsp.service_info.clone(),
-                            available_instances: instances,
-                            instances: vec![],
-                        },
+                        service_instances: instances,
                         caller_info: req.caller_info,
                         callee_info: req.callee_info,
                     })
                     .await;
 
+                if route_ret.is_err() {
+                    return Err(route_ret.err().unwrap());
+                }
+
                 // 执行负载均衡逻辑
                 let balance_ret = self
-                    .loadbalance_api
+                    .router_api
                     .load_balance(ProcessLoadBalanceRequest {
-                        service_instances: route_ret.service_instances,
+                        service_instances: route_ret.unwrap().service_instances,
                         criteria: criteria,
                     })
                     .await;
-                rsp.instances = vec![balance_ret.instance];
-                Ok(rsp)
+
+                if balance_ret.is_err() {
+                    return Err(balance_ret.err().unwrap());
+                }
+
+                Ok(InstanceResponse {
+                    instance: balance_ret.unwrap().instance,
+                })
             }
             Err(e) => {
                 return Err(e);
@@ -250,7 +253,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
         engine.get_service_rule(req).await
     }
 
-    async fn report_service_call(&self, req: ServiceCallResult) {
+    async fn report_service_call(&self, _req: ServiceCallResult) {
         todo!()
     }
 }
@@ -260,7 +263,7 @@ pub struct DefaultProviderAPI
 where
     Self: Send + Sync,
 {
-    manage_sdk: bool,
+    _manage_sdk: bool,
     context: Arc<SDKContext>,
     beat_tasks: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
 }
@@ -269,7 +272,7 @@ impl DefaultProviderAPI {
     pub fn new(context: Arc<SDKContext>, manage_sdk: bool) -> Self {
         Self {
             context,
-            manage_sdk: manage_sdk,
+            _manage_sdk: manage_sdk,
             beat_tasks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -359,17 +362,17 @@ impl DefaultLosslessAPI {
 impl LosslessAPI for DefaultLosslessAPI {
     fn set_action_provider(
         &self,
-        ins: Arc<dyn BaseInstance>,
-        action: Arc<dyn LosslessActionProvider>,
+        _ins: Arc<dyn BaseInstance>,
+        _action: Arc<dyn LosslessActionProvider>,
     ) {
         todo!()
     }
 
-    fn lossless_register(&self, ins: Arc<dyn BaseInstance>) {
+    fn lossless_register(&self, _ins: Arc<dyn BaseInstance>) {
         todo!()
     }
 
-    fn lossless_deregister(&self, ins: Arc<dyn BaseInstance>) {
+    fn lossless_deregister(&self, _ins: Arc<dyn BaseInstance>) {
         todo!()
     }
 }

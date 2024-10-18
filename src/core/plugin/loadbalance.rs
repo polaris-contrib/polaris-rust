@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::model::{
+    error::PolarisError,
     loadbalance::Criteria,
     naming::{Instance, ServiceInstances},
 };
@@ -26,5 +27,9 @@ where
     Self: Plugin,
 {
     /// choose_instance 选择一个实例
-    fn choose_instance(&self, criteria: Criteria, instances: ServiceInstances) -> Option<Instance>;
+    fn choose_instance(
+        &self,
+        criteria: Criteria,
+        instances: ServiceInstances,
+    ) -> Result<Instance, PolarisError>;
 }

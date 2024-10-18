@@ -23,6 +23,9 @@ use crate::core::plugin::router::ServiceRouter;
 use crate::plugins::cache::memory::memory::MemoryCache;
 use crate::plugins::connector::grpc::connector::GrpcConnector;
 use crate::plugins::filter::configcrypto::crypto::ConfigFileCryptoFilter;
+use crate::plugins::loadbalance::random::random::WeightRandomLoadbalancer;
+use crate::plugins::loadbalance::ringhash::ringhash::ConsistentHashLoadBalancer;
+use crate::plugins::loadbalance::roundrobin::roundrobin::WeightedRoundRobinBalancer;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
@@ -35,6 +38,7 @@ use tokio::runtime::Runtime;
 use super::cache::InitResourceCacheOption;
 use super::connector::InitConnectorOption;
 use super::filter::DiscoverFilter;
+use super::loadbalance::LoadBalancer;
 
 static SEQ: AtomicU64 = AtomicU64::new(1);
 
@@ -173,6 +177,15 @@ impl Extensions {
         self.config_filters = Some(Arc::new(filters));
         Ok(())
     }
+
+    pub fn load_loadbalancers(&mut self) -> HashMap<String, Arc<Box<dyn LoadBalancer>>> {
+        let mut loadbalancers = HashMap::<String, Arc<Box<dyn LoadBalancer>>>::new();
+        for (name, supplier) in self.plugin_container.load_balancers.iter() {
+            let lb = supplier();
+            loadbalancers.insert(name.clone(), Arc::new(lb));
+        }
+        loadbalancers
+    }
 }
 
 pub struct PluginContainer {
@@ -181,6 +194,7 @@ pub struct PluginContainer {
     caches: HashMap<String, fn(InitResourceCacheOption) -> Box<dyn ResourceCache>>,
     discover_filters:
         HashMap<String, fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError>>,
+    load_balancers: HashMap<String, fn() -> Box<dyn LoadBalancer>>,
 }
 
 impl Default for PluginContainer {
@@ -190,6 +204,7 @@ impl Default for PluginContainer {
             routers: Default::default(),
             caches: Default::default(),
             discover_filters: Default::default(),
+            load_balancers: Default::default(),
         };
 
         return c;
@@ -201,6 +216,7 @@ impl PluginContainer {
         self.register_resource_cache();
         self.register_connector();
         self.register_discover_filter();
+        self.register_load_balancer();
     }
 
     fn register_connector(&mut self) {
@@ -224,6 +240,18 @@ impl PluginContainer {
         for c in vec {
             let (supplier, name) = c();
             self.discover_filters.insert(name, supplier);
+        }
+    }
+
+    fn register_load_balancer(&mut self) {
+        let vec = vec![
+            WeightRandomLoadbalancer::builder,
+            ConsistentHashLoadBalancer::builder,
+            WeightedRoundRobinBalancer::builder,
+        ];
+        for c in vec {
+            let (supplier, name) = c();
+            self.load_balancers.insert(name, supplier);
         }
     }
 

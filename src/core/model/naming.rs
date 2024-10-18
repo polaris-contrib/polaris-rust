@@ -45,11 +45,37 @@ pub struct ServiceInfo {
     pub revision: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct ServiceInstances {
     pub service: ServiceInfo,
     pub instances: Vec<Instance>,
-    pub available_instances: Vec<Instance>,
+    pub total_weight: u64,
+}
+
+impl ServiceInstances {
+    pub fn get_cache_key(&self) -> String {
+        format!(
+            "Instance-namespace={}-service={}",
+            self.service.namespace, self.service.name
+        )
+    }
+
+    pub fn new(svc_info: ServiceInfo, all_ins: Vec<Instance>) -> Self {
+        let mut total_weight: u64 = 0;
+        for (_, val) in all_ins.iter().enumerate() {
+            total_weight += val.weight as u64;
+        }
+
+        Self {
+            service: svc_info,
+            instances: all_ins,
+            total_weight,
+        }
+    }
+
+    pub fn get_total_weight(&self) -> u64 {
+        self.total_weight
+    }
 }
 
 #[derive(Default, Debug, Clone)]

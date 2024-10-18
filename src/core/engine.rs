@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
+use tokio::sync::RwLock;
 
 use crate::config::req::{
     CreateConfigFileRequest, GetConfigFileRequest, PublishConfigFileRequest,
@@ -35,8 +36,10 @@ use crate::discovery::req::{
 };
 
 use super::model::config::ConfigFile;
+use super::model::naming::ServiceInstances;
 use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
 use super::plugin::connector::Connector;
+use super::plugin::loadbalance::LoadBalancer;
 use super::plugin::location::{LocationProvider, LocationSupplier};
 
 pub struct Engine
@@ -47,10 +50,11 @@ where
     local_cache: Arc<Box<dyn ResourceCache>>,
     server_connector: Arc<Box<dyn Connector>>,
     location_provider: Arc<LocationProvider>,
+    load_balancer: Arc<RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
 }
 
 impl Engine {
-    pub fn new(conf: Configuration) -> Result<Self, PolarisError> {
+    pub fn new(arc_conf: Arc<Configuration>) -> Result<Self, PolarisError> {
         let runtime = Arc::new(
             Builder::new_multi_thread()
                 .enable_all()
@@ -60,7 +64,6 @@ impl Engine {
                 .unwrap(),
         );
 
-        let arc_conf = Arc::new(conf);
         let client_id = crate::core::plugin::plugins::acquire_client_id(arc_conf.clone());
 
         // 初始化 extensions
@@ -101,6 +104,7 @@ impl Engine {
             local_cache: Arc::new(local_cache),
             server_connector: server_connector,
             location_provider: Arc::new(location_provider),
+            load_balancer: Arc::new(RwLock::new(extension.load_loadbalancers())),
         })
     }
 
@@ -220,17 +224,12 @@ impl Engine {
 
         let svc_ins = ret.unwrap();
 
-        if only_available {
-            Ok(InstancesResponse {
-                service_info: svc_ins.service,
-                instances: svc_ins.available_instances,
-            })
-        } else {
-            Ok(InstancesResponse {
-                service_info: svc_ins.service,
-                instances: svc_ins.instances,
-            })
-        }
+        Ok(InstancesResponse {
+            instances: ServiceInstances::new(
+                svc_ins.get_service_info(),
+                svc_ins.list_instances(only_available).await,
+            ),
+        })
     }
 
     /// get_service_rule 获取服务规则
@@ -338,6 +337,11 @@ impl Engine {
             Ok(ret_rsp) => Ok(ret_rsp),
             Err(err) => Err(err),
         };
+    }
+
+    pub async fn lookup_loadbalancer(&self, name: &str) -> Option<Arc<Box<dyn LoadBalancer>>> {
+        let lb = self.load_balancer.read().await;
+        lb.get(name).map(|lb| lb.clone())
     }
 
     /// register_resource_listener 注册资源监听器

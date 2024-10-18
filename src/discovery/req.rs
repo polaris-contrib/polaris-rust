@@ -17,7 +17,9 @@ use prost::Message;
 
 use crate::core::model::cache::EventType;
 use crate::core::model::error::{ErrorCode, PolarisError};
-use crate::core::model::naming::{Instance, Location, ServiceInfo, ServiceInstancesChangeEvent};
+use crate::core::model::naming::{
+    Instance, Location, ServiceInfo, ServiceInstances, ServiceInstancesChangeEvent,
+};
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -277,9 +279,13 @@ impl GetAllInstanceRequest {
 }
 
 #[derive(Clone, Debug)]
+pub struct InstanceResponse {
+    pub instance: Instance,
+}
+
+#[derive(Clone, Debug)]
 pub struct InstancesResponse {
-    pub service_info: ServiceInfo,
-    pub instances: Vec<Instance>,
+    pub instances: ServiceInstances,
 }
 
 pub struct WatchInstanceRequest {

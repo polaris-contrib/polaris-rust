@@ -21,6 +21,7 @@ use crate::core::engine::Engine;
 use crate::core::model::error::{ErrorCode, PolarisError};
 
 pub struct SDKContext {
+    pub conf: Arc<Configuration>,
     engine: Arc<Engine>,
 }
 
@@ -53,12 +54,14 @@ impl SDKContext {
     // create_by_configuration
     pub fn create_by_configuration(cfg: Configuration) -> Result<SDKContext, PolarisError> {
         let start_time = std::time::Instant::now();
-        let ret = Engine::new(cfg);
+        let cfg = Arc::new(cfg);
+        let ret = Engine::new(cfg.clone());
         tracing::info!("create engine cost: {:?}", start_time.elapsed());
         if ret.is_err() {
             return Err(ret.err().unwrap());
         }
         return Ok(Self {
+            conf: cfg,
             engine: Arc::new(ret.ok().unwrap()),
         });
     }

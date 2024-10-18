@@ -604,7 +604,7 @@ impl ResourceCache for MemoryCache {
     async fn load_service_instances(
         &self,
         filter: Filter,
-    ) -> Result<ServiceInstances, PolarisError> {
+    ) -> Result<ServiceInstancesCacheItem, PolarisError> {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_service = filter.resource_key.filter.get("service").unwrap();
         let search_key = format!("{}#{}", search_namespace.clone(), search_service);
@@ -637,20 +637,7 @@ impl ResourceCache for MemoryCache {
             ));
         }
 
-        let mut instances = vec![];
-        let mut available_instances = vec![];
-        for (_, val) in cache_val.value.read().await.iter().enumerate() {
-            instances.push(val.clone());
-            if val.is_available() {
-                available_instances.push(val.clone());
-            }
-        }
-
-        Ok(ServiceInstances {
-            service: cache_val.get_service_info(),
-            instances: instances,
-            available_instances: available_instances,
-        })
+        Ok(cache_val.clone())
     }
 
     async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError> {
