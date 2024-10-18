@@ -13,14 +13,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::{fmt::format, sync::Arc};
+use std::sync::Arc;
 
 use crate::core::{
     context::SDKContext,
     model::error::{ErrorCode, PolarisError},
 };
 
-use super::api::RouterAPI;
+use super::{api::RouterAPI, req::ProcessRouteResponse};
 
 pub struct DefaultRouterAPI {
     context: Arc<SDKContext>,
@@ -38,7 +38,10 @@ impl RouterAPI for DefaultRouterAPI {
         &self,
         req: super::req::ProcessRouteRequest,
     ) -> Result<super::req::ProcessRouteResponse, PolarisError> {
-        todo!()
+        // FIXME: 需要支持路由规则，当前直接原封不动进行返回
+        Ok(ProcessRouteResponse {
+            service_instances: req.service_instances,
+        })
     }
 
     async fn load_balance(
