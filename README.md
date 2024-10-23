@@ -1,22 +1,26 @@
 # Polaris rust sdk
 
-[![Build](https://github.com/polarismesh/polaris-rust/workflows/Build/badge.svg)](https://github.com/polarismesh/polaris-rust/actions?query=workflow%3ABuild)
+[![Build](https://github.com/polaris-contrib/polaris-rust/workflows/Build/badge.svg)](https://github.com/polarismesh/polaris-rust/actions?query=workflow%3ABuild)
 [![docs.rs](https://docs.rs/polaris-rust/badge.svg)](https://docs.rs/polaris-rust/)
-[![License](https://img.shields.io/crates/l/polaris-rust)](LICENSE-APACHE)
+[![License](https://img.shields.io/crates/l/polaris-rust)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/polaris-rust)](https://crates.io/crates/polaris-rust)
 [![Crates.io](https://img.shields.io/crates/d/polaris-rust)](https://crates.io/crates/polaris-rust)
 
 ## Introduction
+
 Lightweight Rust SDK used as Proxyless Service Governance
 
 ## Install
-Add the following to your `Cargo.toml`: 
+
+Add the following to your `Cargo.toml`:
+
 ```toml 
 [dependencies]
-polaris-rust = "0.0.1"
+polaris-rust = "0.2.0"
 ```
 
 ## Quickstart
+
 rust version >= 1.63.0
 
 ```rust
@@ -28,6 +32,7 @@ rust version >= 1.63.0
 Run them yourself with `cargo bench`.
 
 ## License
+
 Licensed under either of
 
 * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
