@@ -163,7 +163,7 @@ async fn main() -> Result<(), PolarisError> {
             group: "rust".to_string(),
             file: "rust.toml".to_string(),
             call_back: Arc::new(|event| {
-                tracing::info!("event: {:?}", event);
+                tracing::info!("receive config change event: {:?}", event);
             }),
         })
         .await;
