@@ -15,7 +15,7 @@
 
 use crate::core::config::global::ServerConnectorConfig;
 use crate::core::model::cache::{EventType, RemoteData};
-use crate::core::model::config::{ConfigFileRequest, ConfigReleaseRequest};
+use crate::core::model::config::{ConfigFileRequest, ConfigPublishRequest, ConfigReleaseRequest};
 use crate::core::model::error::ErrorCode::{ServerError, ServerUserError};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
@@ -618,7 +618,7 @@ impl Connector for GrpcConnector {
 
         let mut client = self.create_config_grpc_stub(req.flow_id.clone());
         let ret = client
-            .publish_config_file(tonic::Request::new(req.config_file))
+            .publish_config_file(tonic::Request::new(req.convert_spec()))
             .in_current_span()
             .await;
         return match ret {
@@ -645,8 +645,41 @@ impl Connector for GrpcConnector {
         };
     }
 
-    async fn upsert_publish_config_file(&self) -> Result<bool, PolarisError> {
-        todo!()
+    async fn upsert_publish_config_file(
+        &self,
+        req: ConfigPublishRequest,
+    ) -> Result<bool, PolarisError> {
+        tracing::debug!(
+            "[polaris][config][connector] send upsert and publish config_file request={req:?}"
+        );
+
+        let mut client = self.create_config_grpc_stub(req.flow_id.clone());
+        let ret = client
+            .upsert_and_publish_config_file(tonic::Request::new(req.convert_spec()))
+            .in_current_span()
+            .await;
+        return match ret {
+            Ok(rsp) => {
+                let rsp = rsp.into_inner();
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                if ExecuteSuccess.eq(&recv_code) {
+                    return Ok(true);
+                }
+                tracing::error!(
+                    "[polaris][config][connector] send upsert and publish config_file request to server receive fail: code={} info={}",
+                    rsp.code.unwrap().clone(),
+                    rsp.info.clone().unwrap(),
+                );
+                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+            }
+            Err(err) => {
+                tracing::error!(
+                    "[polaris][config][connector] send upsert and publish config_file request to server fail: {}",
+                    err
+                );
+                Err(PolarisError::new(ServerError, err.to_string()))
+            }
+        };
     }
 }
 

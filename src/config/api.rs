@@ -24,8 +24,8 @@ use crate::{
 };
 
 use super::req::{
-    CreateConfigFileRequest, DeleteConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest,
-    PublishConfigFileRequest, UpdateConfigFileRequest, WatchConfigFileRequest,
+    CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
+    UpdateConfigFileRequest, UpsertAndPublishConfigFileRequest, WatchConfigFileRequest,
     WatchConfigFileResponse, WatchConfigGroupRequest, WatchConfigGroupResponse,
 };
 
@@ -64,6 +64,11 @@ where
     async fn publish_config_file(
         &self,
         req: PublishConfigFileRequest,
+    ) -> Result<bool, PolarisError>;
+
+    async fn upsert_publish_config_file(
+        &self,
+        req: UpsertAndPublishConfigFileRequest,
     ) -> Result<bool, PolarisError>;
 
     async fn watch_config_file(

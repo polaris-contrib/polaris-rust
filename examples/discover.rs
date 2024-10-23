@@ -80,7 +80,10 @@ async fn main() -> Result<(), PolarisError> {
     let provider = provider_ret.unwrap();
     let consumer = consumer_ret.unwrap();
 
-    tracing::info!("create provider cost: {:?}", start_time.elapsed());
+    tracing::info!(
+        "create discovery api client cost: {:?}",
+        start_time.elapsed()
+    );
     let metadata = HashMap::new();
 
     let req = InstanceRegisterRequest {

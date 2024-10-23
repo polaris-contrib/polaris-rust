@@ -38,7 +38,7 @@ impl RouterAPI for DefaultRouterAPI {
         &self,
         req: super::req::ProcessRouteRequest,
     ) -> Result<super::req::ProcessRouteResponse, PolarisError> {
-        // FIXME: 需要支持路由规则，当前直接原封不动进行返回
+        // TODO: 需要支持路由规则，当前直接原封不动进行返回
         Ok(ProcessRouteResponse {
             service_instances: req.service_instances,
         })

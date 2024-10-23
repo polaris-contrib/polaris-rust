@@ -19,7 +19,7 @@ use tokio::runtime::Runtime;
 
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{RemoteData, ResourceEventKey};
-use crate::core::model::config::{ConfigFileRequest, ConfigReleaseRequest};
+use crate::core::model::config::{ConfigFileRequest, ConfigPublishRequest, ConfigReleaseRequest};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{InstanceRequest, InstanceResponse};
 use crate::core::plugin::plugins::Plugin;
@@ -82,7 +82,10 @@ pub trait Connector: Plugin {
     async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PolarisError>;
 
     /// upsert_publish_config_file 更新发布配置文件
-    async fn upsert_publish_config_file(&self) -> Result<bool, PolarisError>;
+    async fn upsert_publish_config_file(
+        &self,
+        req: ConfigPublishRequest,
+    ) -> Result<bool, PolarisError>;
 }
 
 pub struct NoopConnector {}
@@ -155,7 +158,10 @@ impl Connector for NoopConnector {
         todo!()
     }
 
-    async fn upsert_publish_config_file(&self) -> Result<bool, PolarisError> {
+    async fn upsert_publish_config_file(
+        &self,
+        req: ConfigPublishRequest,
+    ) -> Result<bool, PolarisError> {
         todo!()
     }
 }

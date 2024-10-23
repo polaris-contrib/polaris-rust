@@ -21,7 +21,7 @@ use tokio::sync::RwLock;
 
 use crate::config::req::{
     CreateConfigFileRequest, GetConfigFileRequest, PublishConfigFileRequest,
-    UpdateConfigFileRequest,
+    UpdateConfigFileRequest, UpsertAndPublishConfigFileRequest,
 };
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey};
@@ -332,6 +332,22 @@ impl Engine {
 
         let connector = self.server_connector.clone();
         let rsp = connector.release_config_file(config_file).await;
+
+        return match rsp {
+            Ok(ret_rsp) => Ok(ret_rsp),
+            Err(err) => Err(err),
+        };
+    }
+
+    /// upsert_publish_config_file 更新或发布配置文件
+    pub async fn upsert_publish_config_file(
+        &self,
+        req: UpsertAndPublishConfigFileRequest,
+    ) -> Result<bool, PolarisError> {
+        let config_file = req.to_config_request();
+
+        let connector = self.server_connector.clone();
+        let rsp = connector.upsert_publish_config_file(config_file).await;
 
         return match rsp {
             Ok(ret_rsp) => Ok(ret_rsp),

@@ -15,8 +15,6 @@
 
 use std::collections::HashMap;
 
-use super::pb::lib::ConfigFileRelease;
-
 // CONFIG_FILE_TAG_KEY_USE_ENCRYPTED 配置加密开关标识，value 为 boolean
 const CONFIG_FILE_TAG_KEY_USE_ENCRYPTED: &str = "internal-encrypted";
 // CONFIG_FILE_TAG_KEY_DATA_KEY 加密密钥 tag key
@@ -30,18 +28,80 @@ pub struct ConfigFileRequest {
     pub config_file: ConfigFile,
 }
 
+impl ConfigFileRequest {
+    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ConfigFile {
+        let mut tags = Vec::<crate::core::model::pb::lib::ConfigFileTag>::new();
+        self.config_file.labels.iter().for_each(|(k, v)| {
+            tags.push(crate::core::model::pb::lib::ConfigFileTag {
+                key: Some(k.clone()),
+                value: Some(v.clone()),
+            });
+        });
+
+        crate::core::model::pb::lib::ConfigFile {
+            id: None,
+            name: Some(self.config_file.name.clone()),
+            namespace: Some(self.config_file.namespace.clone()),
+            group: Some(self.config_file.group.clone()),
+            content: Some(self.config_file.content.clone()),
+            format: None,
+            comment: None,
+            status: None,
+            tags: tags,
+            create_time: None,
+            create_by: None,
+            modify_time: None,
+            modify_by: None,
+            release_time: None,
+            release_by: None,
+            encrypted: None,
+            encrypt_algo: None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ConfigReleaseRequest {
     pub flow_id: String,
     pub config_file: ConfigFileRelease,
 }
 
-impl ConfigFileRequest {
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ConfigFile {
-        todo!()
+impl ConfigReleaseRequest {
+    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ConfigFileRelease {
+        crate::core::model::pb::lib::ConfigFileRelease {
+            id: None,
+            name: Some(self.config_file.release_name.clone()),
+            namespace: Some(self.config_file.namespace.clone()),
+            group: Some(self.config_file.group.clone()),
+            content: None,
+            format: None,
+            comment: None,
+            file_name: Some(self.config_file.file_name.clone()),
+            version: None,
+            tags: Vec::new(),
+            active: None,
+            release_description: None,
+            release_type: None,
+            beta_labels: Vec::new(),
+            create_time: None,
+            create_by: None,
+            modify_time: None,
+            modify_by: None,
+            md5: None,
+        }
     }
+}
 
-    pub fn convert_spec_release(&self) -> crate::core::model::pb::lib::ConfigFileRelease {
+#[derive(Clone, Debug)]
+pub struct ConfigPublishRequest {
+    pub flow_id: String,
+    pub md5: String,
+    pub release_name: String,
+    pub config_file: ConfigFile,
+}
+
+impl ConfigPublishRequest {
+    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ConfigFilePublishInfo {
         todo!()
     }
 }
@@ -65,6 +125,15 @@ impl ConfigFile {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ConfigFileRelease {
+    pub namespace: String,
+    pub group: String,
+    pub file_name: String,
+    pub release_name: String,
+    pub md5: String,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct ConfigGroup {
     pub namespace: String,
@@ -72,6 +141,7 @@ pub struct ConfigGroup {
     pub files: Vec<ConfigFile>,
 }
 
+#[derive(Clone, Debug)]
 pub struct ConfigFileChangeEvent {
     pub config_file: ConfigFile,
 }

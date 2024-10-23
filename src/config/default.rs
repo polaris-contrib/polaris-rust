@@ -37,8 +37,9 @@ use super::{
     api::{ConfigFileAPI, ConfigGroupAPI},
     req::{
         self, CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest,
-        PublishConfigFileRequest, UpdateConfigFileRequest, WatchConfigFileRequest,
-        WatchConfigFileResponse, WatchConfigGroupRequest, WatchConfigGroupResponse,
+        PublishConfigFileRequest, UpdateConfigFileRequest, UpsertAndPublishConfigFileRequest,
+        WatchConfigFileRequest, WatchConfigFileResponse, WatchConfigGroupRequest,
+        WatchConfigGroupResponse,
     },
 };
 
@@ -130,6 +131,16 @@ impl ConfigFileAPI for DefaultConfigFileAPI {
         req: PublishConfigFileRequest,
     ) -> Result<bool, PolarisError> {
         self.context.get_engine().publish_config_file(req).await
+    }
+
+    async fn upsert_publish_config_file(
+        &self,
+        req: UpsertAndPublishConfigFileRequest,
+    ) -> Result<bool, PolarisError> {
+        self.context
+            .get_engine()
+            .upsert_publish_config_file(req)
+            .await
     }
 
     async fn watch_config_file(
