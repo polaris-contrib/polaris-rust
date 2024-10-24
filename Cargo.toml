@@ -9,7 +9,7 @@ description = "Lightweight Rust SDK used as Proxyless Service Governance Solutio
 documentation = "https://docs.rs/polaris-rust"
 homepage = "https://polarismesh.cn"
 keywords = ["polaris", "discovery", "configuration", "governance"]
-license = "BSD 3 OR MIT OR Apache-2.0"
+license = "BSD-3-Clause OR MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/polaris-contrib/polaris-rust"
 # Crate build related
