@@ -52,12 +52,7 @@ impl RouterAPI for DefaultRouterAPI {
         let mut lb_policy = criteria.policy.clone();
 
         if lb_policy.is_empty() {
-            lb_policy.clone_from(&self
-                .context
-                .conf
-                .consumer
-                .load_balancer
-                .default_policy);
+            lb_policy.clone_from(&self.context.conf.consumer.load_balancer.default_policy);
         }
 
         let lb = self

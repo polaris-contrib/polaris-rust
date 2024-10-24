@@ -198,7 +198,6 @@ pub struct PluginContainer {
     load_balancers: HashMap<String, fn() -> Box<dyn LoadBalancer>>,
 }
 
-
 impl PluginContainer {
     pub fn register_all_plugin(&mut self) {
         self.register_resource_cache();
@@ -298,8 +297,6 @@ pub fn acquire_client_id(conf: Arc<Configuration>) -> String {
                 uuid::Uuid::new_v4().to_string()
             }
         }
-        Err(_err) => {
-            uuid::Uuid::new_v4().to_string()
-        }
+        Err(_err) => uuid::Uuid::new_v4().to_string(),
     }
 }

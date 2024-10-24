@@ -32,7 +32,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread::sleep;
-use std::time::{Duration};
+use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::RwLock;
@@ -67,11 +67,6 @@ pub struct GrpcConnector {
 fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
     let conf = &opt.conf.global.server_connectors.clone();
     let (discover_channel, config_channel) = create_channel(conf);
-
-    let client_id = opt.client_id.clone();
-
-    let connect_timeout = conf.connect_timeout;
-    let server_switch_interval = conf.server_switch_interval;
 
     let discover_grpc_client = create_discover_grpc_client(discover_channel.clone());
     let config_grpc_client = create_config_grpc_client(config_channel.clone());
@@ -154,15 +149,9 @@ fn create_channel(conf: &ServerConnectorConfig) -> (Channel, Channel) {
 
     for ele in addresses {
         if ele.starts_with("discover://") {
-            discover_address.push(format!(
-                "http://{}",
-                ele.trim_start_matches("discover://")
-            ));
+            discover_address.push(format!("http://{}", ele.trim_start_matches("discover://")));
         } else if ele.starts_with("config://") {
-            config_address.push(format!(
-                "http://{}",
-                ele.trim_start_matches("config://")
-            ));
+            config_address.push(format!("http://{}", ele.trim_start_matches("config://")));
         }
     }
 

@@ -201,7 +201,6 @@ impl ConsumerAPI for DefaultConsumerAPI {
         check_ret?;
 
         let engine = self.context.get_engine();
-        
 
         engine.get_service_instances(req, false).await
     }
@@ -225,9 +224,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
         let mut watchers = self.watchers.watchers.write().await;
 
         let watch_key = req.get_key();
-        let items = watchers
-            .entry(watch_key.clone())
-            .or_insert_with(Vec::new);
+        let items = watchers.entry(watch_key.clone()).or_insert_with(Vec::new);
 
         items.push(InstanceWatcher { req });
         Ok(WatchInstanceResponse {})

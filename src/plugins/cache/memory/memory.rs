@@ -30,7 +30,7 @@ use crate::core::plugin::cache::{
     Action, Filter, InitResourceCacheOption, ResourceCache, ResourceListener,
 };
 use crate::core::plugin::connector::{Connector, ResourceHandler};
-use crate::core::plugin::plugins::{Plugin};
+use crate::core::plugin::plugins::Plugin;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -419,7 +419,7 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.router_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    
+
                     cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
@@ -459,7 +459,7 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.ratelimit_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    
+
                     cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
@@ -495,7 +495,7 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.circuitbreaker_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    
+
                     cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
@@ -531,7 +531,7 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.faultdetect_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    
+
                     cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
@@ -576,7 +576,7 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.services.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            
+
             cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
@@ -620,7 +620,7 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.instances.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            
+
             cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
@@ -662,7 +662,7 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.config_files.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            
+
             cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
@@ -712,7 +712,7 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.config_groups.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            
+
             cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
