@@ -17,7 +17,7 @@ use std::{
     collections::HashMap,
     sync::{atomic::AtomicBool, Arc},
     thread::sleep,
-    time::{Duration},
+    time::Duration,
 };
 
 use tokio::sync::RwLock;

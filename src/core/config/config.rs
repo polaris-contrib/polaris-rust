@@ -48,8 +48,8 @@ pub fn load<P: AsRef<Path>>(path: P) -> Result<Configuration, io::Error> {
     let val = fs::read_to_string(path);
     if val.is_ok() {
         let data = val.ok().unwrap();
-        let config: Configuration =
-            serde_yaml::from_str(&data).unwrap_or_else(|_| panic!("failure to format yaml str {}", &data));
+        let config: Configuration = serde_yaml::from_str(&data)
+            .unwrap_or_else(|_| panic!("failure to format yaml str {}", &data));
         return Ok(config);
     }
     Err(val.err().unwrap())
