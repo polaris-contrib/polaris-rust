@@ -151,7 +151,6 @@ impl WeightedRoundRobin {
     }
 
     fn increase_cur_weight(&self) -> u32 {
-        
         self.cur_weight.fetch_add(
             self.weight.load(std::sync::atomic::Ordering::Relaxed),
             std::sync::atomic::Ordering::Relaxed,
