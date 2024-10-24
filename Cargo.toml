@@ -2,22 +2,15 @@
 name = "polaris-rust"
 edition = "2021"
 version = "0.2.0"
-license = "BSD 3-Clause"
-authors = ["houseme <housemecn@gmail.com>", "liaochuntao <liaochuntao@live.com>"]
 repository = "https://github.com/polaris-contrib/polaris-rust"
 description = "Lightweight Rust SDK used as Proxyless Service Governance Solution."
 homepage = "https://polarismesh.cn"
 documentation = "https://docs.rs/polaris-rust"
-keywords = ["polaris", "solution", "governance", "server", "proxyless"]
 categories = ["config", "asynchronous", "development-tools"]
 readme = "README.md"
-
 authors = ["polaris-contrib", "houseme <housemecn@gmail.com>", "liaochuntao <liaochuntao@live.com>"]
-categories = ["polaris", "discovery", "configuration", "governance"]
 keywords = ["polaris", "discovery", "configuration", "governance"]
 license = "BSD 3 OR MIT OR Apache-2.0"
-readme = "README.md"
-repository = "https://github.com/polaris-contrib/polaris-rust"
 # Crate build related
 exclude = ["examples/*", "benches/*", "tests/*", ".gitignore"]
 
