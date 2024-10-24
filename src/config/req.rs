@@ -42,7 +42,7 @@ impl CreateConfigFileRequest {
             flow_id = uuid::Uuid::new_v4().to_string();
         }
         ConfigFileRequest {
-            flow_id: flow_id,
+            flow_id,
             config_file: self.file.clone(),
         }
     }
@@ -62,7 +62,7 @@ impl UpdateConfigFileRequest {
             flow_id = uuid::Uuid::new_v4().to_string();
         }
         ConfigFileRequest {
-            flow_id: flow_id,
+            flow_id,
             config_file: self.file.clone(),
         }
     }
@@ -82,7 +82,7 @@ impl PublishConfigFileRequest {
             flow_id = uuid::Uuid::new_v4().to_string();
         }
         ConfigReleaseRequest {
-            flow_id: flow_id,
+            flow_id,
             config_file: self.config_file.clone(),
         }
     }
@@ -104,7 +104,7 @@ impl UpsertAndPublishConfigFileRequest {
             flow_id = uuid::Uuid::new_v4().to_string();
         }
         ConfigPublishRequest {
-            flow_id: flow_id,
+            flow_id,
             md5: self.md5.clone(),
             release_name: self.release_name.clone(),
             config_file: self.config_file.clone(),

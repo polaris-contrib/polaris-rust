@@ -41,7 +41,7 @@ pub fn load_default<'a>() -> Result<Configuration, io::Error> {
         tracing::info!("load config from env: {}", custom_conf_path);
         return load(env::var("POLARIS_RUST_CONFIG").unwrap());
     }
-    return load(path);
+    load(path)
 }
 
 pub fn load<P: AsRef<Path>>(path: P) -> Result<Configuration, io::Error> {
@@ -49,10 +49,10 @@ pub fn load<P: AsRef<Path>>(path: P) -> Result<Configuration, io::Error> {
     if val.is_ok() {
         let data = val.ok().unwrap();
         let config: Configuration =
-            serde_yaml::from_str(&*data).expect(&format!("failure to format yaml str {}", &data));
+            serde_yaml::from_str(&data).unwrap_or_else(|_| panic!("failure to format yaml str {}", &data));
         return Ok(config);
     }
-    return Err(val.err().unwrap());
+    Err(val.err().unwrap())
 }
 
 #[cfg(test)]

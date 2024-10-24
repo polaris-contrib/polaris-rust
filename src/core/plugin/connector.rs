@@ -88,13 +88,9 @@ pub trait Connector: Plugin {
     ) -> Result<bool, PolarisError>;
 }
 
+#[derive(Default)]
 pub struct NoopConnector {}
 
-impl Default for NoopConnector {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl Plugin for NoopConnector {
     fn init(&mut self) {

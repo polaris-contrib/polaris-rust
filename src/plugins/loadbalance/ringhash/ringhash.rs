@@ -72,7 +72,7 @@ impl LoadBalancer for ConsistentHashLoadBalancer {
                         for instance in instances.instances.iter() {
                             ring_hash.add_node(instance.clone());
                         }
-                        ring_hash.revision = instances.service.revision.clone();
+                        ring_hash.revision.clone_from(&instances.service.revision);
                     }
                 })
                 .or_insert_with(|| {

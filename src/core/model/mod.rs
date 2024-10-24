@@ -37,7 +37,7 @@ pub enum DiscoverRequestInfo {
 impl DiscoverRequestInfo {
     pub fn to_config_request(&self) -> pb::lib::ConfigDiscoverRequest {
         match self {
-            DiscoverRequestInfo::Configuration(req) => req.clone().into(),
+            DiscoverRequestInfo::Configuration(req) => req.clone(),
             _ => {
                 panic!("DiscoverRequestInfo is not ConfigDiscoverRequest");
             }
@@ -55,7 +55,7 @@ pub enum DiscoverResponseInfo {
 impl DiscoverResponseInfo {
     pub fn to_config_response(&self) -> pb::lib::ConfigDiscoverResponse {
         match self {
-            DiscoverResponseInfo::Configuration(resp) => resp.clone().into(),
+            DiscoverResponseInfo::Configuration(resp) => resp.clone(),
             _ => {
                 panic!("DiscoverResponseInfo is not ConfigDiscoverResponse");
             }

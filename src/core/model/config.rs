@@ -47,7 +47,7 @@ impl ConfigFileRequest {
             format: None,
             comment: None,
             status: None,
-            tags: tags,
+            tags,
             create_time: None,
             create_by: None,
             modify_time: None,
@@ -154,7 +154,7 @@ impl crate::core::model::pb::lib::ClientConfigFileInfo {
                 return v.value.clone().unwrap();
             }
         }
-        return "".to_string();
+        "".to_string()
     }
 
     pub fn get_encrypt_algo(&self) -> String {
@@ -164,6 +164,6 @@ impl crate::core::model::pb::lib::ClientConfigFileInfo {
                 return v.value.clone().unwrap();
             }
         }
-        return "".to_string();
+        "".to_string()
     }
 }

@@ -100,6 +100,6 @@ impl LocationSupplier for LocationProvider {
                 return loc;
             }
         }
-        return Location::default();
+        Location::default()
     }
 }

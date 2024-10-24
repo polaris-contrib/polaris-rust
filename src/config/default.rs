@@ -36,7 +36,7 @@ use crate::core::{
 use super::{
     api::{ConfigFileAPI, ConfigGroupAPI},
     req::{
-        self, CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest,
+        CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest,
         PublishConfigFileRequest, UpdateConfigFileRequest, UpsertAndPublishConfigFileRequest,
         WatchConfigFileRequest, WatchConfigFileResponse, WatchConfigGroupRequest,
         WatchConfigGroupResponse,
@@ -60,9 +60,9 @@ impl ResourceListener for ConfigFileResourceListener {
         let mut watch_key = event_key.namespace.clone();
         let group = event_key.filter.get("group");
         let file = event_key.filter.get("file");
-        watch_key.push_str("#");
+        watch_key.push('#');
         watch_key.push_str(group.unwrap().as_str());
-        watch_key.push_str("#");
+        watch_key.push('#');
         watch_key.push_str(file.unwrap().as_str());
 
         let watchers = self.watchers.read().await;
@@ -103,7 +103,7 @@ impl DefaultConfigFileAPI {
     pub fn new(context: Arc<SDKContext>, manage_sdk: bool) -> Self {
         Self {
             context,
-            manage_sdk: manage_sdk,
+            manage_sdk,
             watchers: Arc::new(ConfigFileResourceListener {
                 watchers: Arc::new(RwLock::new(HashMap::new())),
             }),
@@ -164,7 +164,7 @@ impl ConfigFileAPI for DefaultConfigFileAPI {
         let watch_key = req.get_key();
         let items = watchers
             .entry(watch_key.clone())
-            .or_insert_with(|| Vec::new());
+            .or_insert_with(Vec::new);
 
         items.push(ConfigFileWatcher { req });
         Ok(WatchConfigFileResponse {})

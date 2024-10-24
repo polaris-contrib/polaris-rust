@@ -48,7 +48,7 @@ impl RemoteHttpLocationSupplier {
         }
 
         Self {
-            opt: opt,
+            opt,
             access_url: loc_ret,
         }
     }
@@ -85,9 +85,9 @@ impl LocationSupplier for RemoteHttpLocationSupplier {
         }
 
         Location {
-            region: region,
-            zone: zone,
-            campus: campus,
+            region,
+            zone,
+            campus,
         }
     }
 }
@@ -100,7 +100,7 @@ impl RemoteHttpLocationSupplier {
             Ok(res) => {
                 let ret = res.text();
                 match ret {
-                    Ok(mut body) => body,
+                    Ok(body) => body,
                     Err(e) => {
                         tracing::error!("get http response error: {}, label: {}", e, label);
                         "".to_string()

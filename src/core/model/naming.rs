@@ -112,7 +112,7 @@ impl Instance {
         if self.isolated {
             return false;
         }
-        return true;
+        true
     }
 
     pub fn convert_from_spec(data: crate::core::model::pb::lib::Instance) -> Instance {
@@ -135,7 +135,7 @@ impl Instance {
             isolated: data.isolate.unwrap_or(false),
             weight: data.weight.unwrap_or(100),
             priority: data.priority.unwrap_or_default(),
-            metadata: metadata,
+            metadata,
             location: Location {
                 region: location.region.unwrap_or_default(),
                 zone: location.zone.unwrap_or_default(),
@@ -210,7 +210,7 @@ impl InstanceRequest {
             namespace: Some(self.instance.namespace.clone()),
             service: Some(self.instance.service.clone()),
             host: Some(self.instance.ip.clone()),
-            port: Some(self.instance.port.clone()),
+            port: Some(self.instance.port),
             vpc_id: Some(self.instance.vpc_id.clone()),
             protocol: None,
             version: None,
@@ -250,15 +250,15 @@ impl InstanceRequest {
             namespace: Some(self.instance.namespace.to_string()),
             vpc_id: Some(self.instance.vpc_id.to_string()),
             host: Some(self.instance.ip.to_string()),
-            port: Some(self.instance.port.clone()),
+            port: Some(self.instance.port),
             protocol: Some(self.instance.protocol.to_string()),
             version: Some(self.instance.version.to_string()),
-            priority: Some(self.instance.priority.clone()),
-            weight: Some(self.instance.weight.clone()),
-            enable_health_check: enable_health_check,
-            health_check: health_check,
-            healthy: Some(self.instance.health.clone()),
-            isolate: Some(self.instance.isolated.clone()),
+            priority: Some(self.instance.priority),
+            weight: Some(self.instance.weight),
+            enable_health_check,
+            health_check,
+            healthy: Some(self.instance.health),
+            isolate: Some(self.instance.isolated),
             location: Some(self.instance.location.convert_spec()),
             metadata: self.instance.metadata.clone(),
             logic_set: None,
@@ -274,11 +274,11 @@ impl InstanceRequest {
                     crate::core::model::pb::lib::health_check::HealthCheckType::Heartbeat,
                 ),
                 heartbeat: Some(HeartbeatHealthCheck {
-                    ttl: Some(self.ttl.clone()),
+                    ttl: Some(self.ttl),
                 }),
             });
         }
-        return spec_ins;
+        spec_ins
     }
 }
 
@@ -295,7 +295,7 @@ impl InstanceResponse {
             instance: Instance::default(),
         };
         ret.instance.id = id;
-        return ret;
+        ret
     }
 
     pub fn exist_resource() -> Self {

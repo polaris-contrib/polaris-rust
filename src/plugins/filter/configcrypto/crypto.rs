@@ -238,7 +238,7 @@ impl RSACryptor {
             ));
         }
         Ok(RSACryptor {
-            priv_key: priv_key,
+            priv_key,
             _pub_key: pub_key,
             public_key: public_key_base64.unwrap(),
         })
@@ -347,7 +347,7 @@ impl Cryptor for AESCryptor {
 }
 
 mod tests {
-    use super::*;
+    
 
     #[test]
     fn test_rsa_encrypt_decrypt() {

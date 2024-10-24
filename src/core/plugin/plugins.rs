@@ -102,8 +102,8 @@ impl Extensions {
         Ok(Self {
             plugin_container: arc_container,
             runtime: runetime,
-            client_id: client_id,
-            conf: conf,
+            client_id,
+            conf,
             config_filters: None,
             server_connector: None,
         })
@@ -199,15 +199,15 @@ pub struct PluginContainer {
 
 impl Default for PluginContainer {
     fn default() -> Self {
-        let c = Self {
+        
+
+        Self {
             connectors: Default::default(),
             routers: Default::default(),
             caches: Default::default(),
             discover_filters: Default::default(),
             load_balancers: Default::default(),
-        };
-
-        return c;
+        }
     }
 }
 
@@ -291,7 +291,7 @@ pub fn acquire_client_id(conf: Arc<Configuration>) -> String {
         );
     }
     // 和北极星服务端做一个 TCP connect 连接获取 本地 IP 地址
-    let host = conf.global.server_connectors.addresses.get(0);
+    let host = conf.global.server_connectors.addresses.first();
 
     let mut origin_endpoint = host.unwrap().as_str().trim_start_matches("discover://");
     origin_endpoint = origin_endpoint.trim_start_matches("config://");
@@ -300,18 +300,18 @@ pub fn acquire_client_id(conf: Arc<Configuration>) -> String {
         Ok(mut addr_iter) => {
             if let Some(addr) = addr_iter.next() {
                 if let IpAddr::V4(ipv4) = addr.ip() {
-                    return format!("{}_{}_{}", ipv4, std::process::id(), seq);
+                    format!("{}_{}_{}", ipv4, std::process::id(), seq)
                 } else if let IpAddr::V6(ipv6) = addr.ip() {
                     return format!("{}_{}_{}", ipv6, std::process::id(), seq);
                 } else {
                     return uuid::Uuid::new_v4().to_string();
                 }
             } else {
-                return uuid::Uuid::new_v4().to_string();
+                uuid::Uuid::new_v4().to_string()
             }
         }
         Err(_err) => {
-            return uuid::Uuid::new_v4().to_string();
+            uuid::Uuid::new_v4().to_string()
         }
     }
 }

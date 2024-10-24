@@ -57,6 +57,6 @@ impl Plugin for LocalLocationSupplier {
 
 impl LocationSupplier for LocalLocationSupplier {
     fn get_location(&self) -> crate::core::model::naming::Location {
-        return self.loc_cache.clone();
+        self.loc_cache.clone()
     }
 }

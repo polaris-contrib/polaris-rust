@@ -70,7 +70,7 @@ impl LoadBalancer for WeightedRoundRobinBalancer {
                         let mut inss_round_robin = round_robins.round_robins.write().unwrap();
                         let weight_robin = inss_round_robin
                             .entry(instance.id.clone())
-                            .or_insert_with(|| WeightedRoundRobin::new(instance.weight as u32));
+                            .or_insert_with(|| WeightedRoundRobin::new(instance.weight));
                         if weight_robin.is_expire() {
                             round_robins
                                 .round_robins
@@ -151,11 +151,11 @@ impl WeightedRoundRobin {
     }
 
     fn increase_cur_weight(&self) -> u32 {
-        let cur_weight = self.cur_weight.fetch_add(
+        
+        self.cur_weight.fetch_add(
             self.weight.load(std::sync::atomic::Ordering::Relaxed),
             std::sync::atomic::Ordering::Relaxed,
-        );
-        cur_weight
+        )
     }
 
     fn decrease_cur_weight(&self, weight: u32) {

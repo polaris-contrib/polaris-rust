@@ -19,7 +19,7 @@ use crate::core::model::cache::{
 };
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::{ServiceInstances, ServiceRule, Services};
+use crate::core::model::naming::{ServiceRule, Services};
 use crate::core::plugin::plugins::Plugin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -36,7 +36,7 @@ pub struct Filter {
 
 impl Filter {
     pub fn get_event_type(&self) -> EventType {
-        self.resource_key.event_type.clone()
+        self.resource_key.event_type
     }
 }
 
@@ -80,13 +80,9 @@ pub trait ResourceCache: Plugin {
     async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>);
 }
 
+#[derive(Default)]
 pub struct NoopResourceCache {}
 
-impl Default for NoopResourceCache {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl Plugin for NoopResourceCache {
     fn init(&mut self) {

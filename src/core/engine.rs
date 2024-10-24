@@ -102,7 +102,7 @@ impl Engine {
         Ok(Self {
             runtime,
             local_cache: Arc::new(local_cache),
-            server_connector: server_connector,
+            server_connector,
             location_provider: Arc::new(location_provider),
             load_balancer: Arc::new(RwLock::new(extension.load_loadbalancers())),
         })
@@ -129,18 +129,18 @@ impl Engine {
                     }
                     flow_id
                 },
-                ttl: req.ttl.clone(),
-                instance: instance,
+                ttl: req.ttl,
+                instance,
             })
             .await;
 
-        return match rsp {
+        match rsp {
             Ok(ins_rsp) => Ok(InstanceRegisterResponse {
                 instance_id: ins_rsp.instance.id.clone(),
-                exist: ins_rsp.exist.clone(),
+                exist: ins_rsp.exist,
             }),
             Err(err) => Err(err),
-        };
+        }
     }
 
     /// deregister_instance 同步注销实例
@@ -163,10 +163,10 @@ impl Engine {
             })
             .await;
 
-        return match rsp {
+        match rsp {
             Ok(_) => Ok(()),
             Err(err) => Err(err),
-        };
+        }
     }
 
     /// instance_heartbeat 同步实例心跳
@@ -189,10 +189,10 @@ impl Engine {
             })
             .await;
 
-        return match rsp {
+        match rsp {
             Ok(_) => Ok(()),
             Err(err) => Err(err),
-        };
+        }
     }
 
     /// get_service_instances 获取服务实例
@@ -210,7 +210,7 @@ impl Engine {
                 resource_key: ResourceEventKey {
                     namespace: req.namespace.clone(),
                     event_type: EventType::Instance,
-                    filter: filter,
+                    filter,
                 },
                 internal_request: false,
                 include_cache: true,
@@ -301,10 +301,10 @@ impl Engine {
         let connector = self.server_connector.clone();
         let rsp = connector.create_config_file(config_file).await;
 
-        return match rsp {
+        match rsp {
             Ok(ret_rsp) => Ok(ret_rsp),
             Err(err) => Err(err),
-        };
+        }
     }
 
     /// update_config_file 更新配置文件
@@ -317,10 +317,10 @@ impl Engine {
         let connector = self.server_connector.clone();
         let rsp = connector.update_config_file(config_file).await;
 
-        return match rsp {
+        match rsp {
             Ok(ret_rsp) => Ok(ret_rsp),
             Err(err) => Err(err),
-        };
+        }
     }
 
     /// publish_config_file 发布配置文件
@@ -333,10 +333,10 @@ impl Engine {
         let connector = self.server_connector.clone();
         let rsp = connector.release_config_file(config_file).await;
 
-        return match rsp {
+        match rsp {
             Ok(ret_rsp) => Ok(ret_rsp),
             Err(err) => Err(err),
-        };
+        }
     }
 
     /// upsert_publish_config_file 更新或发布配置文件
@@ -349,15 +349,15 @@ impl Engine {
         let connector = self.server_connector.clone();
         let rsp = connector.upsert_publish_config_file(config_file).await;
 
-        return match rsp {
+        match rsp {
             Ok(ret_rsp) => Ok(ret_rsp),
             Err(err) => Err(err),
-        };
+        }
     }
 
     pub async fn lookup_loadbalancer(&self, name: &str) -> Option<Arc<Box<dyn LoadBalancer>>> {
         let lb = self.load_balancer.read().await;
-        lb.get(name).map(|lb| lb.clone())
+        lb.get(name).cloned()
     }
 
     /// register_resource_listener 注册资源监听器

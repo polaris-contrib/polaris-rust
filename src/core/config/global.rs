@@ -82,7 +82,7 @@ pub struct ServerConnectorConfig {
 
 impl ServerConnectorConfig {
     pub fn get_protocol(&self) -> String {
-        return self.protocol.clone();
+        self.protocol.clone()
     }
 
     pub fn update_addresses(&mut self, addresses: Vec<String>) {
@@ -125,7 +125,7 @@ fn default_location_providers() -> Vec<LocationProviderConfig> {
         name: "local".to_string(),
         options: HashMap::new(),
     });
-    return providers;
+    providers
 }
 
 #[derive(Deserialize, Debug, Clone)]

@@ -17,7 +17,6 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use super::global::PluginConfig;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

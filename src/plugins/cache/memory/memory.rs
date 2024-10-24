@@ -17,7 +17,6 @@ use prost::Message;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::RwLock;
 
-use crate::core::config::global::LocalCacheConfig;
 use crate::core::model::cache::{
     CacheItemType, CircuitBreakerRulesCacheItem, ConfigFileCacheItem, ConfigGroupCacheItem,
     EventType, FaultDetectRulesCacheItem, RatelimitRulesCacheItem, RegistryCacheValue, RemoteData,
@@ -26,12 +25,12 @@ use crate::core::model::cache::{
 };
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::{ErrorCode, PolarisError};
-use crate::core::model::naming::{Instance, ServiceInstances, ServiceRule, Services};
+use crate::core::model::naming::{Instance, ServiceRule, Services};
 use crate::core::plugin::cache::{
     Action, Filter, InitResourceCacheOption, ResourceCache, ResourceListener,
 };
 use crate::core::plugin::connector::{Connector, ResourceHandler};
-use crate::core::plugin::plugins::{Extensions, Plugin};
+use crate::core::plugin::plugins::{Plugin};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -69,7 +68,7 @@ impl MemoryCache {
         fn(InitResourceCacheOption) -> Box<dyn ResourceCache>,
         String,
     ) {
-        return (new_resource_cache, "memory".to_string());
+        (new_resource_cache, "memory".to_string())
     }
 
     async fn run_remote_data_recive(
@@ -102,7 +101,7 @@ impl MemoryCache {
                     remote_reciver,
                     ResourceEventKey {
                         namespace: search_namespace,
-                        event_type: event_type,
+                        event_type,
                         filter: resource_key.filter,
                     },
                 )))
@@ -362,8 +361,8 @@ fn new_resource_cache(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
     let server_connector = opt.server_connector.clone();
 
     let mc = MemoryCache {
-        opt: opt,
-        server_connector: server_connector,
+        opt,
+        server_connector,
         handler: Arc::new(MemoryResourceHandler {
             listeners: Arc::new(RwLock::new(HashMap::new())),
             services: Arc::new(RwLock::new(HashMap::new())),
@@ -420,8 +419,8 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.router_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    let waiter = cache_val.wait_initialize(filter.timeout).await;
-                    waiter
+                    
+                    cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
 
@@ -440,7 +439,7 @@ impl ResourceCache for MemoryCache {
                     rules.push(Box::new(val.clone()) as Box<dyn Message>);
                 }
                 Ok(ServiceRule {
-                    rules: rules,
+                    rules,
                     revision: cache_val.revision(),
                     initialized: cache_val.is_initialized(),
                 })
@@ -460,8 +459,8 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.ratelimit_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    let waiter = cache_val.wait_initialize(filter.timeout).await;
-                    waiter
+                    
+                    cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
 
@@ -496,8 +495,8 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.circuitbreaker_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    let waiter = cache_val.wait_initialize(filter.timeout).await;
-                    waiter
+                    
+                    cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
 
@@ -532,8 +531,8 @@ impl ResourceCache for MemoryCache {
                 let waiter = {
                     let safe_map = self.handler.faultdetect_rules.read().await;
                     let cache_val = safe_map.get(&search_key).unwrap();
-                    let waiter = cache_val.wait_initialize(filter.timeout).await;
-                    waiter
+                    
+                    cache_val.wait_initialize(filter.timeout).await
                 };
                 waiter();
 
@@ -577,8 +576,8 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.services.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            let waiter = cache_val.wait_initialize(filter.timeout).await;
-            waiter
+            
+            cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
 
@@ -621,8 +620,8 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.instances.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            let waiter = cache_val.wait_initialize(filter.timeout).await;
-            waiter
+            
+            cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
 
@@ -663,8 +662,8 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.config_files.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            let waiter = cache_val.wait_initialize(filter.timeout).await;
-            waiter
+            
+            cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
         let safe_map = self.handler.config_files.read().await;
@@ -688,9 +687,9 @@ impl ResourceCache for MemoryCache {
             namespace: spec_conf.namespace.clone().unwrap(),
             group: spec_conf.group.clone().unwrap(),
             name: spec_conf.name.clone().unwrap(),
-            version: spec_conf.version.clone().unwrap(),
+            version: spec_conf.version.unwrap(),
             content: spec_conf.content.clone().unwrap(),
-            labels: labels,
+            labels,
             encrypt_algo: "".to_string(),
             encrypt_key: "".to_string(),
         })
@@ -713,8 +712,8 @@ impl ResourceCache for MemoryCache {
         let waiter = {
             let safe_map = self.handler.config_groups.read().await;
             let cache_val = safe_map.get(&search_key).unwrap();
-            let waiter = cache_val.wait_initialize(filter.timeout).await;
-            waiter
+            
+            cache_val.wait_initialize(filter.timeout).await
         };
         waiter();
 
@@ -739,7 +738,7 @@ impl ResourceCache for MemoryCache {
     async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
         let watch_key = listener.watch_key();
         let mut safe_map = self.handler.listeners.write().await;
-        let listeners = safe_map.entry(watch_key).or_insert_with(|| Vec::new());
+        let listeners = safe_map.entry(watch_key).or_insert_with(Vec::new);
 
         listeners.push(listener);
     }
@@ -753,7 +752,7 @@ struct MemoryResourceWatcher {
 impl MemoryResourceWatcher {
     fn new(f: UnboundedSender<RemoteData>, event_key: ResourceEventKey) -> Self {
         Self {
-            event_key: event_key,
+            event_key,
             processor: f,
         }
     }

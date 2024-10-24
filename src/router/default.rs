@@ -48,17 +48,16 @@ impl RouterAPI for DefaultRouterAPI {
         &self,
         req: super::req::ProcessLoadBalanceRequest,
     ) -> Result<super::req::ProcessLoadBalanceResponse, PolarisError> {
-        let mut criteria = req.criteria.clone();
+        let criteria = req.criteria.clone();
         let mut lb_policy = criteria.policy.clone();
 
         if lb_policy.is_empty() {
-            lb_policy = self
+            lb_policy.clone_from(&self
                 .context
                 .conf
                 .consumer
                 .load_balancer
-                .default_policy
-                .clone();
+                .default_policy);
         }
 
         let lb = self

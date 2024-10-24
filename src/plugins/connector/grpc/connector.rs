@@ -32,7 +32,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread::sleep;
-use std::time::{self, Duration};
+use std::time::{Duration};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::RwLock;
@@ -83,11 +83,11 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
         run_config_spec_stream(config_channel.clone(), opt.runtime.clone()).unwrap();
 
     let c = GrpcConnector {
-        opt: opt,
+        opt,
         discover_channel: discover_channel.clone(),
         config_channel: config_channel.clone(),
-        discover_grpc_client: discover_grpc_client,
-        config_grpc_client: config_grpc_client,
+        discover_grpc_client,
+        config_grpc_client,
 
         discover_spec_sender: Arc::new(discover_sender),
         config_spec_sender: Arc::new(config_sender),
@@ -156,12 +156,12 @@ fn create_channel(conf: &ServerConnectorConfig) -> (Channel, Channel) {
         if ele.starts_with("discover://") {
             discover_address.push(format!(
                 "http://{}",
-                ele.trim_start_matches("discover://").to_string()
+                ele.trim_start_matches("discover://")
             ));
         } else if ele.starts_with("config://") {
             config_address.push(format!(
                 "http://{}",
-                ele.trim_start_matches("config://").to_string()
+                ele.trim_start_matches("config://")
             ));
         }
     }
@@ -177,12 +177,12 @@ fn create_channel(conf: &ServerConnectorConfig) -> (Channel, Channel) {
     let discover_endpoints = discover_address.iter().map(|item| {
         Endpoint::from_shared(item.to_string())
             .unwrap()
-            .connect_timeout(connect_timeout.clone())
+            .connect_timeout(connect_timeout)
     });
     let config_endpoints = config_address.iter().map(|item| {
         Endpoint::from_shared(item.to_string())
             .unwrap()
-            .connect_timeout(connect_timeout.clone())
+            .connect_timeout(connect_timeout)
     });
 
     let discover_channel = Channel::balance_list(discover_endpoints);
@@ -211,7 +211,7 @@ impl Plugin for GrpcConnector {
 
 impl GrpcConnector {
     pub fn builder() -> (fn(opt: InitConnectorOption) -> Box<dyn Connector>, String) {
-        return (new_connector, "grpc".to_string());
+        (new_connector, "grpc".to_string())
     }
 
     fn create_discover_grpc_stub(
@@ -391,7 +391,7 @@ impl Connector for GrpcConnector {
         handlers.insert(
             watch_key_str.clone(),
             ResourceHandlerWrapper {
-                handler: handler,
+                handler,
                 revision: String::new(),
             },
         );
@@ -442,7 +442,7 @@ impl Connector for GrpcConnector {
                         ins_id.clone(),
                     );
                     let mut ins = InstanceResponse::default();
-                    ins.instance.id = ins_id.clone();
+                    ins.instance.id.clone_from(&ins_id);
                     return Ok(ins);
                 }
                 if ExistedResource.eq(&recv_code) {
@@ -728,7 +728,7 @@ fn run_discover_spec_stream(
                 }
             }
         }
-        return Ok(());
+        Ok(())
     });
 
     Ok((discover_sender, rsp_recv))
@@ -786,7 +786,7 @@ fn run_config_spec_stream(
                 }
             }
         }
-        return Ok(());
+        Ok(())
     });
 
     Ok((config_sender, rsp_recv))

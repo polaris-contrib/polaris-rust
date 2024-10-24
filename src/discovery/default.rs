@@ -56,7 +56,7 @@ impl ResourceListener for InstanceResourceListener {
         let event_key = val.event_key;
         let mut watch_key = event_key.namespace.clone();
         let service = event_key.filter.get("service");
-        watch_key.push_str("#");
+        watch_key.push('#');
         watch_key.push_str(service.unwrap().as_str());
 
         let watchers = self.watchers.read().await;
@@ -113,16 +113,14 @@ impl ConsumerAPI for DefaultConsumerAPI {
         req: GetOneInstanceRequest,
     ) -> Result<InstanceResponse, PolarisError> {
         let check_ret = req.check_valid();
-        if let Err(e) = check_ret {
-            return Err(e);
-        }
+        check_ret?;
 
         let engine = self.context.get_engine();
         let rsp = engine
             .get_service_instances(
                 GetAllInstanceRequest {
                     flow_id: req.flow_id.clone(),
-                    timeout: req.timeout.clone(),
+                    timeout: req.timeout,
                     service: req.service.clone(),
                     namespace: req.namespace.clone(),
                 },
@@ -154,7 +152,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
                     .router_api
                     .load_balance(ProcessLoadBalanceRequest {
                         service_instances: route_ret.unwrap().service_instances,
-                        criteria: criteria,
+                        criteria,
                     })
                     .await;
 
@@ -177,9 +175,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
         req: GetHealthInstanceRequest,
     ) -> Result<InstancesResponse, PolarisError> {
         let check_ret = req.check_valid();
-        if let Err(e) = check_ret {
-            return Err(e);
-        }
+        check_ret?;
 
         let engine = self.context.get_engine();
         let rsp: Result<InstancesResponse, PolarisError> = engine
@@ -194,10 +190,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
             )
             .await;
 
-        match rsp {
-            Ok(rsp) => Ok(rsp),
-            Err(e) => Err(e),
-        }
+        rsp
     }
 
     async fn get_all_instance(
@@ -205,17 +198,12 @@ impl ConsumerAPI for DefaultConsumerAPI {
         req: GetAllInstanceRequest,
     ) -> Result<InstancesResponse, PolarisError> {
         let check_ret = req.check_valid();
-        if let Err(e) = check_ret {
-            return Err(e);
-        }
+        check_ret?;
 
         let engine = self.context.get_engine();
-        let rsp = engine.get_service_instances(req, false).await;
+        
 
-        match rsp {
-            Ok(rsp) => Ok(rsp),
-            Err(e) => Err(e),
-        }
+        engine.get_service_instances(req, false).await
     }
 
     async fn watch_instance(
@@ -239,7 +227,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
         let watch_key = req.get_key();
         let items = watchers
             .entry(watch_key.clone())
-            .or_insert_with(|| Vec::new());
+            .or_insert_with(Vec::new);
 
         items.push(InstanceWatcher { req });
         Ok(WatchInstanceResponse {})

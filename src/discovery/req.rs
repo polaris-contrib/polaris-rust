@@ -18,7 +18,7 @@ use prost::Message;
 use crate::core::model::cache::EventType;
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{
-    Instance, Location, ServiceInfo, ServiceInstances, ServiceInstancesChangeEvent,
+    Instance, Location, ServiceInstances, ServiceInstancesChangeEvent,
 };
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 use std::collections::HashMap;
@@ -64,14 +64,14 @@ impl InstanceRegisterRequest {
             namespace: self.namespace.clone(),
             service: self.service.clone(),
             ip: self.ip.clone(),
-            port: self.port.clone(),
+            port: self.port,
             vpc_id: self.vpc_id.clone(),
             version: self.version.clone(),
             protocol: self.protocol.clone(),
-            health: self.health.clone(),
-            isolated: self.isolated.clone(),
-            weight: self.weight.clone(),
-            priority: self.priority.clone(),
+            health: self.health,
+            isolated: self.isolated,
+            weight: self.weight,
+            priority: self.priority,
             metadata: self.metadata.clone(),
             location: self.location.clone(),
             revision: "".to_string(),
@@ -81,7 +81,7 @@ impl InstanceRegisterRequest {
     pub fn to_heartbeat_request(&self) -> InstanceHeartbeatRequest {
         InstanceHeartbeatRequest {
             flow_id: "".to_string(),
-            timeout: self.timeout.clone(),
+            timeout: self.timeout,
             id: None,
             namespace: self.namespace.clone(),
             service: self.service.clone(),
@@ -115,7 +115,7 @@ impl InstanceDeregisterRequest {
             namespace: self.namespace.clone(),
             service: self.service.clone(),
             ip: self.ip.clone(),
-            port: self.port.clone(),
+            port: self.port,
             vpc_id: self.vpc_id.clone(),
             version: "".to_string(),
             protocol: "".to_string(),
@@ -132,7 +132,7 @@ impl InstanceDeregisterRequest {
     pub fn to_heartbeat_request(&self) -> InstanceHeartbeatRequest {
         InstanceHeartbeatRequest {
             flow_id: self.flow_id.clone(),
-            timeout: self.timeout.clone(),
+            timeout: self.timeout,
             id: Some("".to_string()),
             namespace: self.namespace.clone(),
             service: self.service.clone(),
@@ -163,7 +163,7 @@ impl InstanceHeartbeatRequest {
         let ip = self.ip.clone();
         let port: u32 = self.port;
         let vpc_id = self.vpc_id.clone();
-        return format!("{}_{}_{}_{}_{}", namespace, service, ip, port, vpc_id);
+        format!("{}_{}_{}_{}_{}", namespace, service, ip, port, vpc_id)
     }
 
     pub fn convert_instance(&self) -> Instance {
@@ -175,11 +175,11 @@ impl InstanceHeartbeatRequest {
         let vpc_id = self.vpc_id.clone();
         Instance {
             id: instance_id.as_ref().unwrap_or(&"".to_string()).clone(),
-            namespace: namespace,
-            service: service,
-            ip: ip,
-            port: port,
-            vpc_id: vpc_id,
+            namespace,
+            service,
+            ip,
+            port,
+            vpc_id,
             version: "".to_string(),
             protocol: "".to_string(),
             health: false,
@@ -315,7 +315,7 @@ impl WatchInstanceRequest {
     pub fn get_key(&self) -> String {
         let namespace = self.namespace.clone();
         let service = self.service.clone();
-        return format!("{}#{}", namespace, service);
+        format!("{}#{}", namespace, service)
     }
 }
 

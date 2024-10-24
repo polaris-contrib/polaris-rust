@@ -16,7 +16,6 @@
 use std::sync::Arc;
 
 use crate::core::config::config::{load_default, Configuration};
-use crate::core::config::global::{CONFIG_SERVER_CONNECTOR, DISCOVER_SERVER_CONNECTOR};
 use crate::core::engine::Engine;
 use crate::core::model::error::{ErrorCode, PolarisError};
 
@@ -29,10 +28,10 @@ impl SDKContext {
     // default
     pub fn default() -> Result<SDKContext, PolarisError> {
         let cfg_opt = load_default();
-        return match cfg_opt {
+        match cfg_opt {
             Ok(conf) => SDKContext::create_by_configuration(conf),
             Err(err) => Err(PolarisError::new(ErrorCode::InternalError, err.to_string())),
-        };
+        }
     }
 
     // create_by_addresses
@@ -60,10 +59,10 @@ impl SDKContext {
         if ret.is_err() {
             return Err(ret.err().unwrap());
         }
-        return Ok(Self {
+        Ok(Self {
             conf: cfg,
             engine: Arc::new(ret.ok().unwrap()),
-        });
+        })
     }
 
     pub fn get_engine(&self) -> Arc<Engine> {

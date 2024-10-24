@@ -17,7 +17,7 @@ use std::{
     collections::HashMap,
     sync::{atomic::AtomicBool, Arc},
     thread::sleep,
-    time::{self, Duration},
+    time::{Duration},
 };
 
 use tokio::sync::RwLock;
@@ -179,19 +179,19 @@ impl ResourceEventKey {
             crate::core::model::cache::EventType::ConfigFile => Some(ConfigDiscoverRequest {
                 r#type: ConfigDiscoverRequestType::ConfigFile.into(),
                 config_file: Some(self.to_spec_config_file()),
-                revision: revision,
+                revision,
             }),
             crate::core::model::cache::EventType::ConfigGroup => Some(ConfigDiscoverRequest {
                 r#type: ConfigDiscoverRequestType::ConfigFileNames.into(),
                 config_file: Some(self.to_spec_config_group()),
-                revision: revision,
+                revision,
             }),
             _ => None,
         }
     }
 
     pub fn to_spec_service(&self, revision: String) -> Service {
-        let svc = self.filter.get("service").clone().unwrap().to_string();
+        let svc = self.filter.get("service").unwrap().to_string();
         Service {
             namespace: Some(self.namespace.clone()),
             name: Some(svc),
@@ -201,8 +201,8 @@ impl ResourceEventKey {
     }
 
     pub fn to_spec_config_file(&self) -> ClientConfigFileInfo {
-        let group = self.filter.get("group").clone().unwrap().to_string();
-        let file_name = self.filter.get("file").clone().unwrap().to_string();
+        let group = self.filter.get("group").unwrap().to_string();
+        let file_name = self.filter.get("file").unwrap().to_string();
         ClientConfigFileInfo {
             namespace: Some(self.namespace.clone()),
             group: Some(group),
@@ -212,7 +212,7 @@ impl ResourceEventKey {
     }
 
     pub fn to_spec_config_group(&self) -> ClientConfigFileInfo {
-        let group = self.filter.get("group").clone().unwrap().to_string();
+        let group = self.filter.get("group").unwrap().to_string();
         ClientConfigFileInfo {
             namespace: Some(self.namespace.clone()),
             group: Some(group),
@@ -225,14 +225,14 @@ impl ToString for ResourceEventKey {
     fn to_string(&self) -> String {
         let mut key = String::new();
         key.push_str(&self.event_type.to_string());
-        key.push_str("#");
+        key.push('#');
         key.push_str(self.namespace.clone().as_str());
-        key.push_str("#");
+        key.push('#');
         match self.event_type {
             EventType::ConfigFile => {
                 let service = self.filter.get("group");
                 key.push_str(service.unwrap().as_str());
-                key.push_str("#");
+                key.push('#');
                 let service = self.filter.get("file");
                 key.push_str(service.unwrap().as_str());
             }
@@ -249,7 +249,7 @@ impl ToString for ResourceEventKey {
     }
 }
 
-fn build_waiter(initialized: Arc<AtomicBool>, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+fn build_waiter(initialized: Arc<AtomicBool>, timeout: Duration) -> Box<dyn Fn() + Send> {
     Box::new(move || {
         let start = std::time::Instant::now();
         while !initialized.load(std::sync::atomic::Ordering::Acquire) {
@@ -267,7 +267,7 @@ pub trait RegistryCacheValue {
 
     fn event_type(&self) -> EventType;
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send>;
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send>;
 
     fn is_initialized(&self) -> bool;
 
@@ -278,6 +278,12 @@ pub trait RegistryCacheValue {
 pub struct ServicesCacheItem {
     initialized: Arc<AtomicBool>,
     pub value: Arc<RwLock<Vec<ServiceInfo>>>,
+}
+
+impl Default for ServicesCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ServicesCacheItem {
@@ -308,7 +314,7 @@ impl RegistryCacheValue for ServicesCacheItem {
         crate::core::model::cache::EventType::Service
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -329,6 +335,12 @@ pub struct ServiceInstancesCacheItem {
     pub available_instances: Arc<RwLock<Vec<Instance>>>,
     pub total_weight: u64,
     pub revision: String,
+}
+
+impl Default for ServiceInstancesCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ServiceInstancesCacheItem {
@@ -399,7 +411,7 @@ impl RegistryCacheValue for ServiceInstancesCacheItem {
         crate::core::model::cache::EventType::Instance
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -417,6 +429,12 @@ pub struct RouterRulesCacheItem {
     initialized: Arc<AtomicBool>,
     pub revision: String,
     pub value: Arc<RwLock<Vec<Routing>>>,
+}
+
+impl Default for RouterRulesCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RouterRulesCacheItem {
@@ -458,7 +476,7 @@ impl RegistryCacheValue for RouterRulesCacheItem {
         crate::core::model::cache::EventType::RouterRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -498,7 +516,7 @@ impl RegistryCacheValue for LaneRulesCacheItem {
         crate::core::model::cache::EventType::LaneRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -516,6 +534,12 @@ pub struct RatelimitRulesCacheItem {
     initialized: Arc<AtomicBool>,
     pub value: RateLimit,
     pub revision: String,
+}
+
+impl Default for RatelimitRulesCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RatelimitRulesCacheItem {
@@ -557,7 +581,7 @@ impl RegistryCacheValue for RatelimitRulesCacheItem {
         crate::core::model::cache::EventType::RateLimitRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -575,6 +599,12 @@ pub struct CircuitBreakerRulesCacheItem {
     initialized: Arc<AtomicBool>,
     pub value: CircuitBreaker,
     pub revision: String,
+}
+
+impl Default for CircuitBreakerRulesCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CircuitBreakerRulesCacheItem {
@@ -616,7 +646,7 @@ impl RegistryCacheValue for CircuitBreakerRulesCacheItem {
         crate::core::model::cache::EventType::CircuitBreakerRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -634,6 +664,12 @@ pub struct FaultDetectRulesCacheItem {
     initialized: Arc<AtomicBool>,
     pub value: FaultDetector,
     pub revision: String,
+}
+
+impl Default for FaultDetectRulesCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FaultDetectRulesCacheItem {
@@ -675,7 +711,7 @@ impl RegistryCacheValue for FaultDetectRulesCacheItem {
         crate::core::model::cache::EventType::FaultDetectRule
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -695,6 +731,12 @@ pub struct ConfigGroupCacheItem {
     pub group: String,
     pub files: Arc<RwLock<Vec<ConfigFile>>>,
     pub revision: String,
+}
+
+impl Default for ConfigGroupCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ConfigGroupCacheItem {
@@ -740,7 +782,7 @@ impl RegistryCacheValue for ConfigGroupCacheItem {
         crate::core::model::cache::EventType::ConfigGroup
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
@@ -758,6 +800,12 @@ pub struct ConfigFileCacheItem {
     initialized: Arc<AtomicBool>,
     pub value: ClientConfigFileInfo,
     pub revision: String,
+}
+
+impl Default for ConfigFileCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ConfigFileCacheItem {
@@ -779,9 +827,9 @@ impl ConfigFileCacheItem {
             namespace: self.value.namespace.clone().unwrap_or_default(),
             group: self.value.group.clone().unwrap_or_default(),
             name: self.value.file_name.clone().unwrap_or_default(),
-            version: self.value.version.clone().unwrap_or_default(),
+            version: self.value.version.unwrap_or_default(),
             content: self.value.content.clone().unwrap_or_default(),
-            labels: labels,
+            labels,
             encrypt_algo: String::new(),
             encrypt_key: String::new(),
         }
@@ -817,7 +865,7 @@ impl RegistryCacheValue for ConfigFileCacheItem {
         crate::core::model::cache::EventType::ConfigFile
     }
 
-    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() -> () + Send> {
+    async fn wait_initialize(&self, timeout: Duration) -> Box<dyn Fn() + Send> {
         build_waiter(self.initialized.clone(), timeout)
     }
 
