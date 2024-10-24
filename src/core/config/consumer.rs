@@ -13,10 +13,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::collections::HashMap;
-
 use serde::Deserialize;
-
+use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

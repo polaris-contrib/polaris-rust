@@ -83,7 +83,6 @@ pub trait ResourceCache: Plugin {
 #[derive(Default)]
 pub struct NoopResourceCache {}
 
-
 impl Plugin for NoopResourceCache {
     fn init(&mut self) {
         todo!()

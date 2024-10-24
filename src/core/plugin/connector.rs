@@ -91,7 +91,6 @@ pub trait Connector: Plugin {
 #[derive(Default)]
 pub struct NoopConnector {}
 
-
 impl Plugin for NoopConnector {
     fn init(&mut self) {
         todo!()
