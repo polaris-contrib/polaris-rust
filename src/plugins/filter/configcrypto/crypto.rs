@@ -346,6 +346,7 @@ impl Cryptor for AESCryptor {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::plugins::filter::configcrypto::crypto::{AESCryptor, Cryptor, RSACryptor};
 
