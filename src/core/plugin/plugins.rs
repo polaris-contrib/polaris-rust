@@ -188,6 +188,7 @@ impl Extensions {
     }
 }
 
+#[derive(Default)]
 pub struct PluginContainer {
     connectors: HashMap<String, fn(InitConnectorOption) -> Box<dyn Connector>>,
     routers: HashMap<String, fn(&Configuration) -> Box<dyn ServiceRouter>>,
@@ -197,19 +198,6 @@ pub struct PluginContainer {
     load_balancers: HashMap<String, fn() -> Box<dyn LoadBalancer>>,
 }
 
-impl Default for PluginContainer {
-    fn default() -> Self {
-        
-
-        Self {
-            connectors: Default::default(),
-            routers: Default::default(),
-            caches: Default::default(),
-            discover_filters: Default::default(),
-            load_balancers: Default::default(),
-        }
-    }
-}
 
 impl PluginContainer {
     pub fn register_all_plugin(&mut self) {
