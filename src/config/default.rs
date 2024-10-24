@@ -162,9 +162,7 @@ impl ConfigFileAPI for DefaultConfigFileAPI {
         let mut watchers = self.watchers.watchers.write().await;
 
         let watch_key = req.get_key();
-        let items = watchers
-            .entry(watch_key.clone())
-            .or_insert_with(Vec::new);
+        let items = watchers.entry(watch_key.clone()).or_insert_with(Vec::new);
 
         items.push(ConfigFileWatcher { req });
         Ok(WatchConfigFileResponse {})
