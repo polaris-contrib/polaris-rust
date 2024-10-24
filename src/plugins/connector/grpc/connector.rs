@@ -27,7 +27,6 @@ use crate::core::model::pb::lib::{
 };
 use crate::core::plugin::connector::{Connector, InitConnectorOption, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
-use crate::plugins::connector::grpc::manager::ConnectionManager;
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -46,8 +45,6 @@ use tonic::transport::{Channel, Endpoint};
 use tonic::Streaming;
 use tracing::Instrument;
 
-use super::manager::EmptyConnectionSwitchListener;
-
 struct ResourceHandlerWrapper {
     handler: Box<dyn ResourceHandler>,
     revision: String,
@@ -58,7 +55,6 @@ pub struct GrpcConnector {
     opt: InitConnectorOption,
     discover_channel: Channel,
     config_channel: Channel,
-    connection_manager: Arc<ConnectionManager>,
     discover_grpc_client: PolarisGrpcClient<Channel>,
     config_grpc_client: PolarisConfigGrpcClient<Channel>,
 
@@ -90,12 +86,6 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
         opt: opt,
         discover_channel: discover_channel.clone(),
         config_channel: config_channel.clone(),
-        connection_manager: Arc::new(ConnectionManager::new(
-            connect_timeout,
-            server_switch_interval,
-            client_id,
-            Arc::new(EmptyConnectionSwitchListener::new()),
-        )),
         discover_grpc_client: discover_grpc_client,
         config_grpc_client: config_grpc_client,
 

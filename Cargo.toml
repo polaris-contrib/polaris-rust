@@ -12,6 +12,15 @@ keywords = ["polaris", "solution", "governance", "server", "proxyless"]
 categories = ["config", "asynchronous", "development-tools"]
 readme = "README.md"
 
+authors = ["polaris-contrib", "houseme <housemecn@gmail.com>", "liaochuntao <liaochuntao@live.com>"]
+categories = ["polaris", "discovery", "configuration", "governance"]
+keywords = ["polaris", "discovery", "configuration", "governance"]
+license = "BSD 3 OR MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/polaris-contrib/polaris-rust"
+# Crate build related
+exclude = ["examples/*", "benches/*", "tests/*", ".gitignore"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 bytes = { version = "1.4.0" }
