@@ -50,7 +50,7 @@ pub struct ConfigEntry {
 }
 
 /// Cryptor
-trait Cryptor
+pub trait Cryptor
 where
     Self: Send + Sync,
 {
@@ -301,7 +301,7 @@ impl RSACryptor {
 
 type Aes256Cbc = Cbc<Aes128, Pkcs7>;
 
-struct AESCryptor {}
+pub struct AESCryptor {}
 
 impl Cryptor for AESCryptor {
     fn encrypt(&self, plaintext: String, key: String) -> Result<String, PolarisError> {
@@ -347,7 +347,7 @@ impl Cryptor for AESCryptor {
 }
 
 mod tests {
-    
+    use crate::plugins::filter::configcrypto::crypto::{AESCryptor, Cryptor, RSACryptor};
 
     #[test]
     fn test_rsa_encrypt_decrypt() {
