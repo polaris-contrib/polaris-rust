@@ -48,10 +48,14 @@ impl CreateConfigFileRequest {
     }
 }
 
+/// UpdateConfigFileRequest 配置更新请求
 #[derive(Clone, Debug)]
 pub struct UpdateConfigFileRequest {
+    // flow_id 流水号
     pub flow_id: String,
+    // timeout 超时时间
     pub timeout: Duration,
+    // file 配置文件
     pub file: ConfigFile,
 }
 

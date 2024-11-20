@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 use std::collections::HashMap;
+use std::f64::consts::E;
 use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
@@ -27,16 +28,17 @@ use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::InstanceRequest;
-use crate::core::plugin::location::new_location_provider;
 use crate::core::plugin::plugins::Extensions;
 use crate::discovery::req::{
     GetAllInstanceRequest, GetServiceRuleRequest, InstanceDeregisterRequest,
     InstanceHeartbeatRequest, InstanceRegisterRequest, InstanceRegisterResponse, InstancesResponse,
-    ServiceRuleResponse,
+    ReportServiceContractRequest, ServiceRuleResponse,
 };
 
+use super::flow::Flow;
 use super::model::config::ConfigFile;
-use super::model::naming::ServiceInstances;
+use super::model::naming::{ServiceContractRequest, ServiceInstances};
+use super::model::ClientContext;
 use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
 use super::plugin::connector::Connector;
 use super::plugin::loadbalance::LoadBalancer;
@@ -51,6 +53,8 @@ where
     server_connector: Arc<Box<dyn Connector>>,
     location_provider: Arc<LocationProvider>,
     load_balancer: Arc<RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
+    client_ctx: Arc<ClientContext>,
+    flow: Flow,
 }
 
 impl Engine {
@@ -63,11 +67,15 @@ impl Engine {
                 .build()
                 .unwrap(),
         );
-
-        let client_id = crate::core::plugin::plugins::acquire_client_id(arc_conf.clone());
+        let client_ctx = crate::core::plugin::plugins::acquire_client_context(arc_conf.clone());
+        let client_ctx = Arc::new(client_ctx);
 
         // 初始化 extensions
-        let extensions_ret = Extensions::build(client_id, arc_conf.clone(), runtime.clone());
+        let extensions_ret = Extensions::build(
+            client_ctx.clone(),
+            arc_conf.clone(),
+            runtime.clone(),
+        );
         if extensions_ret.is_err() {
             return Err(extensions_ret.err().unwrap());
         }
@@ -93,18 +101,24 @@ impl Engine {
         let local_cache = ret.unwrap();
 
         // 初始化 location_provider
-        let ret = new_location_provider(&arc_conf.global.location);
+        let ret = extension.load_location_providers(&arc_conf.global.location);
         if ret.is_err() {
             return Err(ret.err().unwrap());
         }
         let location_provider = ret.unwrap();
+        let loadbalancers = extension.load_loadbalancers();
+
+        let mut flow = Flow::new(client_ctx.clone(), extension);
+        flow.run_flow();
 
         Ok(Self {
             runtime,
             local_cache: Arc::new(local_cache),
             server_connector,
-            location_provider: Arc::new(location_provider),
-            load_balancer: Arc::new(RwLock::new(extension.load_loadbalancers())),
+            location_provider: location_provider,
+            load_balancer: Arc::new(RwLock::new(loadbalancers)),
+            client_ctx: client_ctx,
+            flow,
         })
     }
 
@@ -232,6 +246,26 @@ impl Engine {
         })
     }
 
+    /// report_service_contract 上报服务契约数据
+    pub async fn report_service_contract(
+        &self,
+        req: ReportServiceContractRequest,
+    ) -> Result<bool, PolarisError> {
+        let connector = self.server_connector.clone();
+        return connector
+            .report_service_contract(ServiceContractRequest {
+                flow_id: {
+                    let mut flow_id = req.flow_id.clone();
+                    if flow_id.is_empty() {
+                        flow_id = uuid::Uuid::new_v4().to_string();
+                    }
+                    flow_id
+                },
+                contract: req.contract,
+            })
+            .await;
+    }
+
     /// get_service_rule 获取服务规则
     pub async fn get_service_rule(
         &self,
@@ -355,6 +389,7 @@ impl Engine {
         }
     }
 
+    // lookup_loadbalancer 查找负载均衡器
     pub async fn lookup_loadbalancer(&self, name: &str) -> Option<Arc<Box<dyn LoadBalancer>>> {
         let lb = self.load_balancer.read().await;
         lb.get(name).cloned()

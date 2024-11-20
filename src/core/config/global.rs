@@ -26,6 +26,7 @@ pub struct GlobalConfig {
     pub stat_reporter: StatReporterConfig,
     pub location: LocationConfig,
     pub local_cache: LocalCacheConfig,
+    pub client: ClientConfig,
 }
 
 impl GlobalConfig {
@@ -175,4 +176,11 @@ fn default_local_cache_name() -> String {
 pub struct PluginConfig {
     pub name: String,
     pub options: Option<HashMap<String, String>>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientConfig {
+    pub id: String,
+    pub labels: HashMap<String, String>,
 }

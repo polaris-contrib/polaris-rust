@@ -18,7 +18,7 @@ use prost::Message;
 use crate::core::model::cache::EventType;
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{
-    Instance, Location, ServiceInstances, ServiceInstancesChangeEvent,
+    Instance, Location, ServiceContract, ServiceInstances, ServiceInstancesChangeEvent,
 };
 use crate::core::model::router::{CalleeInfo, CallerInfo};
 use std::collections::HashMap;
@@ -193,7 +193,11 @@ impl InstanceHeartbeatRequest {
     }
 }
 
-pub struct ReportServiceContractRequest {}
+pub struct ReportServiceContractRequest {
+    pub flow_id: String,
+    pub timeout: Duration,
+    pub contract: ServiceContract,
+}
 
 // ConsumerAPI request and response definition
 

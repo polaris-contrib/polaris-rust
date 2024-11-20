@@ -310,3 +310,116 @@ pub struct ServiceInstancesChangeEvent {
     pub service: ServiceInfo,
     pub instances: Vec<Instance>,
 }
+
+#[derive(Clone, Debug)]
+pub struct ServiceContractRequest {
+    pub flow_id: String,
+    pub contract: ServiceContract,
+}
+
+#[derive(Clone, Debug)]
+pub struct ServiceContract {
+    pub name: String,
+    // 所属命名空间
+    pub namespace: String,
+    // 所属服务名称
+    pub service: String,
+    // 契约版本
+    pub version: String,
+    // 协议，http/grpc/dubbo/thrift
+    pub protocol: String,
+    // 额外描述
+    pub content: String,
+    // 接口描述信息
+    pub interfaces: Vec<ServiceInterfaceDescripitor>,
+    // 标签
+    pub metadata: HashMap<String, String>,
+}
+
+impl ServiceContract {
+    pub fn parse_from_spec(spec: crate::core::model::pb::lib::ServiceContract) -> Self {
+        let mut interfaces = Vec::<ServiceInterfaceDescripitor>::new();
+        for ele in spec.interfaces {
+            interfaces.push(ServiceInterfaceDescripitor {
+                name: ele.r#type.clone(),
+                namespace: ele.namespace.clone(),
+                service: ele.service.clone(),
+                version: ele.version.clone(),
+                protocol: ele.protocol.clone(),
+                path: ele.path.clone(),
+                method: ele.method.clone(),
+                content: ele.content.clone(),
+            });
+        }
+        Self {
+            name: spec.name.clone(),
+            namespace: spec.namespace.clone(),
+            service: spec.service.clone(),
+            content: spec.content.clone(),
+            version: spec.version.clone(),
+            protocol: spec.protocol.clone(),
+            interfaces,
+            metadata: HashMap::new(),
+        }
+    }
+
+    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ServiceContract {
+        let mut spec = crate::core::model::pb::lib::ServiceContract {
+            id: "".to_string(),
+            name: self.name.clone(),
+            namespace: self.namespace.clone(),
+            service: self.service.clone(),
+            content: self.content.clone(),
+            version: self.version.clone(),
+            protocol: self.protocol.clone(),
+            interfaces: Vec::new(),
+            status: "".to_string(),
+            revision: "".to_string(),
+            r#type: self.name.clone(),
+            ctime: "".to_string(),
+            mtime: "".to_string(),
+        };
+        for ele in self.interfaces.iter() {
+            spec.interfaces
+                .push(crate::core::model::pb::lib::InterfaceDescriptor {
+                    id: "".to_string(),
+                    name: self.name.clone(),
+                    namespace: ele.namespace.clone(),
+                    service: ele.service.clone(),
+                    version: ele.version.clone(),
+                    content: ele.content.clone(),
+                    path: ele.path.clone(),
+                    method: ele.method.clone(),
+                    protocol: ele.protocol.clone(),
+                    source: crate::core::model::pb::lib::interface_descriptor::Source::Client
+                        .into(),
+                    revision: "".to_string(),
+                    r#type: ele.name.clone(),
+                    ctime: "".to_string(),
+                    mtime: "".to_string(),
+                });
+        }
+        spec
+    }
+}
+
+/// ServiceInterfaceDescripitor 服务接口信息描述
+#[derive(Clone, Debug)]
+pub struct ServiceInterfaceDescripitor {
+    // 接口类型
+    pub name: String,
+    // 所属命名空间
+    pub namespace: String,
+    // 所属服务名称
+    pub service: String,
+    // 契约版本
+    pub version: String,
+    // 协议，http/grpc/dubbo/thrift
+    pub protocol: String,
+    // 接口名称，http path/dubbo interface/grpc service
+    pub path: String,
+    // 方法名称，对应 http method/ dubbo interface func/grpc service func
+    pub method: String,
+    // 接口描述信息
+    pub content: String,
+}

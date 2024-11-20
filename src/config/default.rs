@@ -92,10 +92,11 @@ impl ResourceListener for ConfigFileResourceListener {
 /// DefaultConfigFileAPI
 pub struct DefaultConfigFileAPI {
     context: Arc<SDKContext>,
+    // manage_sdk: 是否管理 sdk_context 的生命周期
     manage_sdk: bool,
     // watchers: namespace#service -> ConfigFileWatcher
     watchers: Arc<ConfigFileResourceListener>,
-    //
+    // register_resource_watcher: 是否已经注册资源监听器
     register_resource_watcher: AtomicBool,
 }
 

@@ -53,7 +53,7 @@ impl LocationType {
 
 /// LocationProvider 位置信息提供者, 位置获取优先顺序 本地 > http
 pub struct LocationProvider {
-    chain: Vec<Box<dyn LocationSupplier>>,
+    pub chain: Vec<Box<dyn LocationSupplier>>,
 }
 
 pub fn new_location_provider(opt: &LocationConfig) -> Result<LocationProvider, PolarisError> {

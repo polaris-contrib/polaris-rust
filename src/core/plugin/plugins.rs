@@ -15,8 +15,9 @@
 
 use crate::core::config::config::Configuration;
 use crate::core::config::config_file::ConfigFilter;
-use crate::core::config::global::{LocalCacheConfig, ServerConnectorConfig};
+use crate::core::config::global::{LocalCacheConfig, LocationConfig, ServerConnectorConfig};
 use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::ClientContext;
 use crate::core::plugin::cache::ResourceCache;
 use crate::core::plugin::connector::Connector;
 use crate::core::plugin::router::ServiceRouter;
@@ -26,6 +27,8 @@ use crate::plugins::filter::configcrypto::crypto::ConfigFileCryptoFilter;
 use crate::plugins::loadbalance::random::random::WeightRandomLoadbalancer;
 use crate::plugins::loadbalance::ringhash::ringhash::ConsistentHashLoadBalancer;
 use crate::plugins::loadbalance::roundrobin::roundrobin::WeightedRoundRobinBalancer;
+use crate::plugins::location::local::local::LocalLocationSupplier;
+use crate::plugins::location::remotehttp::remotehttp::RemoteHttpLocationSupplier;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
@@ -39,6 +42,7 @@ use super::cache::InitResourceCacheOption;
 use super::connector::InitConnectorOption;
 use super::filter::DiscoverFilter;
 use super::loadbalance::LoadBalancer;
+use super::location::{LocationProvider, LocationSupplier, LocationType};
 
 static SEQ: AtomicU64 = AtomicU64::new(1);
 
@@ -75,19 +79,21 @@ pub struct Extensions
 where
     Self: Send + Sync,
 {
+    pub client_ctx: Arc<ClientContext>,
     pub plugin_container: Arc<PluginContainer>,
     pub runtime: Arc<Runtime>,
-    pub client_id: String,
     pub conf: Arc<Configuration>,
     // config_filters
     pub config_filters: Option<Arc<Vec<Box<dyn DiscoverFilter>>>>,
     // server_connector
     pub server_connector: Option<Arc<Box<dyn Connector>>>,
+    // locatin_provider
+    pub locatin_provider: Option<Arc<LocationProvider>>,
 }
 
 impl Extensions {
     pub fn build(
-        client_id: String,
+        client_ctx: Arc<ClientContext>,
         conf: Arc<Configuration>,
         runetime: Arc<Runtime>,
     ) -> Result<Self, PolarisError> {
@@ -100,13 +106,18 @@ impl Extensions {
         let arc_container = Arc::new(containers);
 
         Ok(Self {
+            client_ctx: client_ctx,
             plugin_container: arc_container,
             runtime: runetime,
-            client_id,
             conf,
             config_filters: None,
             server_connector: None,
+            locatin_provider: None,
         })
+    }
+
+    pub fn server_connector(&self) -> Arc<Box<dyn Connector>> {
+        self.server_connector.clone().unwrap()
     }
 
     pub fn load_server_connector(
@@ -123,9 +134,9 @@ impl Extensions {
         let protocol = connector_opt.get_protocol();
         let supplier = self.plugin_container.get_connector_supplier(&protocol);
         let mut active_connector = supplier(InitConnectorOption {
+            client_ctx: self.client_ctx.clone(),
             runtime: self.runtime.clone(),
             conf: self.conf.clone(),
-            client_id: self.client_id.clone(),
             config_filters: self.config_filters.clone().unwrap().clone(),
         });
         active_connector.init();
@@ -185,6 +196,41 @@ impl Extensions {
             loadbalancers.insert(name.clone(), Arc::new(lb));
         }
         loadbalancers
+    }
+
+    pub fn location_provider(&self) -> Arc<LocationProvider> {
+        self.locatin_provider.clone().unwrap()
+    }
+
+    pub fn load_location_providers(
+        &mut self,
+        opt: &LocationConfig,
+    ) -> Result<Arc<LocationProvider>, PolarisError> {
+        let mut chain = Vec::<Box<dyn LocationSupplier>>::new();
+        let providers = opt.clone().providers;
+        if providers.is_none() {
+            return Err(PolarisError::new(
+                ErrorCode::ApiInvalidArgument,
+                "".to_string(),
+            ));
+        }
+
+        providers.unwrap().iter().for_each(|provider| {
+            let name: String = provider.name.clone();
+            match LocationType::parse(name.as_str()) {
+                LocationType::Local => {
+                    chain.push(Box::new(LocalLocationSupplier::new(provider.clone())));
+                }
+                LocationType::Http => {
+                    chain.push(Box::new(RemoteHttpLocationSupplier::new(provider.clone())));
+                }
+                LocationType::Service => {}
+            }
+        });
+
+        let ret = Arc::new(LocationProvider { chain: chain });
+        self.locatin_provider = Some(ret.clone());
+        return Ok(ret);
     }
 }
 
@@ -264,19 +310,34 @@ impl PluginContainer {
     }
 }
 
-pub fn acquire_client_id(conf: Arc<Configuration>) -> String {
-    // 读取本地域名 HOSTNAME，如果存在，则客户端 ID 标识为 {HOSTNAME}_{进程 PID}_{单进程全局自增数字}
-    // 不满足1的情况下，读取本地 IP，如果存在，则客户端 ID 标识为 {LOCAL_IP}_{进程 PID}_{单进程全局自增数字}
-    // 不满足上述情况，使用UUID作为客户端ID。
-    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    if env::var("HOSTNAME").is_ok() {
-        return format!(
-            "{}_{}_{}",
-            env::var("HOSTNAME").unwrap(),
-            std::process::id(),
-            seq
-        );
+pub fn acquire_client_context(conf: Arc<Configuration>) -> ClientContext {
+    let mut client_id = conf.global.client.id.clone();
+    let self_ip = acquire_client_self_ip(conf.clone());
+
+    if conf.global.client.id.is_empty() {
+        // 读取本地域名 HOSTNAME，如果存在，则客户端 ID 标识为 {HOSTNAME}_{进程 PID}_{单进程全局自增数字}
+        // 不满足1的情况下，读取本地 IP，如果存在，则客户端 ID 标识为 {LOCAL_IP}_{进程 PID}_{单进程全局自增数字}
+        // 不满足上述情况，使用UUID作为客户端ID。
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if env::var("HOSTNAME").is_ok() {
+            client_id = format!(
+                "{}_{}_{}",
+                env::var("HOSTNAME").unwrap(),
+                std::process::id(),
+                seq
+            );
+        }
+        // 和北极星服务端做一个 TCP connect 连接获取 本地 IP 地址
+        if self_ip == "127.0.0.1".to_string() {
+            client_id = uuid::Uuid::new_v4().to_string();
+        } else {
+            client_id = format!("{}_{}_{}", self_ip, std::process::id(), seq);
+        }
     }
+    ClientContext::new(client_id, self_ip, &conf.global.client)
+}
+
+pub fn acquire_client_self_ip(conf: Arc<Configuration>) -> String {
     // 和北极星服务端做一个 TCP connect 连接获取 本地 IP 地址
     let host = conf.global.server_connectors.addresses.first();
 
@@ -287,16 +348,17 @@ pub fn acquire_client_id(conf: Arc<Configuration>) -> String {
         Ok(mut addr_iter) => {
             if let Some(addr) = addr_iter.next() {
                 if let IpAddr::V4(ipv4) = addr.ip() {
-                    format!("{}_{}_{}", ipv4, std::process::id(), seq)
+                    return format!("{}", ipv4);
                 } else if let IpAddr::V6(ipv6) = addr.ip() {
-                    return format!("{}_{}_{}", ipv6, std::process::id(), seq);
-                } else {
-                    return uuid::Uuid::new_v4().to_string();
+                    return format!("{}", ipv6);
                 }
-            } else {
-                uuid::Uuid::new_v4().to_string()
             }
+            tracing::error!("acquire_client_self_ip not ipv4 or ipv6, impossible run here");
+            "127.0.0.1".to_string()
         }
-        Err(_err) => uuid::Uuid::new_v4().to_string(),
+        Err(_err) => {
+            tracing::error!("acquire_client_self_ip error: {:?}", _err);
+            "127.0.0.1".to_string()
+        }
     }
 }

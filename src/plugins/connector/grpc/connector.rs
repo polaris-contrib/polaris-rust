@@ -18,13 +18,17 @@ use crate::core::model::cache::{EventType, RemoteData};
 use crate::core::model::config::{ConfigFileRequest, ConfigPublishRequest, ConfigReleaseRequest};
 use crate::core::model::error::ErrorCode::{ServerError, ServerUserError};
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::{InstanceRequest, InstanceResponse};
+use crate::core::model::naming::{
+    InstanceRequest, InstanceResponse, ServiceContract, ServiceContractRequest,
+};
 use crate::core::model::pb::lib::polaris_config_grpc_client::PolarisConfigGrpcClient;
 use crate::core::model::pb::lib::polaris_grpc_client::PolarisGrpcClient;
+use crate::core::model::pb::lib::polaris_service_contract_grpc_client::PolarisServiceContractGrpcClient;
 use crate::core::model::pb::lib::Code::{ExecuteSuccess, ExistedResource};
 use crate::core::model::pb::lib::{
     Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
 };
+use crate::core::model::{ClientContext, ReportClientRequest};
 use crate::core::plugin::connector::{Connector, InitConnectorOption, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
 use std::cmp::PartialEq;
@@ -297,7 +301,7 @@ impl GrpcConnector {
         }
     }
 
-    fn receive_config_response(&self, mut resp: ConfigDiscoverResponse) {
+    async fn receive_config_response(&self, mut resp: ConfigDiscoverResponse) {
         tracing::info!(
             "[polaris][config][connector] receive config_discover response: {:?}",
             resp
@@ -322,11 +326,29 @@ impl GrpcConnector {
             }
         }
 
+        let remote_rsp = resp.clone();
+
+        let mut watch_key = "".to_string();
         match resp.r#type() {
-            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFile => todo!(),
-            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => todo!(),
-            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => todo!(),
-            _ => todo!()
+            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFile => {
+                let ret = resp.config_file.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}#{}", EventType::ConfigFile, ret.namespace.clone().unwrap(), 
+                ret.group.clone().unwrap(),  ret.file_name.clone().unwrap());
+            },
+            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => {
+                let ret = resp.config_file.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::ConfigFiles, ret.namespace.clone().unwrap(), 
+                ret.group.clone().unwrap());
+            },
+            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => {
+                tracing::error!("[polaris][config][connector] not support ConfigFileGroups");
+            },
+            _ => {}
+        }
+
+        let mut handlers = self.watch_resources.write().await;
+        if let Some(handle) = handlers.get_mut(watch_key.as_str()) {
+            handle.revision = remote_rsp.revision.clone();
         }
     }
 
@@ -353,6 +375,20 @@ impl GrpcConnector {
                 }
             }
         }
+
+        // 添加客户端标签，用于配置灰度发布读取
+        let mut file = req.config_file.unwrap();
+        let mut client_tags = Vec::<crate::core::model::pb::lib::ConfigFileTag>::new();
+        let client_labels = self.opt.client_ctx.labels.clone();
+        for (k, v) in client_labels.iter() {
+            client_tags.push(crate::core::model::pb::lib::ConfigFileTag {
+                key: Some(k.clone()),
+                value: Some(v.clone()),
+            });
+        }
+        file.tags = client_tags;
+        req.config_file = Some(file);
+
         let _ = self.config_spec_sender.send(req);
     }
 }
@@ -516,15 +552,62 @@ impl Connector for GrpcConnector {
         };
     }
 
-    async fn report_client(&self) -> Result<bool, PolarisError> {
+    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    async fn report_service_contract(&self) -> Result<bool, PolarisError> {
-        todo!()
+    async fn report_service_contract(
+        &self,
+        req: ServiceContractRequest,
+    ) -> Result<bool, PolarisError> {
+        tracing::debug!(
+            "[polaris][discovery][connector] send report service_contract request={req:?}"
+        );
+
+        let interceptor = GrpcConnectorInterceptor {
+            metadata: {
+                let mut metadata = HashMap::new();
+                metadata.insert("request-id".to_string(), req.flow_id.to_string());
+                metadata
+            },
+        };
+
+        let mut client = PolarisServiceContractGrpcClient::with_interceptor(
+            self.discover_channel.clone(),
+            interceptor,
+        );
+        let ret = client
+            .report_service_contract(tonic::Request::new(req.contract.convert_spec()))
+            .in_current_span()
+            .await;
+        return match ret {
+            Ok(rsp) => {
+                let rsp = rsp.into_inner();
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                if ExecuteSuccess.eq(&recv_code) {
+                    return Ok(true);
+                }
+                tracing::error!(
+                    "[polaris][discovery][connector] send report service_contract request to server receive fail: code={} info={}",
+                    rsp.code.unwrap().clone(),
+                    rsp.info.clone().unwrap(),
+                );
+                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+            }
+            Err(err) => {
+                tracing::error!(
+                    "[polaris][discovery][connector] send report service_contract request to server fail: {}",
+                    err
+                );
+                Err(PolarisError::new(ServerError, err.to_string()))
+            }
+        };
     }
 
-    async fn get_service_contract(&self) -> Result<String, PolarisError> {
+    async fn get_service_contract(
+        &self,
+        req: ServiceContractRequest,
+    ) -> Result<ServiceContract, PolarisError> {
         todo!()
     }
 

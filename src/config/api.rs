@@ -50,43 +50,53 @@ pub fn new_config_file_api_by_context(
     Ok(DefaultConfigFileAPI::new(context, false))
 }
 
+/// ConfigFileAPI 配置文件API
 #[async_trait::async_trait]
 pub trait ConfigFileAPI
 where
     Self: Send + Sync,
 {
+    /// get_config_file 获取配置文件
     async fn get_config_file(&self, req: GetConfigFileRequest) -> Result<ConfigFile, PolarisError>;
 
+    /// create_config_file 创建配置文件
     async fn create_config_file(&self, req: CreateConfigFileRequest) -> Result<bool, PolarisError>;
 
+    /// update_config_file 更新配置文件
     async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PolarisError>;
 
+    /// publish_config_file 发布配置文件
     async fn publish_config_file(
         &self,
         req: PublishConfigFileRequest,
     ) -> Result<bool, PolarisError>;
 
+    /// upsert_publish_config_file 创建/更新配置文件后并发布
     async fn upsert_publish_config_file(
         &self,
         req: UpsertAndPublishConfigFileRequest,
     ) -> Result<bool, PolarisError>;
 
+    /// watch_config_file 监听配置文件变更
     async fn watch_config_file(
         &self,
         req: WatchConfigFileRequest,
     ) -> Result<WatchConfigFileResponse, PolarisError>;
 }
 
+/// ConfigGroupAPI 配置组API
 #[async_trait::async_trait]
 pub trait ConfigGroupAPI
 where
     Self: Send + Sync,
 {
+    /// get_publish_config_files 获取发布的配置文件列表
     async fn get_publish_config_files(
         &self,
         req: GetConfigGroupRequest,
     ) -> Result<Vec<ConfigFile>, PolarisError>;
 
+    /// watch_publish_config_files 监听发布的配置文件变更
     async fn watch_publish_config_files(
         &self,
         req: WatchConfigGroupRequest,

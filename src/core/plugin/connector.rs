@@ -21,7 +21,10 @@ use crate::core::config::config::Configuration;
 use crate::core::model::cache::{RemoteData, ResourceEventKey};
 use crate::core::model::config::{ConfigFileRequest, ConfigPublishRequest, ConfigReleaseRequest};
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::{InstanceRequest, InstanceResponse};
+use crate::core::model::naming::{
+    InstanceRequest, InstanceResponse, ServiceContract, ServiceContractRequest,
+};
+use crate::core::model::{ClientContext, ReportClientRequest};
 use crate::core::plugin::plugins::Plugin;
 
 use super::filter::DiscoverFilter;
@@ -37,10 +40,11 @@ pub trait ResourceHandler: Send + Sync {
 #[derive(Clone)]
 pub struct InitConnectorOption {
     pub runtime: Arc<Runtime>,
-    pub client_id: String,
     pub conf: Arc<Configuration>,
     // config_filters
     pub config_filters: Arc<Vec<Box<dyn DiscoverFilter>>>,
+    // client_ctx: 客户端数据上下文
+    pub client_ctx: Arc<ClientContext>,
 }
 
 #[async_trait::async_trait]
@@ -64,13 +68,19 @@ pub trait Connector: Plugin {
     async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError>;
 
     /// report_client 上报客户端信息
-    async fn report_client(&self) -> Result<bool, PolarisError>;
+    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PolarisError>;
 
     /// report_service_contract 上报服务契约
-    async fn report_service_contract(&self) -> Result<bool, PolarisError>;
+    async fn report_service_contract(
+        &self,
+        req: ServiceContractRequest,
+    ) -> Result<bool, PolarisError>;
 
     /// get_service_contract 获取服务契约
-    async fn get_service_contract(&self) -> Result<String, PolarisError>;
+    async fn get_service_contract(
+        &self,
+        req: ServiceContractRequest,
+    ) -> Result<ServiceContract, PolarisError>;
 
     /// create_config_file 创建配置文件
     async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
@@ -129,15 +139,21 @@ impl Connector for NoopConnector {
         todo!()
     }
 
-    async fn report_client(&self) -> Result<bool, PolarisError> {
+    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    async fn report_service_contract(&self) -> Result<bool, PolarisError> {
+    async fn report_service_contract(
+        &self,
+        req: ServiceContractRequest,
+    ) -> Result<bool, PolarisError> {
         todo!()
     }
 
-    async fn get_service_contract(&self) -> Result<String, PolarisError> {
+    async fn get_service_contract(
+        &self,
+        req: ServiceContractRequest,
+    ) -> Result<ServiceContract, PolarisError> {
         todo!()
     }
 

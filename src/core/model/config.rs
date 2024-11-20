@@ -106,22 +106,43 @@ impl ConfigPublishRequest {
     }
 }
 
+/// ConfigFile 配置文件
 #[derive(Default, Debug, Clone)]
 pub struct ConfigFile {
+    // namespace 命名空间
     pub namespace: String,
+    // group 配置分组
     pub group: String,
+    // name 配置文件名
     pub name: String,
+    // version 版本号
     pub version: u64,
+    // content 配置内容
     pub content: String,
+    // labels 配置标签
     pub labels: HashMap<String, String>,
-    // 配置加解密标识
+    // encrypt_algo 配置加解密标识
     pub encrypt_algo: String,
+    // encrypt_key 加密密钥
     pub encrypt_key: String,
 }
 
 impl ConfigFile {
     pub fn convert_from_spec(f: crate::core::model::pb::lib::ClientConfigFileInfo) -> ConfigFile {
-        todo!()
+        ConfigFile {
+            namespace: f.namespace.clone().unwrap(),
+            group: f.group.clone().unwrap(),
+            name: f.name.clone().unwrap(),
+            version: f.version.unwrap(),
+            content: f.content.clone().unwrap(),
+            labels: f
+                .tags
+                .iter()
+                .map(|tag| (tag.key.clone().unwrap(), tag.value.clone().unwrap()))
+                .collect(),
+            encrypt_algo: f.get_encrypt_algo(),
+            encrypt_key: f.get_encrypt_data_key(),
+        }
     }
 }
 

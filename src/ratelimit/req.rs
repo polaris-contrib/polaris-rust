@@ -12,3 +12,25 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+use std::time::Duration;
+
+use crate::core::model::TrafficArgument;
+
+#[derive(Clone, Debug)]
+pub struct QuotaRequest {
+    pub flow_id: String,
+    pub timeout: Duration,
+    pub service: String,
+    pub namespace: String,
+
+    pub method: String,
+
+    pub traffic_arguments: Vec<TrafficArgument>,
+}
+
+#[derive(Clone, Debug)]
+pub struct QuotaResponse {
+    pub allowed: bool,
+    pub message: String,
+}

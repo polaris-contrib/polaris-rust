@@ -46,6 +46,7 @@ pub enum EventType {
     LaneRule,
     Namespaces,
     ConfigFile,
+    ConfigFiles,
     ConfigGroup,
 }
 
@@ -69,6 +70,7 @@ impl ToString for EventType {
             EventType::LaneRule => "LaneRule".to_string(),
             EventType::Namespaces => "Namespaces".to_string(),
             EventType::ConfigFile => "ConfigFile".to_string(),
+            EventType::ConfigFiles => "ConfigFiles".to_string(),
             EventType::ConfigGroup => "ConfigGroup".to_string(),
         }
     }
