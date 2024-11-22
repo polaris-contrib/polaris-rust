@@ -28,7 +28,7 @@ use crate::core::model::pb::lib::Code::{ExecuteSuccess, ExistedResource};
 use crate::core::model::pb::lib::{
     Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
 };
-use crate::core::model::{ClientContext, ReportClientRequest};
+use crate::core::model::ReportClientRequest;
 use crate::core::plugin::connector::{Connector, InitConnectorOption, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
 use std::cmp::PartialEq;
@@ -59,8 +59,6 @@ pub struct GrpcConnector {
     opt: InitConnectorOption,
     discover_channel: Channel,
     config_channel: Channel,
-    discover_grpc_client: PolarisGrpcClient<Channel>,
-    config_grpc_client: PolarisConfigGrpcClient<Channel>,
 
     discover_spec_sender: Arc<UnboundedSender<DiscoverRequest>>,
     config_spec_sender: Arc<UnboundedSender<ConfigDiscoverRequest>>,
@@ -72,9 +70,6 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
     let conf = &opt.conf.global.server_connectors.clone();
     let (discover_channel, config_channel) = create_channel(conf);
 
-    let discover_grpc_client = create_discover_grpc_client(discover_channel.clone());
-    let config_grpc_client = create_config_grpc_client(config_channel.clone());
-
     let (discover_sender, mut discover_reciver) =
         run_discover_spec_stream(discover_channel.clone(), opt.runtime.clone()).unwrap();
 
@@ -85,8 +80,6 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
         opt,
         discover_channel: discover_channel.clone(),
         config_channel: config_channel.clone(),
-        discover_grpc_client,
-        config_grpc_client,
 
         discover_spec_sender: Arc::new(discover_sender),
         config_spec_sender: Arc::new(config_sender),
@@ -106,7 +99,7 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
                 }
                 config_ret = config_reciver.recv() => {
                     if config_ret.is_some() {
-                        receive_c.receive_config_response(config_ret.unwrap());
+                        receive_c.receive_config_response(config_ret.unwrap()).await;
                     }
                 }
             }
@@ -182,14 +175,6 @@ fn create_channel(conf: &ServerConnectorConfig) -> (Channel, Channel) {
     let config_channel = Channel::balance_list(config_endpoints);
 
     (discover_channel, config_channel)
-}
-
-fn create_discover_grpc_client(channel: Channel) -> PolarisGrpcClient<Channel> {
-    PolarisGrpcClient::new(channel)
-}
-
-fn create_config_grpc_client(channel: Channel) -> PolarisConfigGrpcClient<Channel> {
-    PolarisConfigGrpcClient::new(channel)
 }
 
 impl Plugin for GrpcConnector {

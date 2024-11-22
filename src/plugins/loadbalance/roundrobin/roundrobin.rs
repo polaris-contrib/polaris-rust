@@ -24,6 +24,7 @@ use crate::core::{
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
 };
 
+/// WeightedRoundRobinBalancer 权重轮训负载均衡
 pub struct WeightedRoundRobinBalancer {
     round_robin_cache: Arc<RwLock<HashMap<String, WeightedRoundRobins>>>,
 }

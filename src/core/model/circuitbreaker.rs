@@ -15,22 +15,29 @@
 
 use std::iter::Map;
 
-enum Status {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Status {
     Close,
     HalfOpen,
     Open,
     Destroy,
 }
 
+/// CircuitBreakerStatus 资源熔断状态及数据
 pub struct CircuitBreakerStatus {
+    // 标识被哪个熔断器熔断
     pub circuit_breaker: String,
+    // 熔断器状态
     pub status: Status,
+    // 开始被熔断的时间
     pub start_ms: u64,
-    pub fallback_info: FallbackInfo,
+    // 熔断降级信息
+    pub fallback_info: Option<FallbackInfo>,
+    // 是否被销毁
     pub destroy: bool,
 }
 
-enum RetStatus {
+pub enum RetStatus {
     RetUnknown,
     RetSuccess,
     RetFail,
@@ -40,13 +47,17 @@ enum RetStatus {
 }
 
 pub struct ResourceStat {
-    pub resource: *const dyn Resource,
+    pub resource: Resource,
     pub ret_code: String,
     pub delay: u32,
     pub status: RetStatus,
 }
 
-pub trait Resource {}
+pub enum Resource {
+    ServiceResource(ServiceResource),
+    MethodResource(MethodResource),
+    InstanceResource(InstanceResource),
+}
 
 pub struct ServiceResource {}
 
@@ -63,8 +74,20 @@ impl InstanceResource {}
 pub struct CheckResult {
     pub pass: bool,
     pub rule_name: String,
+    pub fallback_info: Option<FallbackInfo>,
 }
 
+impl CheckResult {
+    pub fn pass() -> CheckResult {
+        Self {
+            pass: true,
+            rule_name: "".to_string(),
+            fallback_info: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct FallbackInfo {
     pub code: String,
     pub headers: Map<String, String>,

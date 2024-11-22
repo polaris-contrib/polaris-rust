@@ -26,6 +26,7 @@ use crate::core::{
 
 const DEFAULT_REPLICAS: usize = 5;
 
+/// ConsistentHashLoadBalancer 一致性哈希负载均衡
 pub struct ConsistentHashLoadBalancer {
     // 需要把 ring hash 进行一次缓存，避免重复构建 ring hash
     ring_hash_cache: Arc<RwLock<HashMap<String, RingHash>>>,

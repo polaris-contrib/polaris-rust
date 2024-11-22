@@ -14,12 +14,14 @@
 // specific language governing permissions and limitations under the License.
 
 pub mod cache;
+pub mod circuitbreaker;
 pub mod connector;
 pub mod filter;
 pub mod loadbalance;
 pub mod location;
 pub mod lossless;
 pub mod plugins;
+pub mod ratelimit;
 pub mod router;
 pub mod server;
 pub mod stat;

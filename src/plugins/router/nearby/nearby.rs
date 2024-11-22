@@ -13,34 +13,60 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::sync::Arc;
-
 use crate::core::{
+    config::consumer::ServiceRouterPluginConfig,
     model::{
         error::PolarisError,
         naming::ServiceInstances,
-        router::{RouteInfo, RouteResult},
+        router::{RouteInfo, RouteResult, RouteState, DEFAULT_ROUTER_NEARBY},
     },
-    plugin::plugins::Plugin,
+    plugin::{
+        plugins::Plugin,
+        router::{RouteContext, ServiceRouter},
+    },
 };
 
-use super::plugins::Extensions;
+pub fn new_service_router(_conf: &ServiceRouterPluginConfig) -> Box<dyn ServiceRouter> {
+    Box::new(NearbyRouter {})
+}
 
-#[derive(Clone)]
-pub struct RouteContext {
-    pub route_info: RouteInfo,
-    pub extensions: Arc<Extensions>,
+pub struct NearbyRouter {}
+
+impl NearbyRouter {
+    pub fn builder() -> (
+        fn(&ServiceRouterPluginConfig) -> Box<dyn ServiceRouter>,
+        String,
+    ) {
+        (new_service_router, DEFAULT_ROUTER_NEARBY.to_string())
+    }
+}
+
+impl Plugin for NearbyRouter {
+    fn init(&mut self) {}
+
+    fn destroy(&self) {}
+
+    fn name(&self) -> String {
+        DEFAULT_ROUTER_NEARBY.to_string()
+    }
 }
 
 #[async_trait::async_trait]
-pub trait ServiceRouter: Plugin {
+impl ServiceRouter for NearbyRouter {
     /// choose_instances 实例路由
     async fn choose_instances(
         &self,
         route_info: RouteContext,
         instances: ServiceInstances,
-    ) -> Result<RouteResult, PolarisError>;
+    ) -> Result<RouteResult, PolarisError> {
+        Ok(RouteResult {
+            instances,
+            state: RouteState::Next,
+        })
+    }
 
     /// enable 是否启用
-    async fn enable(&self, route_info: RouteInfo) -> bool;
+    async fn enable(&self, route_info: RouteInfo) -> bool {
+        return true;
+    }
 }

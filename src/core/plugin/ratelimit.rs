@@ -13,4 +13,19 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-pub mod health;
+use crate::core::model::error::PolarisError;
+
+use super::plugins::Plugin;
+
+#[async_trait::async_trait]
+pub trait ServiceRateLimiter: Plugin {
+    async fn allocate_quota(&self) -> Result<(), PolarisError>;
+
+    async fn return_quota(&self) -> Result<(), PolarisError>;
+
+    async fn on_remote_update(&self) -> Result<(), PolarisError>;
+
+    async fn fetch_local_usage(&self) -> Result<(), PolarisError>;
+
+    async fn get_amount(&self) -> Result<(), PolarisError>;
+}

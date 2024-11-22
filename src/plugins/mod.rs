@@ -14,8 +14,10 @@
 // specific language governing permissions and limitations under the License.
 
 pub mod cache;
+pub mod circuitbreaker;
 pub mod connector;
 pub mod filter;
 pub mod loadbalance;
 pub mod location;
+pub mod ratelimit;
 pub mod router;

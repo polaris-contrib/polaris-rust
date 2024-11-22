@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations under the License.
 
 use std::collections::HashMap;
-use std::f64::consts::E;
 use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
@@ -71,11 +70,8 @@ impl Engine {
         let client_ctx = Arc::new(client_ctx);
 
         // 初始化 extensions
-        let extensions_ret = Extensions::build(
-            client_ctx.clone(),
-            arc_conf.clone(),
-            runtime.clone(),
-        );
+        let extensions_ret =
+            Extensions::build(client_ctx.clone(), arc_conf.clone(), runtime.clone());
         if extensions_ret.is_err() {
             return Err(extensions_ret.err().unwrap());
         }

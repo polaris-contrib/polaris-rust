@@ -17,10 +17,11 @@ use prost::Message;
 
 use crate::core::model::cache::EventType;
 use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::loadbalance::Criteria;
 use crate::core::model::naming::{
     Instance, Location, ServiceContract, ServiceInstances, ServiceInstancesChangeEvent,
 };
-use crate::core::model::router::{CalleeInfo, CallerInfo};
+use crate::core::model::router::RouteInfo;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -206,8 +207,10 @@ pub struct GetOneInstanceRequest {
     pub timeout: Duration,
     pub service: String,
     pub namespace: String,
-    pub caller_info: CallerInfo,
-    pub callee_info: CalleeInfo,
+    // 用于负载均衡
+    pub criteria: Criteria,
+    // 用于路由
+    pub route_info: RouteInfo,
 }
 
 impl GetOneInstanceRequest {

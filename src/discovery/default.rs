@@ -131,15 +131,14 @@ impl ConsumerAPI for DefaultConsumerAPI {
         match rsp {
             Ok(rsp) => {
                 let instances = rsp.instances;
-                let criteria = req.caller_info.clone().criteria;
+                let criteria = req.criteria;
 
                 // 执行路由逻辑
                 let route_ret = self
                     .router_api
                     .router(ProcessRouteRequest {
                         service_instances: instances,
-                        caller_info: req.caller_info,
-                        callee_info: req.callee_info,
+                        route_info: req.route_info,
                     })
                     .await;
 

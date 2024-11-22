@@ -21,6 +21,7 @@ use crate::core::{
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
 };
 
+/// WeightRandomLoadbalancer 权重随机负载均衡
 pub struct WeightRandomLoadbalancer {}
 
 impl WeightRandomLoadbalancer {

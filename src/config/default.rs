@@ -55,7 +55,7 @@ struct ConfigFileResourceListener {
 #[async_trait::async_trait]
 impl ResourceListener for ConfigFileResourceListener {
     // 处理事件
-    async fn on_event(&self, action: Action, val: ServerEvent) {
+    async fn on_event(&self, _action: Action, val: ServerEvent) {
         let event_key = val.event_key;
         let mut watch_key = event_key.namespace.clone();
         let group = event_key.filter.get("group");
