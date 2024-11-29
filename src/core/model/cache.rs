@@ -15,6 +15,7 @@
 
 use std::{
     collections::HashMap,
+    fmt::Display,
     sync::{atomic::AtomicBool, Arc},
     thread::sleep,
     time::Duration,
@@ -22,15 +23,16 @@ use std::{
 
 use tokio::sync::RwLock;
 
+use polaris_specification::v1::{
+    config_discover_request::ConfigDiscoverRequestType, discover_request::DiscoverRequestType,
+    CircuitBreaker, ClientConfigFileInfo, ConfigDiscoverRequest, ConfigDiscoverResponse,
+    DiscoverFilter, DiscoverRequest, DiscoverResponse, FaultDetector, LaneGroup, RateLimit,
+    Routing, Service,
+};
+
 use super::{
     config::ConfigFile,
     naming::{Instance, ServiceInfo},
-    pb::lib::{
-        config_discover_request::ConfigDiscoverRequestType, discover_request::DiscoverRequestType,
-        CircuitBreaker, ClientConfigFileInfo, ConfigDiscoverRequest, ConfigDiscoverResponse,
-        DiscoverFilter, DiscoverRequest, DiscoverResponse, FaultDetector, LaneGroup, RateLimit,
-        Routing, Service,
-    },
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
@@ -88,6 +90,23 @@ pub enum CacheItemType {
     LaneRule(LaneRulesCacheItem),
     ConfigFile(ConfigFileCacheItem),
     ConfigGroup(ConfigGroupCacheItem),
+}
+
+impl Display for CacheItemType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CacheItemType::Instance(_) => write!(f, "Instance"),
+            CacheItemType::RouterRule(_) => write!(f, "RouterRule"),
+            CacheItemType::CircuitBreakerRule(_) => write!(f, "CircuitBreakerRule"),
+            CacheItemType::RateLimitRule(_) => write!(f, "RateLimitRule"),
+            CacheItemType::Service(_) => write!(f, "Service"),
+            CacheItemType::FaultDetectRule(_) => write!(f, "FaultDetectRule"),
+            CacheItemType::LaneRule(_) => write!(f, "LaneRule"),
+            CacheItemType::ConfigFile(_) => write!(f, "ConfigFile"),
+            CacheItemType::ConfigGroup(_) => write!(f, "ConfigGroup"),
+            _ => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl CacheItemType {
@@ -279,7 +298,9 @@ pub trait RegistryCacheValue {
 // ServicesCacheItem 服务列表
 pub struct ServicesCacheItem {
     initialized: Arc<AtomicBool>,
+    pub namespace: String,
     pub value: Arc<RwLock<Vec<ServiceInfo>>>,
+    pub revision: String,
 }
 
 impl Default for ServicesCacheItem {
@@ -291,8 +312,10 @@ impl Default for ServicesCacheItem {
 impl ServicesCacheItem {
     pub fn new() -> Self {
         Self {
+            namespace: String::new(),
             initialized: Arc::new(AtomicBool::new(false)),
             value: Arc::new(RwLock::new(Vec::new())),
+            revision: String::new(),
         }
     }
 }
@@ -300,8 +323,10 @@ impl ServicesCacheItem {
 impl Clone for ServicesCacheItem {
     fn clone(&self) -> Self {
         Self {
+            namespace: self.namespace.clone(),
             initialized: self.initialized.clone(),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }

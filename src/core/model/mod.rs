@@ -14,8 +14,10 @@
 // specific language governing permissions and limitations under the License.
 
 use naming::Location;
-use pb::lib::client::ClientType;
-use pb::lib::{ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse};
+use polaris_specification::v1::client::ClientType;
+use polaris_specification::v1::{
+    ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
+};
 
 pub mod cache;
 pub mod circuitbreaker;
@@ -24,7 +26,6 @@ pub mod config;
 pub mod error;
 pub mod loadbalance;
 pub mod naming;
-pub mod pb;
 pub mod ratelimit;
 pub mod router;
 pub mod stat;
@@ -45,7 +46,7 @@ pub enum DiscoverRequestInfo {
 }
 
 impl DiscoverRequestInfo {
-    pub fn to_config_request(&self) -> pb::lib::ConfigDiscoverRequest {
+    pub fn to_config_request(&self) -> ConfigDiscoverRequest {
         match self {
             DiscoverRequestInfo::Configuration(req) => req.clone(),
             _ => {
@@ -63,7 +64,7 @@ pub enum DiscoverResponseInfo {
 }
 
 impl DiscoverResponseInfo {
-    pub fn to_config_response(&self) -> pb::lib::ConfigDiscoverResponse {
+    pub fn to_config_response(&self) -> polaris_specification::v1::ConfigDiscoverResponse {
         match self {
             DiscoverResponseInfo::Configuration(resp) => resp.clone(),
             _ => {
@@ -186,8 +187,8 @@ pub struct ReportClientRequest {
 }
 
 impl ReportClientRequest {
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::Client {
-        crate::core::model::pb::lib::Client {
+    pub fn convert_spec(&self) -> polaris_specification::v1::Client {
+        polaris_specification::v1::Client {
             id: Some(self.client_id.clone()),
             host: Some(self.host.clone()),
             version: Some(self.version.clone()),

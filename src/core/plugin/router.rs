@@ -13,7 +13,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::core::{
     model::{
@@ -27,9 +27,26 @@ use crate::core::{
 use super::plugins::Extensions;
 
 #[derive(Clone)]
+pub struct RouterContainer {
+    pub before_routers: HashMap<String, Arc<Box<dyn ServiceRouter>>>,
+    pub core_routers: HashMap<String, Arc<Box<dyn ServiceRouter>>>,
+    pub after_routers: HashMap<String, Arc<Box<dyn ServiceRouter>>>,
+}
+
+impl RouterContainer {
+    pub fn new() -> Self {
+        RouterContainer {
+            before_routers: HashMap::new(),
+            core_routers: HashMap::new(),
+            after_routers: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct RouteContext {
     pub route_info: RouteInfo,
-    pub extensions: Arc<Extensions>,
+    pub extensions: Option<Arc<Extensions>>,
 }
 
 #[async_trait::async_trait]
@@ -42,5 +59,5 @@ pub trait ServiceRouter: Plugin {
     ) -> Result<RouteResult, PolarisError>;
 
     /// enable 是否启用
-    async fn enable(&self, route_info: RouteInfo) -> bool;
+    async fn enable(&self, route_info: RouteContext, instances: ServiceInstances) -> bool;
 }

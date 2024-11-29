@@ -14,13 +14,15 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::config::config::Configuration;
+use crate::core::config::global::LocalCacheConfig;
 use crate::core::model::cache::{
-    EventType, ResourceEventKey, ServerEvent, ServiceInstancesCacheItem,
+    CacheItemType, EventType, ResourceEventKey, ServerEvent, ServiceInstancesCacheItem,
 };
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{ServiceRule, Services};
 use crate::core::plugin::plugins::Plugin;
+use polaris_specification::v1::{ConfigDiscoverResponse, DiscoverResponse};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -55,7 +57,7 @@ pub trait ResourceListener: Send + Sync {
 }
 
 pub struct InitResourceCacheOption {
-    pub conf: Arc<Configuration>,
+    pub conf: LocalCacheConfig,
     pub runtime: Arc<tokio::runtime::Runtime>,
     pub server_connector: Arc<Box<dyn Connector>>,
 }
@@ -63,6 +65,7 @@ pub struct InitResourceCacheOption {
 /// 资源缓存
 #[async_trait::async_trait]
 pub trait ResourceCache: Plugin {
+    fn set_failover_provider(&mut self, failover: Arc<dyn ResourceCacheFailover>);
     // 加载服务规则
     async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError>;
     // 加载服务
@@ -78,6 +81,23 @@ pub trait ResourceCache: Plugin {
     async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
     // 注册资源监听器
     async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>);
+}
+
+#[async_trait::async_trait]
+pub trait ResourceCacheFailover: Send + Sync {
+    // failover_naming_load 兜底加载
+    async fn failover_naming_load(&self, filter: Filter) -> Result<DiscoverResponse, PolarisError>;
+    // save_naming_failover 保存容灾数据
+    async fn save_naming_failover(&self, value: DiscoverResponse) -> Result<(), PolarisError>;
+
+    // failover_config_load 兜底加载
+    async fn failover_config_load(
+        &self,
+        filter: Filter,
+    ) -> Result<ConfigDiscoverResponse, PolarisError>;
+    // save_config_failover 保存容灾数据
+    async fn save_config_failover(&self, value: ConfigDiscoverResponse)
+        -> Result<(), PolarisError>;
 }
 
 #[derive(Default)]
@@ -99,6 +119,10 @@ impl Plugin for NoopResourceCache {
 
 #[async_trait::async_trait]
 impl ResourceCache for NoopResourceCache {
+    fn set_failover_provider(&mut self, failover: Arc<dyn ResourceCacheFailover>) {
+        todo!()
+    }
+
     async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
         todo!()
     }

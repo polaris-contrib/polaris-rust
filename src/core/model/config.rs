@@ -29,16 +29,16 @@ pub struct ConfigFileRequest {
 }
 
 impl ConfigFileRequest {
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ConfigFile {
-        let mut tags = Vec::<crate::core::model::pb::lib::ConfigFileTag>::new();
+    pub fn convert_spec(&self) -> polaris_specification::v1::ConfigFile {
+        let mut tags = Vec::<polaris_specification::v1::ConfigFileTag>::new();
         self.config_file.labels.iter().for_each(|(k, v)| {
-            tags.push(crate::core::model::pb::lib::ConfigFileTag {
+            tags.push(polaris_specification::v1::ConfigFileTag {
                 key: Some(k.clone()),
                 value: Some(v.clone()),
             });
         });
 
-        crate::core::model::pb::lib::ConfigFile {
+        polaris_specification::v1::ConfigFile {
             id: None,
             name: Some(self.config_file.name.clone()),
             namespace: Some(self.config_file.namespace.clone()),
@@ -67,8 +67,8 @@ pub struct ConfigReleaseRequest {
 }
 
 impl ConfigReleaseRequest {
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ConfigFileRelease {
-        crate::core::model::pb::lib::ConfigFileRelease {
+    pub fn convert_spec(&self) -> polaris_specification::v1::ConfigFileRelease {
+        polaris_specification::v1::ConfigFileRelease {
             id: None,
             name: Some(self.config_file.release_name.clone()),
             namespace: Some(self.config_file.namespace.clone()),
@@ -101,7 +101,7 @@ pub struct ConfigPublishRequest {
 }
 
 impl ConfigPublishRequest {
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ConfigFilePublishInfo {
+    pub fn convert_spec(&self) -> polaris_specification::v1::ConfigFilePublishInfo {
         todo!()
     }
 }
@@ -128,7 +128,7 @@ pub struct ConfigFile {
 }
 
 impl ConfigFile {
-    pub fn convert_from_spec(f: crate::core::model::pb::lib::ClientConfigFileInfo) -> ConfigFile {
+    pub fn convert_from_spec(f: polaris_specification::v1::ClientConfigFileInfo) -> ConfigFile {
         ConfigFile {
             namespace: f.namespace.clone().unwrap(),
             group: f.group.clone().unwrap(),
@@ -140,8 +140,8 @@ impl ConfigFile {
                 .iter()
                 .map(|tag| (tag.key.clone().unwrap(), tag.value.clone().unwrap()))
                 .collect(),
-            encrypt_algo: f.get_encrypt_algo(),
-            encrypt_key: f.get_encrypt_data_key(),
+            encrypt_algo: get_encrypt_algo(&f),
+            encrypt_key: get_encrypt_data_key(&f),
         }
     }
 }
@@ -167,24 +167,22 @@ pub struct ConfigFileChangeEvent {
     pub config_file: ConfigFile,
 }
 
-impl crate::core::model::pb::lib::ClientConfigFileInfo {
-    pub fn get_encrypt_data_key(&self) -> String {
-        for (_k, v) in self.tags.iter().enumerate() {
-            let label_key = v.key.clone().unwrap();
-            if label_key == CONFIG_FILE_TAG_KEY_DATA_KEY {
-                return v.value.clone().unwrap();
-            }
+pub fn get_encrypt_data_key(file: &polaris_specification::v1::ClientConfigFileInfo) -> String {
+    for (_k, v) in file.tags.iter().enumerate() {
+        let label_key = v.key.clone().unwrap();
+        if label_key == CONFIG_FILE_TAG_KEY_DATA_KEY {
+            return v.value.clone().unwrap();
         }
-        "".to_string()
     }
+    "".to_string()
+}
 
-    pub fn get_encrypt_algo(&self) -> String {
-        for (_k, v) in self.tags.iter().enumerate() {
-            let label_key = v.key.clone().unwrap();
-            if label_key == CONFIG_FILE_TAG_KEY_ENCRYPT_ALGO {
-                return v.value.clone().unwrap();
-            }
+pub fn get_encrypt_algo(file: &polaris_specification::v1::ClientConfigFileInfo) -> String {
+    for (_k, v) in file.tags.iter().enumerate() {
+        let label_key = v.key.clone().unwrap();
+        if label_key == CONFIG_FILE_TAG_KEY_ENCRYPT_ALGO {
+            return v.value.clone().unwrap();
         }
-        "".to_string()
     }
+    "".to_string()
 }

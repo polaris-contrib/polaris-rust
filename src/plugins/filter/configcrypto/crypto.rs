@@ -18,13 +18,15 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use polaris_specification::v1::{
+    config_discover_request::ConfigDiscoverRequestType,
+    config_discover_response::ConfigDiscoverResponseType, ConfigDiscoverRequest,
+};
+
 use crate::core::{
     model::{
+        config::{get_encrypt_algo, get_encrypt_data_key},
         error::PolarisError,
-        pb::lib::{
-            config_discover_request::ConfigDiscoverRequestType,
-            config_discover_response::ConfigDiscoverResponseType, ConfigDiscoverRequest,
-        },
         DiscoverRequestInfo, DiscoverResponseInfo,
     },
     plugin::{filter::DiscoverFilter, plugins::Plugin},
@@ -162,7 +164,7 @@ impl DiscoverFilter for ConfigFileCryptoFilter {
         // 通过 rsa 将 data_key 解密
         let encrypt_data_key = self
             .rsa_cryptor
-            .decrypt_from_base64(config_file.get_encrypt_data_key());
+            .decrypt_from_base64(get_encrypt_data_key(&config_file));
         let data_key: String;
         match encrypt_data_key {
             Ok(key) => {
@@ -174,13 +176,13 @@ impl DiscoverFilter for ConfigFileCryptoFilter {
                     err
                 );
                 let u8_slice = base64_standard
-                    .decode(config_file.get_encrypt_data_key())
+                    .decode(get_encrypt_data_key(&config_file))
                     .unwrap();
                 data_key = String::from_utf8(u8_slice).unwrap();
             }
         }
 
-        let algo = config_file.get_encrypt_algo();
+        let algo = get_encrypt_algo(&config_file);
 
         let repo = self.cryptors.read().unwrap();
         let cryptor_opt = repo.get(&algo);

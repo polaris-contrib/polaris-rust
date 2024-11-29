@@ -38,16 +38,28 @@ impl RouterAPI for DefaultRouterAPI {
         &self,
         req: super::req::ProcessRouteRequest,
     ) -> Result<super::req::ProcessRouteResponse, PolarisError> {
-        // TODO: 需要支持路由规则，当前直接原封不动进行返回
-        Ok(ProcessRouteResponse {
-            service_instances: req.service_instances,
-        })
+        tracing::debug!("[polaris][router_api] route request {:?}", req);
+
+        let ret = self
+            .context
+            .get_engine()
+            .choose_instances(req.route_info.clone(), req.service_instances)
+            .await;
+
+        match ret {
+            Ok(result) => Ok(ProcessRouteResponse {
+                service_instances: result,
+            }),
+            Err(e) => Err(e),
+        }
     }
 
     async fn load_balance(
         &self,
         req: super::req::ProcessLoadBalanceRequest,
     ) -> Result<super::req::ProcessLoadBalanceResponse, PolarisError> {
+        tracing::debug!("[polaris][router_api] load_balance request {:?}", req);
+
         let criteria = req.criteria.clone();
         let mut lb_policy = criteria.policy.clone();
 

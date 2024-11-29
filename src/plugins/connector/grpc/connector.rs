@@ -21,11 +21,11 @@ use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{
     InstanceRequest, InstanceResponse, ServiceContract, ServiceContractRequest,
 };
-use crate::core::model::pb::lib::polaris_config_grpc_client::PolarisConfigGrpcClient;
-use crate::core::model::pb::lib::polaris_grpc_client::PolarisGrpcClient;
-use crate::core::model::pb::lib::polaris_service_contract_grpc_client::PolarisServiceContractGrpcClient;
-use crate::core::model::pb::lib::Code::{ExecuteSuccess, ExistedResource};
-use crate::core::model::pb::lib::{
+use polaris_specification::v1::polaris_config_grpc_client::PolarisConfigGrpcClient;
+use polaris_specification::v1::polaris_grpc_client::PolarisGrpcClient;
+use polaris_specification::v1::polaris_service_contract_grpc_client::PolarisServiceContractGrpcClient;
+use polaris_specification::v1::Code::{ExecuteSuccess, ExistedResource};
+use polaris_specification::v1::{
     Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
 };
 use crate::core::model::ReportClientRequest;
@@ -240,30 +240,30 @@ impl GrpcConnector {
 
         let mut watch_key = "".to_string();
         match resp.r#type() {
-            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Services => {
+            polaris_specification::v1::discover_response::DiscoverResponseType::Services => {
                 watch_key = resp.service.unwrap().namespace.clone().unwrap();
             },
-            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Instance => {
+            polaris_specification::v1::discover_response::DiscoverResponseType::Instance => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}", EventType::Instance, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
             },
-            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Routing => {
+            polaris_specification::v1::discover_response::DiscoverResponseType::Routing => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}", EventType::RouterRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
             },
-            crate::core::model::pb::lib::discover_response::DiscoverResponseType::RateLimit => {
+            polaris_specification::v1::discover_response::DiscoverResponseType::RateLimit => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}", EventType::RateLimitRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
             },
-            crate::core::model::pb::lib::discover_response::DiscoverResponseType::CircuitBreaker => {
+            polaris_specification::v1::discover_response::DiscoverResponseType::CircuitBreaker => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}", EventType::CircuitBreakerRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
             },
-            crate::core::model::pb::lib::discover_response::DiscoverResponseType::FaultDetector => {
+            polaris_specification::v1::discover_response::DiscoverResponseType::FaultDetector => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}", EventType::FaultDetectRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
             },
-            crate::core::model::pb::lib::discover_response::DiscoverResponseType::Lane => {
+            polaris_specification::v1::discover_response::DiscoverResponseType::Lane => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}", EventType::LaneRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
             },
@@ -315,17 +315,17 @@ impl GrpcConnector {
 
         let mut watch_key = "".to_string();
         match resp.r#type() {
-            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFile => {
+            polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFile => {
                 let ret = resp.config_file.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}#{}", EventType::ConfigFile, ret.namespace.clone().unwrap(), 
                 ret.group.clone().unwrap(),  ret.file_name.clone().unwrap());
             },
-            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => {
+            polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => {
                 let ret = resp.config_file.unwrap().clone();
                 watch_key = format!("{:?}#{}#{}", EventType::ConfigFiles, ret.namespace.clone().unwrap(), 
                 ret.group.clone().unwrap());
             },
-            crate::core::model::pb::lib::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => {
+            polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => {
                 tracing::error!("[polaris][config][connector] not support ConfigFileGroups");
             },
             _ => {}
@@ -363,10 +363,10 @@ impl GrpcConnector {
 
         // 添加客户端标签，用于配置灰度发布读取
         let mut file = req.config_file.unwrap();
-        let mut client_tags = Vec::<crate::core::model::pb::lib::ConfigFileTag>::new();
+        let mut client_tags = Vec::<polaris_specification::v1::ConfigFileTag>::new();
         let client_labels = self.opt.client_ctx.labels.clone();
         for (k, v) in client_labels.iter() {
-            client_tags.push(crate::core::model::pb::lib::ConfigFileTag {
+            client_tags.push(polaris_specification::v1::ConfigFileTag {
                 key: Some(k.clone()),
                 value: Some(v.clone()),
             });

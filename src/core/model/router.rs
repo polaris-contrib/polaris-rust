@@ -13,9 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::{collections::HashMap, iter::Map};
+use std::collections::HashMap;
 
-use super::{error::PolarisError, naming::ServiceInstances};
+use super::{naming::ServiceInstances, TrafficArgument};
 
 pub static DEFAULT_ROUTER_ISOLATED: &str = "isolatedRouter";
 
@@ -35,28 +35,11 @@ pub static DEFAULT_ROUTER_LANE: &str = "laneRouter";
 
 pub static DEFAULT_ROUTER_NAMESPACE: &str = "namespaceRouter";
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum MetadataFailoverType {
     MetadataFailoverNone,
     MetadataFailoverAll,
     MetadataFailoverNoKey,
-}
-
-#[derive(Clone)]
-pub enum TrafficLabel {
-    Header,
-    Cookie,
-    Query,
-    Method,
-    Path,
-    CallerIp,
-}
-
-#[derive(Clone)]
-pub struct Argument {
-    pub traffic_label: TrafficLabel,
-    pub key: String,
-    pub value: String,
 }
 
 pub enum RouteState {
@@ -69,7 +52,7 @@ pub struct RouteResult {
     pub instances: ServiceInstances,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RouteInfo {
     // 主调服务数据信息
     pub namespace: String,
@@ -77,15 +60,29 @@ pub struct RouteInfo {
     // 路由链
     pub chain: RouterChain,
     // 用于元数据路由
-    pub metadata: Map<String, String>,
+    pub metadata: HashMap<String, String>,
     pub metadata_failover: MetadataFailoverType,
     // 用于路由规则
-    pub route_labels: HashMap<String, Vec<Argument>>,
+    pub route_labels: HashMap<String, Vec<TrafficArgument>>,
     // 北极星内部治理规则执行时，会识别规则中的参数来源类别，如果发现规则中的参数来源指定为外部数据源时，会调用本接口进行获取
     pub external_parameter_supplier: Option<fn(str) -> str>,
 }
 
-#[derive(Clone)]
+impl Default for RouteInfo {
+    fn default() -> Self {
+        Self {
+            namespace: Default::default(),
+            service: Default::default(),
+            chain: Default::default(),
+            metadata: HashMap::<String, String>::new(),
+            metadata_failover: MetadataFailoverType::MetadataFailoverNone,
+            route_labels: Default::default(),
+            external_parameter_supplier: Default::default(),
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug)]
 pub struct RouterChain {
     pub before: Vec<String>,
     pub core: Vec<String>,

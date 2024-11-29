@@ -13,8 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::pb::lib::HeartbeatHealthCheck;
+use polaris_specification::v1::HeartbeatHealthCheck;
 use prost::Message;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -36,7 +37,7 @@ impl ServiceKey {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceInfo {
     pub id: String,
     pub namespace: String,
@@ -78,7 +79,8 @@ impl ServiceInstances {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Instance {
     pub id: String,
     pub namespace: String,
@@ -115,7 +117,7 @@ impl Instance {
         true
     }
 
-    pub fn convert_from_spec(data: crate::core::model::pb::lib::Instance) -> Instance {
+    pub fn convert_from_spec(data: polaris_specification::v1::Instance) -> Instance {
         let mut metadata = HashMap::<String, String>::new();
         for ele in data.metadata {
             metadata.insert(ele.0, ele.1);
@@ -146,7 +148,7 @@ impl Instance {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Location {
     pub region: String,
     pub zone: String,
@@ -162,8 +164,8 @@ impl Location {
         }
     }
 
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::Location {
-        crate::core::model::pb::lib::Location {
+    pub fn convert_spec(&self) -> polaris_specification::v1::Location {
+        polaris_specification::v1::Location {
             region: Some(self.region.clone()),
             zone: Some(self.zone.clone()),
             campus: Some(self.campus.clone()),
@@ -204,8 +206,8 @@ pub struct InstanceRequest {
 }
 
 impl InstanceRequest {
-    pub fn convert_beat_spec(&self) -> crate::core::model::pb::lib::Instance {
-        crate::core::model::pb::lib::Instance {
+    pub fn convert_beat_spec(&self) -> polaris_specification::v1::Instance {
+        polaris_specification::v1::Instance {
             id: None,
             namespace: Some(self.instance.namespace.clone()),
             service: Some(self.instance.service.clone()),
@@ -230,21 +232,21 @@ impl InstanceRequest {
         }
     }
 
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::Instance {
+    pub fn convert_spec(&self) -> polaris_specification::v1::Instance {
         let ttl = self.ttl;
         let mut enable_health_check = Some(false);
         let mut health_check = None;
         if ttl != 0 {
             enable_health_check = Some(true);
-            health_check = Some(crate::core::model::pb::lib::HealthCheck {
+            health_check = Some(polaris_specification::v1::HealthCheck {
                 r#type: i32::from(
-                    crate::core::model::pb::lib::health_check::HealthCheckType::Heartbeat,
+                    polaris_specification::v1::health_check::HealthCheckType::Heartbeat,
                 ),
                 heartbeat: Some(HeartbeatHealthCheck { ttl: Some(ttl) }),
             });
         }
 
-        let mut spec_ins = crate::core::model::pb::lib::Instance {
+        let mut spec_ins = polaris_specification::v1::Instance {
             id: None,
             service: Some(self.instance.service.to_string()),
             namespace: Some(self.instance.namespace.to_string()),
@@ -269,9 +271,9 @@ impl InstanceRequest {
         };
         if self.ttl != 0 {
             spec_ins.enable_health_check = Some(true);
-            spec_ins.health_check = Some(crate::core::model::pb::lib::HealthCheck {
+            spec_ins.health_check = Some(polaris_specification::v1::HealthCheck {
                 r#type: i32::from(
-                    crate::core::model::pb::lib::health_check::HealthCheckType::Heartbeat,
+                    polaris_specification::v1::health_check::HealthCheckType::Heartbeat,
                 ),
                 heartbeat: Some(HeartbeatHealthCheck {
                     ttl: Some(self.ttl),
@@ -337,7 +339,7 @@ pub struct ServiceContract {
 }
 
 impl ServiceContract {
-    pub fn parse_from_spec(spec: crate::core::model::pb::lib::ServiceContract) -> Self {
+    pub fn parse_from_spec(spec: polaris_specification::v1::ServiceContract) -> Self {
         let mut interfaces = Vec::<ServiceInterfaceDescripitor>::new();
         for ele in spec.interfaces {
             interfaces.push(ServiceInterfaceDescripitor {
@@ -363,8 +365,8 @@ impl ServiceContract {
         }
     }
 
-    pub fn convert_spec(&self) -> crate::core::model::pb::lib::ServiceContract {
-        let mut spec = crate::core::model::pb::lib::ServiceContract {
+    pub fn convert_spec(&self) -> polaris_specification::v1::ServiceContract {
+        let mut spec = polaris_specification::v1::ServiceContract {
             id: "".to_string(),
             name: self.name.clone(),
             namespace: self.namespace.clone(),
@@ -378,10 +380,11 @@ impl ServiceContract {
             r#type: self.name.clone(),
             ctime: "".to_string(),
             mtime: "".to_string(),
+            metadata: HashMap::new(),
         };
         for ele in self.interfaces.iter() {
             spec.interfaces
-                .push(crate::core::model::pb::lib::InterfaceDescriptor {
+                .push(polaris_specification::v1::InterfaceDescriptor {
                     id: "".to_string(),
                     name: self.name.clone(),
                     namespace: ele.namespace.clone(),
@@ -391,8 +394,7 @@ impl ServiceContract {
                     path: ele.path.clone(),
                     method: ele.method.clone(),
                     protocol: ele.protocol.clone(),
-                    source: crate::core::model::pb::lib::interface_descriptor::Source::Client
-                        .into(),
+                    source: polaris_specification::v1::interface_descriptor::Source::Client.into(),
                     revision: "".to_string(),
                     r#type: ele.name.clone(),
                     ctime: "".to_string(),

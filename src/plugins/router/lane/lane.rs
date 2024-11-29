@@ -66,7 +66,7 @@ impl ServiceRouter for LaneRouter {
     }
 
     /// enable 是否启用
-    async fn enable(&self, route_info: RouteInfo) -> bool {
+    async fn enable(&self, route_info: RouteContext, instances: ServiceInstances) -> bool {
         return true;
     }
 }

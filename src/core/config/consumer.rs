@@ -16,12 +16,15 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
+use super::global::LocalCacheConfig;
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConsumerConfig {
     pub service_router: ServiceRouterConfig,
     pub circuit_breaker: CircuitBreakerConfig,
     pub load_balancer: LoadBalancerConfig,
+    pub local_cache: LocalCacheConfig,
 }
 
 #[derive(Deserialize, Debug)]

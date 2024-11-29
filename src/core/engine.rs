@@ -34,26 +34,30 @@ use crate::discovery::req::{
     ReportServiceContractRequest, ServiceRuleResponse,
 };
 
-use super::flow::Flow;
+use super::flow::{ClientFlow, RouterFlow};
 use super::model::config::ConfigFile;
 use super::model::naming::{ServiceContractRequest, ServiceInstances};
+use super::model::router::RouteInfo;
 use super::model::ClientContext;
 use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
 use super::plugin::connector::Connector;
 use super::plugin::loadbalance::LoadBalancer;
 use super::plugin::location::{LocationProvider, LocationSupplier};
+use super::plugin::router::RouteContext;
 
 pub struct Engine
 where
     Self: Send + Sync,
 {
+    extensions: Arc<Extensions>,
     runtime: Arc<Runtime>,
     local_cache: Arc<Box<dyn ResourceCache>>,
     server_connector: Arc<Box<dyn Connector>>,
     location_provider: Arc<LocationProvider>,
     load_balancer: Arc<RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
     client_ctx: Arc<ClientContext>,
-    flow: Flow,
+    client_flow: ClientFlow,
+    router_flow: Arc<RouterFlow>,
 }
 
 impl Engine {
@@ -75,46 +79,26 @@ impl Engine {
         if extensions_ret.is_err() {
             return Err(extensions_ret.err().unwrap());
         }
-        let mut extension = extensions_ret.unwrap();
 
-        let ret = extension.load_config_file_filters(&arc_conf.config.config_filter);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
+        let extension = Arc::new(extensions_ret.unwrap());
+        let server_connector = extension.get_server_connector();
+        let local_cache = extension.get_resource_cache();
+        let location_provider = extension.get_location_provider();
+        let loadbalancers = extension.get_loadbalancers();
 
-        // 初始化 server_connector
-        let ret = extension.load_server_connector(&arc_conf.global.server_connectors);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-        let server_connector = ret.unwrap();
-
-        // 初始化 local_cache
-        let ret = extension.load_resource_cache(&arc_conf.global.local_cache);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-        let local_cache = ret.unwrap();
-
-        // 初始化 location_provider
-        let ret = extension.load_location_providers(&arc_conf.global.location);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-        let location_provider = ret.unwrap();
-        let loadbalancers = extension.load_loadbalancers();
-
-        let mut flow = Flow::new(client_ctx.clone(), extension);
-        flow.run_flow();
+        let mut client_flow = ClientFlow::new(client_ctx.clone(), extension.clone());
+        client_flow.run_flow();
 
         Ok(Self {
+            extensions: extension.clone(),
             runtime,
-            local_cache: Arc::new(local_cache),
+            local_cache,
             server_connector,
             location_provider: location_provider,
-            load_balancer: Arc::new(RwLock::new(loadbalancers)),
+            load_balancer: loadbalancers,
             client_ctx: client_ctx,
-            flow,
+            client_flow,
+            router_flow: Arc::new(RouterFlow::new(extension)),
         })
     }
 
@@ -394,6 +378,23 @@ impl Engine {
     /// register_resource_listener 注册资源监听器
     pub async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>) {
         self.local_cache.register_resource_listener(listener).await;
+    }
+
+    /// choose_instances 路由选择实例
+    pub async fn choose_instances(
+        &self,
+        route_info: RouteInfo,
+        instances: ServiceInstances,
+    ) -> Result<ServiceInstances, PolarisError> {
+        self.router_flow
+            .choose_instances(
+                RouteContext {
+                    route_info,
+                    extensions: Some(self.extensions.clone()),
+                },
+                instances,
+            )
+            .await
     }
 
     pub fn get_executor(&self) -> Arc<Runtime> {

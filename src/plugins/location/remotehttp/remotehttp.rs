@@ -22,7 +22,7 @@ use crate::core::{
 use reqwest::blocking::Client;
 
 pub struct RemoteHttpLocationSupplier {
-    opt: LocationProviderConfig,
+    _opt: LocationProviderConfig,
     access_url: Location,
 }
 
@@ -48,7 +48,7 @@ impl RemoteHttpLocationSupplier {
         }
 
         Self {
-            opt,
+            _opt: opt,
             access_url: loc_ret,
         }
     }

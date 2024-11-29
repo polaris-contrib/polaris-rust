@@ -25,7 +25,6 @@ pub struct GlobalConfig {
     pub server_connectors: ServerConnectorConfig,
     pub stat_reporter: StatReporterConfig,
     pub location: LocationConfig,
-    pub local_cache: LocalCacheConfig,
     pub client: ClientConfig,
 }
 
@@ -147,7 +146,7 @@ pub struct ClusterConfig {
     pub lb_policy: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocalCacheConfig {
     #[serde(default = "default_local_cache_name")]
@@ -161,10 +160,6 @@ pub struct LocalCacheConfig {
     pub service_list_refresh_interval: Duration,
     pub persist_enable: bool,
     pub persist_dir: String,
-    pub persist_max_write_retry: u32,
-    pub persist_max_read_retry: u32,
-    #[serde(with = "serde_duration_ext")]
-    pub persist_retry_interval: Duration,
 }
 
 fn default_local_cache_name() -> String {

@@ -18,7 +18,7 @@ use crate::core::model::naming::{Instance, ServiceInstances};
 use crate::core::model::router::RouteInfo;
 
 // 负载均衡相关请求
-
+#[derive(Debug)]
 pub struct ProcessLoadBalanceRequest {
     pub service_instances: ServiceInstances,
     pub criteria: Criteria,
@@ -29,7 +29,7 @@ pub struct ProcessLoadBalanceResponse {
 }
 
 // 路由相关请求
-
+#[derive(Debug)]
 pub struct ProcessRouteRequest {
     pub service_instances: ServiceInstances,
     pub route_info: RouteInfo,

@@ -27,14 +27,19 @@ use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{Instance, ServiceRule, Services};
 use crate::core::plugin::cache::{
-    Action, Filter, InitResourceCacheOption, ResourceCache, ResourceListener,
+    Action, Filter, InitResourceCacheOption, ResourceCache, ResourceCacheFailover, ResourceListener,
 };
 use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::failover::DiskCacheFailover;
+
+static MEMORY_CACHE_NAME: &str = "memory";
+
 struct MemoryResourceHandler {
+    failover: Option<Arc<dyn ResourceCacheFailover>>,
     // 资源类型变化监听
     listeners: Arc<RwLock<HashMap<EventType, Vec<Arc<dyn ResourceListener>>>>>,
     // services 服务列表缓存
@@ -61,6 +66,8 @@ pub struct MemoryCache {
     server_connector: Arc<Box<dyn Connector>>,
     handler: Arc<MemoryResourceHandler>,
     remote_sender: UnboundedSender<RemoteData>,
+    //
+    failover: Option<Arc<dyn ResourceCacheFailover>>,
 }
 
 impl MemoryCache {
@@ -68,7 +75,7 @@ impl MemoryCache {
         fn(InitResourceCacheOption) -> Box<dyn ResourceCache>,
         String,
     ) {
-        (new_resource_cache, "memory".to_string())
+        (new_resource_cache, MEMORY_CACHE_NAME.to_string())
     }
 
     async fn run_remote_data_recive(
@@ -129,6 +136,8 @@ impl MemoryCache {
         let event_key = event.event_key.clone();
         let event_type = event_key.event_type;
         let filter = event_key.filter;
+
+        let copy_event = event.clone();
 
         match event_type {
             EventType::Service => {}
@@ -343,6 +352,24 @@ impl MemoryCache {
             _ => {}
         }
 
+        // 容灾调用
+        if copy_event.discover_value.is_some() {
+            let _ = handler
+                .failover
+                .clone()
+                .unwrap()
+                .save_naming_failover(copy_event.discover_value.unwrap())
+                .await;
+        }
+        if copy_event.config_value.is_some() {
+            let _ = handler
+                .failover
+                .clone()
+                .unwrap()
+                .save_config_failover(copy_event.config_value.unwrap())
+                .await;
+        }
+
         // 通知所有的 listener
         let listeners = { handler.listeners.read().await.clone() };
         let expect_watcher_opt = listeners.get(&event_type);
@@ -359,11 +386,13 @@ impl MemoryCache {
 fn new_resource_cache(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
     let (sx, mut rx) = mpsc::unbounded_channel::<RemoteData>();
     let server_connector = opt.server_connector.clone();
+    let failover = Arc::new(DiskCacheFailover::new(opt.conf.clone()));
 
     let mc = MemoryCache {
         opt,
         server_connector,
         handler: Arc::new(MemoryResourceHandler {
+            failover: Some(failover.clone()),
             listeners: Arc::new(RwLock::new(HashMap::new())),
             services: Arc::new(RwLock::new(HashMap::new())),
             instances: Arc::new(RwLock::new(HashMap::new())),
@@ -375,6 +404,8 @@ fn new_resource_cache(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
             config_files: Arc::new(RwLock::new(HashMap::new())),
         }),
         remote_sender: sx,
+        // 默认使用磁盘容灾
+        failover: Some(failover),
     };
 
     let handler = mc.handler.clone();
@@ -391,12 +422,16 @@ impl Plugin for MemoryCache {
     fn destroy(&self) {}
 
     fn name(&self) -> String {
-        "memory".to_string()
+        MEMORY_CACHE_NAME.to_string()
     }
 }
 
 #[async_trait::async_trait]
 impl ResourceCache for MemoryCache {
+    fn set_failover_provider(&mut self, failover: Arc<dyn ResourceCacheFailover>) {
+        self.failover = Some(failover);
+    }
+
     async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
         let event_type = filter.get_event_type();
         let search_namespace = filter.resource_key.namespace.clone();

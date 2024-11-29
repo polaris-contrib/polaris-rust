@@ -23,12 +23,19 @@ use std::{
 
 use tokio::{task::JoinHandle, time::sleep};
 
+use crate::core::plugin::router::ServiceRouter;
+
 use super::{
-    model::{ClientContext, ReportClientRequest},
-    plugin::{location::LocationSupplier, plugins::Extensions},
+    model::{
+        circuitbreaker::{CheckResult, CircuitBreakerStatus, Resource, ResourceStat, Status},
+        error::PolarisError,
+        naming::ServiceInstances,
+        ClientContext, ReportClientRequest,
+    },
+    plugin::{location::LocationSupplier, plugins::Extensions, router::RouteContext},
 };
 
-pub struct Flow
+pub struct ClientFlow
 where
     Self: Send + Sync,
 {
@@ -40,11 +47,11 @@ where
     closed: Arc<AtomicBool>,
 }
 
-impl Flow {
-    pub fn new(client: Arc<ClientContext>, extensions: Extensions) -> Self {
-        Flow {
+impl ClientFlow {
+    pub fn new(client: Arc<ClientContext>, extensions: Arc<Extensions>) -> Self {
+        ClientFlow {
             client,
-            extensions: Arc::new(extensions),
+            extensions: extensions,
             futures: vec![],
             closed: Arc::new(AtomicBool::new(false)),
         }
@@ -57,7 +64,7 @@ impl Flow {
 
         let f: JoinHandle<()> = self.extensions.runtime.spawn(async move {
             loop {
-                Flow::report_client(client.clone(), extensions.clone()).await;
+                ClientFlow::report_client(client.clone(), extensions.clone()).await;
                 sleep(Duration::from_secs(60)).await;
                 if is_closed.load(Ordering::Relaxed) {
                     return;
@@ -70,8 +77,8 @@ impl Flow {
 
     /// report_client 上报客户端信息数据
     pub async fn report_client(client: Arc<ClientContext>, extensions: Arc<Extensions>) {
-        let server_connector = extensions.server_connector();
-        let loc_provider = extensions.location_provider();
+        let server_connector = extensions.get_server_connector();
+        let loc_provider = extensions.get_location_provider();
         let loc = loc_provider.get_location();
         let req = ReportClientRequest {
             client_id: client.client_id.clone(),
@@ -87,5 +94,118 @@ impl Flow {
 
     pub fn stop_flow(&mut self) {
         self.closed.store(true, Ordering::SeqCst);
+    }
+}
+
+/// CircuitBreakerFlow
+pub struct CircuitBreakerFlow {
+    extensions: Arc<Extensions>,
+}
+
+impl CircuitBreakerFlow {
+    pub fn new(extensions: Arc<Extensions>) -> Self {
+        CircuitBreakerFlow { extensions }
+    }
+
+    pub async fn check_resource(&self, resource: Resource) -> Result<CheckResult, PolarisError> {
+        let circuit_breaker_opt = self.extensions.circuit_breaker.clone();
+        if circuit_breaker_opt.is_none() {
+            return Ok(CheckResult::pass());
+        }
+
+        let circuit_breaker = circuit_breaker_opt.unwrap();
+        let status = circuit_breaker.check_resource(resource).await?;
+
+        Ok(CircuitBreakerFlow::convert_from_status(status))
+    }
+
+    pub async fn report_stat(&self, stat: ResourceStat) -> Result<(), PolarisError> {
+        let circuit_breaker_opt = self.extensions.circuit_breaker.clone();
+        if circuit_breaker_opt.is_none() {
+            return Ok(());
+        }
+
+        let circuit_breaker = circuit_breaker_opt.unwrap();
+        circuit_breaker.report_stat(stat).await
+    }
+
+    fn convert_from_status(ret: CircuitBreakerStatus) -> CheckResult {
+        let status = ret.status;
+        CheckResult {
+            pass: status == Status::Open,
+            rule_name: ret.circuit_breaker,
+            fallback_info: ret.fallback_info.clone(),
+        }
+    }
+}
+
+pub struct RouterFlow {
+    extensions: Arc<Extensions>,
+}
+
+impl RouterFlow {
+    pub fn new(extensions: Arc<Extensions>) -> Self {
+        RouterFlow { extensions }
+    }
+
+    pub async fn choose_instances(
+        &self,
+        route_ctx: RouteContext,
+        instances: ServiceInstances,
+    ) -> Result<ServiceInstances, PolarisError> {
+        let router_container = self.extensions.get_router_container();
+
+        let mut routers = Vec::<Arc<Box<dyn ServiceRouter>>>::new();
+        let chain = &route_ctx.route_info.chain;
+
+        // 处理前置路由
+        chain.before.iter().for_each(|name| {
+            if let Some(router) = router_container.before_routers.get(name) {
+                routers.push(router.clone());
+            }
+        });
+
+        let mut tmp_instance = instances;
+        for (_, ele) in routers.iter().enumerate() {
+            let ret = ele.choose_instances(route_ctx.clone(), tmp_instance).await;
+            if let Err(e) = ret {
+                return Err(e);
+            }
+            tmp_instance = ret.unwrap().instances;
+        }
+        routers.clear();
+
+        // 处理核心路由
+        chain.core.iter().for_each(|name| {
+            if let Some(router) = router_container.core_routers.get(name) {
+                routers.push(router.clone());
+            }
+        });
+
+        for (_, ele) in routers.iter().enumerate() {
+            let ret = ele.choose_instances(route_ctx.clone(), tmp_instance).await;
+            if let Err(e) = ret {
+                return Err(e);
+            }
+            tmp_instance = ret.unwrap().instances;
+        }
+        routers.clear();
+
+        // 处理后置路由
+        chain.after.iter().for_each(|name| {
+            if let Some(router) = router_container.before_routers.get(name) {
+                routers.push(router.clone());
+            }
+        });
+
+        for (_, ele) in routers.iter().enumerate() {
+            let ret = ele.choose_instances(route_ctx.clone(), tmp_instance).await;
+            if let Err(e) = ret {
+                return Err(e);
+            }
+            tmp_instance = ret.unwrap().instances;
+        }
+
+        Ok(tmp_instance)
     }
 }

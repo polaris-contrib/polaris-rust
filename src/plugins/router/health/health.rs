@@ -15,6 +15,7 @@
 
 use crate::core::{
     config::consumer::ServiceRouterPluginConfig,
+    flow::CircuitBreakerFlow,
     model::{
         circuitbreaker::{InstanceResource, Resource},
         error::PolarisError,
@@ -22,7 +23,6 @@ use crate::core::{
         router::{RouteResult, RouteState, DEFAULT_ROUTER_RECOVER},
     },
     plugin::{
-        circuitbreaker::CircuitBreakerFlow,
         plugins::Plugin,
         router::{RouteContext, ServiceRouter},
     },
@@ -62,7 +62,7 @@ impl ServiceRouter for HealthRouter {
     ) -> Result<RouteResult, PolarisError> {
         let mut final_instances = Vec::with_capacity(instances.instances.len());
 
-        let circuit_breaker_flow = CircuitBreakerFlow::new(route_ctx.extensions);
+        let circuit_breaker_flow = CircuitBreakerFlow::new(route_ctx.extensions.unwrap());
         let mut total_weight = 0 as u64;
 
         for (_, ins) in instances.instances.iter().enumerate() {
@@ -107,7 +107,7 @@ impl ServiceRouter for HealthRouter {
         })
     }
 
-    async fn enable(&self, _route_info: crate::core::model::router::RouteInfo) -> bool {
+    async fn enable(&self, route_info: RouteContext, instances: ServiceInstances) -> bool {
         true
     }
 }
