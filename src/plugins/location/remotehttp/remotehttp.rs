@@ -21,6 +21,8 @@ use crate::core::{
 
 use reqwest::blocking::Client;
 
+static PLUGIN_NAME: &str = "remotehttp";
+
 pub struct RemoteHttpLocationSupplier {
     _opt: LocationProviderConfig,
     access_url: Location,
@@ -60,7 +62,7 @@ impl Plugin for RemoteHttpLocationSupplier {
     fn destroy(&self) {}
 
     fn name(&self) -> String {
-        "remotehttp".to_string()
+        PLUGIN_NAME.to_string()
     }
 }
 

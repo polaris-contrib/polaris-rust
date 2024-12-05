@@ -21,12 +21,14 @@ use crate::core::{
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
 };
 
+static PLUGIN_NAME: &str = "weightedRandom";
+
 /// WeightRandomLoadbalancer 权重随机负载均衡
 pub struct WeightRandomLoadbalancer {}
 
 impl WeightRandomLoadbalancer {
     pub fn builder() -> (fn() -> Box<dyn LoadBalancer>, String) {
-        (new_instance, "weightedRandom".to_string())
+        (new_instance, PLUGIN_NAME.to_string())
     }
 }
 
@@ -36,7 +38,7 @@ fn new_instance() -> Box<dyn LoadBalancer> {
 
 impl Plugin for WeightRandomLoadbalancer {
     fn name(&self) -> String {
-        "weightedRandom".to_string()
+        PLUGIN_NAME.to_string()
     }
 
     fn init(&mut self) {}

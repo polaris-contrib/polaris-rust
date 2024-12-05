@@ -13,7 +13,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::iter::Map;
+use std::{
+    fmt::{self, format, Display},
+    iter::Map,
+    str,
+};
+
+use super::error::{ErrorCode, PolarisError};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Status {
@@ -92,4 +98,32 @@ pub struct FallbackInfo {
     pub code: String,
     pub headers: Map<String, String>,
     pub body: String,
+}
+
+pub struct CallAbortedError
+where
+    Self: Display + Send + Sync,
+{
+    err: PolarisError,
+    pub rule_name: String,
+    pub fallback_info: Option<FallbackInfo>,
+}
+
+impl CallAbortedError {
+    pub fn new(rule_name: String, fallback_info: Option<FallbackInfo>) -> Self {
+        CallAbortedError {
+            err: PolarisError::new(
+                ErrorCode::CircuitBreakError,
+                format!("rule {}, fallbackInfo {:?}", rule_name, fallback_info),
+            ),
+            rule_name,
+            fallback_info,
+        }
+    }
+}
+
+impl Display for CallAbortedError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.err.fmt(f)
+    }
 }

@@ -13,10 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::config::config::Configuration;
 use crate::core::config::global::LocalCacheConfig;
 use crate::core::model::cache::{
-    CacheItemType, EventType, ResourceEventKey, ServerEvent, ServiceInstancesCacheItem,
+    EventType, ResourceEventKey, ServerEvent, ServiceInstancesCacheItem,
 };
 use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::PolarisError;

@@ -21,6 +21,9 @@ use crate::core::model::error::PolarisError;
 use crate::core::model::naming::{
     InstanceRequest, InstanceResponse, ServiceContract, ServiceContractRequest,
 };
+use crate::core::model::ReportClientRequest;
+use crate::core::plugin::connector::{Connector, InitConnectorOption, ResourceHandler};
+use crate::core::plugin::plugins::Plugin;
 use polaris_specification::v1::polaris_config_grpc_client::PolarisConfigGrpcClient;
 use polaris_specification::v1::polaris_grpc_client::PolarisGrpcClient;
 use polaris_specification::v1::polaris_service_contract_grpc_client::PolarisServiceContractGrpcClient;
@@ -28,9 +31,6 @@ use polaris_specification::v1::Code::{ExecuteSuccess, ExistedResource};
 use polaris_specification::v1::{
     Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
 };
-use crate::core::model::ReportClientRequest;
-use crate::core::plugin::connector::{Connector, InitConnectorOption, ResourceHandler};
-use crate::core::plugin::plugins::Plugin;
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -53,6 +53,8 @@ struct ResourceHandlerWrapper {
     handler: Box<dyn ResourceHandler>,
     revision: String,
 }
+
+static PLUGIN_NAME: &str = "grpc";
 
 #[derive(Clone)]
 pub struct GrpcConnector {
@@ -183,13 +185,13 @@ impl Plugin for GrpcConnector {
     fn destroy(&self) {}
 
     fn name(&self) -> String {
-        "grpc".to_string()
+        PLUGIN_NAME.to_string()
     }
 }
 
 impl GrpcConnector {
     pub fn builder() -> (fn(opt: InitConnectorOption) -> Box<dyn Connector>, String) {
-        (new_connector, "grpc".to_string())
+        (new_connector, PLUGIN_NAME.to_string())
     }
 
     fn create_discover_grpc_stub(
@@ -242,32 +244,62 @@ impl GrpcConnector {
         match resp.r#type() {
             polaris_specification::v1::discover_response::DiscoverResponseType::Services => {
                 watch_key = resp.service.unwrap().namespace.clone().unwrap();
-            },
+            }
             polaris_specification::v1::discover_response::DiscoverResponseType::Instance => {
                 let svc = resp.service.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::Instance, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
-            },
+                watch_key = format!(
+                    "{:?}#{}#{}",
+                    EventType::Instance,
+                    svc.namespace.clone().unwrap(),
+                    svc.name.clone().unwrap()
+                );
+            }
             polaris_specification::v1::discover_response::DiscoverResponseType::Routing => {
                 let svc = resp.service.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::RouterRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
-            },
+                watch_key = format!(
+                    "{:?}#{}#{}",
+                    EventType::RouterRule,
+                    svc.namespace.clone().unwrap(),
+                    svc.name.clone().unwrap()
+                );
+            }
             polaris_specification::v1::discover_response::DiscoverResponseType::RateLimit => {
                 let svc = resp.service.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::RateLimitRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
-            },
+                watch_key = format!(
+                    "{:?}#{}#{}",
+                    EventType::RateLimitRule,
+                    svc.namespace.clone().unwrap(),
+                    svc.name.clone().unwrap()
+                );
+            }
             polaris_specification::v1::discover_response::DiscoverResponseType::CircuitBreaker => {
                 let svc = resp.service.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::CircuitBreakerRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
-            },
+                watch_key = format!(
+                    "{:?}#{}#{}",
+                    EventType::CircuitBreakerRule,
+                    svc.namespace.clone().unwrap(),
+                    svc.name.clone().unwrap()
+                );
+            }
             polaris_specification::v1::discover_response::DiscoverResponseType::FaultDetector => {
                 let svc = resp.service.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::FaultDetectRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
-            },
+                watch_key = format!(
+                    "{:?}#{}#{}",
+                    EventType::FaultDetectRule,
+                    svc.namespace.clone().unwrap(),
+                    svc.name.clone().unwrap()
+                );
+            }
             polaris_specification::v1::discover_response::DiscoverResponseType::Lane => {
                 let svc = resp.service.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::LaneRule, svc.namespace.clone().unwrap(), svc.name.clone().unwrap());
-            },
-            _ => {},
+                watch_key = format!(
+                    "{:?}#{}#{}",
+                    EventType::LaneRule,
+                    svc.namespace.clone().unwrap(),
+                    svc.name.clone().unwrap()
+                );
+            }
+            _ => {}
         }
         let mut handlers = self.watch_resources.write().await;
         if let Some(handle) = handlers.get_mut(watch_key.as_str()) {
@@ -322,7 +354,7 @@ impl GrpcConnector {
             },
             polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => {
                 let ret = resp.config_file.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::ConfigFiles, ret.namespace.clone().unwrap(), 
+                watch_key = format!("{:?}#{}#{}", EventType::ConfigGroup, ret.namespace.clone().unwrap(), 
                 ret.group.clone().unwrap());
             },
             polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => {

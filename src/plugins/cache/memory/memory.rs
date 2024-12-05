@@ -31,6 +31,7 @@ use crate::core::plugin::cache::{
 };
 use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -471,7 +472,7 @@ impl ResourceCache for MemoryCache {
 
                 let mut rules = vec![];
                 for (_, val) in cache_val.value.read().await.iter().enumerate() {
-                    rules.push(Box::new(val.clone()) as Box<dyn Message>);
+                    rules.push(Box::new(val.clone()) as Box<dyn Any + Send>);
                 }
                 Ok(ServiceRule {
                     rules,
@@ -510,7 +511,7 @@ impl ResourceCache for MemoryCache {
                 }
 
                 Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Message>],
+                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
                     revision: cache_val.revision(),
                     initialized: cache_val.is_initialized(),
                 })
@@ -546,7 +547,7 @@ impl ResourceCache for MemoryCache {
                 }
 
                 Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Message>],
+                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
                     revision: cache_val.revision(),
                     initialized: cache_val.is_initialized(),
                 })
@@ -582,7 +583,7 @@ impl ResourceCache for MemoryCache {
                 }
 
                 Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Message>],
+                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
                     revision: cache_val.revision(),
                     initialized: cache_val.is_initialized(),
                 })
@@ -765,6 +766,7 @@ impl ResourceCache for MemoryCache {
             namespace: cache_val.namespace.clone(),
             group: cache_val.group.clone(),
             files: cache_val.files.read().await.clone(),
+            revision: cache_val.revision.clone(),
         };
 
         Ok(ret)
@@ -779,6 +781,7 @@ impl ResourceCache for MemoryCache {
     }
 }
 
+/// MemoryResourceWatcher 用于监听远程资源变化
 struct MemoryResourceWatcher {
     event_key: ResourceEventKey,
     processor: UnboundedSender<RemoteData>,

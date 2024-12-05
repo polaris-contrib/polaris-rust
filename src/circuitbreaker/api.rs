@@ -13,4 +13,54 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-pub trait CircuitBreakerAPI {}
+use std::sync::Arc;
+
+use crate::core::{
+    flow::CircuitBreakerFlow,
+    model::{
+        circuitbreaker::{CallAbortedError, CheckResult, Resource, ResourceStat},
+        error::PolarisError,
+    },
+};
+
+use super::req::{RequestContext, ResponseContext};
+
+#[async_trait::async_trait]
+pub trait CircuitBreakerAPI
+where
+    Self: Send + Sync,
+{
+    /// check_resource .
+    async fn check_resource(&self, resource: Resource) -> Result<CheckResult, PolarisError>;
+    /// report_stat .
+    async fn report_stat(&self, stat: ResourceStat) -> Result<(), PolarisError>;
+    /// make_invoke_handler .
+    async fn make_invoke_handler(
+        &self,
+        req: RequestContext,
+    ) -> Result<Arc<InvokeHandler>, PolarisError>;
+}
+
+pub struct InvokeHandler {
+    req_ctx: RequestContext,
+    flow: Arc<CircuitBreakerFlow>,
+}
+
+impl InvokeHandler {
+    pub fn new(req_ctx: RequestContext, flow: Arc<CircuitBreakerFlow>) -> Self {
+        InvokeHandler { req_ctx, flow }
+    }
+
+    /// acquire_permission 检查当前请求是否可放通
+    async fn acquire_permission(&self) -> Result<(), CallAbortedError> {
+        Ok(())
+    }
+
+    async fn on_success(&self, rsp: ResponseContext) -> Result<(), PolarisError> {
+        Ok(())
+    }
+
+    async fn on_error(&self, rsp: ResponseContext) -> Result<(), PolarisError> {
+        Ok(())
+    }
+}

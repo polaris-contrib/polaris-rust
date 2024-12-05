@@ -16,9 +16,11 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::core::model::config::{
-    ConfigFile, ConfigFileChangeEvent, ConfigFileRelease, ConfigFileRequest, ConfigPublishRequest,
-    ConfigReleaseRequest,
+    ConfigFile, ConfigFileChangeEvent, ConfigFileRelease, ConfigFileRequest,
+    ConfigGroupChangeEvent, ConfigPublishRequest, ConfigReleaseRequest,
 };
+
+use super::default::{ConfigFileResourceListener, ConfigGroupResourceListener};
 
 #[derive(Clone, Debug)]
 pub struct GetConfigFileRequest {
@@ -130,12 +132,73 @@ impl WatchConfigFileRequest {
     }
 }
 
-pub struct WatchConfigFileResponse {}
+pub struct WatchConfigFileResponse {
+    pub watch_id: u64,
+    watch_key: String,
+    owner: Arc<ConfigFileResourceListener>,
+}
+
+impl WatchConfigFileResponse {
+    pub fn new(watch_id: u64, watch_key: String, owner: Arc<ConfigFileResourceListener>) -> Self {
+        WatchConfigFileResponse {
+            watch_id,
+            watch_key,
+            owner,
+        }
+    }
+
+    pub async fn cancel_watch(&self) {
+        self.owner
+            .cancel_watch(&self.watch_key, self.watch_id)
+            .await;
+    }
+}
 
 #[derive(Clone, Debug)]
-pub struct GetConfigGroupRequest {}
+pub struct GetConfigGroupRequest {
+    pub flow_id: String,
+    pub timeout: Duration,
+    // namespace 命名空间
+    pub namespace: String,
+    // group 配置分组
+    pub group: String,
+}
 
-#[derive(Clone, Debug)]
-pub struct WatchConfigGroupRequest {}
+#[derive(Clone)]
+pub struct WatchConfigGroupRequest {
+    pub flow_id: String,
+    pub timeout: Duration,
+    // namespace 命名空间
+    pub namespace: String,
+    // group 配置分组
+    pub group: String,
+    pub call_back: Arc<dyn Fn(ConfigGroupChangeEvent) + Send + Sync>,
+}
 
-pub struct WatchConfigGroupResponse {}
+impl WatchConfigGroupRequest {
+    pub fn get_key(&self) -> String {
+        format!("{}#{}", self.namespace, self.group)
+    }
+}
+
+pub struct WatchConfigGroupResponse {
+    pub watch_id: u64,
+    watch_key: String,
+    owner: Arc<ConfigGroupResourceListener>,
+}
+
+impl WatchConfigGroupResponse {
+    pub fn new(watch_id: u64, watch_key: String, owner: Arc<ConfigGroupResourceListener>) -> Self {
+        WatchConfigGroupResponse {
+            watch_id,
+            watch_key,
+            owner,
+        }
+    }
+
+    pub async fn cancel_watch(&self) {
+        self.owner
+            .cancel_watch(&self.watch_key, self.watch_id)
+            .await;
+    }
+}

@@ -160,11 +160,17 @@ pub struct ConfigGroup {
     pub namespace: String,
     pub group: String,
     pub files: Vec<ConfigFile>,
+    pub revision: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct ConfigFileChangeEvent {
     pub config_file: ConfigFile,
+}
+
+#[derive(Clone, Debug)]
+pub struct ConfigGroupChangeEvent {
+    pub config_group: ConfigGroup,
 }
 
 pub fn get_encrypt_data_key(file: &polaris_specification::v1::ClientConfigFileInfo) -> String {

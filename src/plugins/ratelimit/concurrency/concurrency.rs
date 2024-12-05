@@ -12,3 +12,55 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+use crate::core::{
+    model::error::PolarisError,
+    plugin::{plugins::Plugin, ratelimit::ServiceRateLimiter},
+};
+
+static PLUGIN_NAME: &str = "concurrency";
+
+pub struct ConcurrencyLimiter {}
+
+impl ConcurrencyLimiter {
+    pub fn builder() -> (fn() -> Box<dyn ServiceRateLimiter>, String) {
+        (new_instance, PLUGIN_NAME.to_string())
+    }
+}
+
+fn new_instance() -> Box<dyn ServiceRateLimiter> {
+    Box::new(ConcurrencyLimiter {})
+}
+
+impl Plugin for ConcurrencyLimiter {
+    fn init(&mut self) {}
+
+    fn destroy(&self) {}
+
+    fn name(&self) -> String {
+        PLUGIN_NAME.to_string()
+    }
+}
+
+#[async_trait::async_trait]
+impl ServiceRateLimiter for ConcurrencyLimiter {
+    async fn allocate_quota(&self) -> Result<(), PolarisError> {
+        Ok(())
+    }
+
+    async fn return_quota(&self) -> Result<(), PolarisError> {
+        Ok(())
+    }
+
+    async fn on_remote_update(&self) -> Result<(), PolarisError> {
+        Ok(())
+    }
+
+    async fn fetch_local_usage(&self) -> Result<(), PolarisError> {
+        Ok(())
+    }
+
+    async fn get_amount(&self) -> Result<(), PolarisError> {
+        Ok(())
+    }
+}

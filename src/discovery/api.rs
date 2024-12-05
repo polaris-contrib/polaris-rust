@@ -29,16 +29,13 @@ pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultProviderAPI::new(
-        Arc::new(context_ret.unwrap()),
-        true,
-    ))
+    Ok(DefaultProviderAPI::new_raw(context_ret.unwrap()))
 }
 
 pub fn new_provider_api_by_context(
     context: Arc<SDKContext>,
 ) -> Result<impl ProviderAPI, PolarisError> {
-    Ok(DefaultProviderAPI::new(context, false))
+    Ok(DefaultProviderAPI::new(context))
 }
 
 /// ProviderAPI 负责服务提供者的生命周期管理
@@ -76,7 +73,7 @@ pub fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultConsumerAPI::new(Arc::new(context_ret.unwrap())))
+    Ok(DefaultConsumerAPI::new_raw(context_ret.unwrap()))
 }
 
 pub fn new_consumer_api_by_context(

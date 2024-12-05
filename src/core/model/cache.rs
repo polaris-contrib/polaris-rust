@@ -24,14 +24,15 @@ use std::{
 use tokio::sync::RwLock;
 
 use polaris_specification::v1::{
-    config_discover_request::ConfigDiscoverRequestType, discover_request::DiscoverRequestType,
-    CircuitBreaker, ClientConfigFileInfo, ConfigDiscoverRequest, ConfigDiscoverResponse,
-    DiscoverFilter, DiscoverRequest, DiscoverResponse, FaultDetector, LaneGroup, RateLimit,
-    Routing, Service,
+    config_discover_request::ConfigDiscoverRequestType,
+    config_discover_response::ConfigDiscoverResponseType, discover_request::DiscoverRequestType,
+    discover_response::DiscoverResponseType, CircuitBreaker, ClientConfigFileInfo,
+    ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverFilter, DiscoverRequest,
+    DiscoverResponse, FaultDetector, LaneGroup, RateLimit, Routing, Service,
 };
 
 use super::{
-    config::ConfigFile,
+    config::{ConfigFile, ConfigGroup},
     naming::{Instance, ServiceInfo},
 };
 
@@ -48,8 +49,50 @@ pub enum EventType {
     LaneRule,
     Namespaces,
     ConfigFile,
-    ConfigFiles,
     ConfigGroup,
+    ConfigGroups,
+}
+
+impl EventType {
+    pub fn to_persist_file(&self) -> String {
+        match self {
+            EventType::Instance => "instance.data".to_string(),
+            EventType::RouterRule => "router_rule.data".to_string(),
+            EventType::CircuitBreakerRule => "circuit_breaker_rule.data".to_string(),
+            EventType::RateLimitRule => "rate_limit_rule.data".to_string(),
+            EventType::Service => "service.data".to_string(),
+            EventType::FaultDetectRule => "fault_detect_rule.data".to_string(),
+            EventType::ServiceContract => "service_contract.data".to_string(),
+            EventType::LaneRule => "lane_rule.data".to_string(),
+            EventType::Namespaces => "namespaces.data".to_string(),
+            EventType::ConfigFile => "config_file.data".to_string(),
+            EventType::ConfigGroup => "config_group.data".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
+
+    pub fn naming_spec_to_persist_file(t: DiscoverResponseType) -> String {
+        match t {
+            DiscoverResponseType::Instance => "instance.data".to_string(),
+            DiscoverResponseType::Routing => "router_rule.data".to_string(),
+            DiscoverResponseType::CircuitBreaker => "circuit_breaker_rule.data".to_string(),
+            DiscoverResponseType::RateLimit => "rate_limit_rule.data".to_string(),
+            DiscoverResponseType::Services => "service.data".to_string(),
+            DiscoverResponseType::FaultDetector => "fault_detect_rule.data".to_string(),
+            DiscoverResponseType::Lane => "lane_rule.data".to_string(),
+            DiscoverResponseType::Namespaces => "namespaces.data".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
+
+    pub fn config_spec_to_persist_file(t: ConfigDiscoverResponseType) -> String {
+        match t {
+            ConfigDiscoverResponseType::ConfigFile => "config_file.data".to_string(),
+            ConfigDiscoverResponseType::ConfigFileNames => "config_files.data".to_string(),
+            ConfigDiscoverResponseType::ConfigFileGroups => "config_group.data".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
 }
 
 impl Default for EventType {
@@ -72,8 +115,8 @@ impl ToString for EventType {
             EventType::LaneRule => "LaneRule".to_string(),
             EventType::Namespaces => "Namespaces".to_string(),
             EventType::ConfigFile => "ConfigFile".to_string(),
-            EventType::ConfigFiles => "ConfigFiles".to_string(),
             EventType::ConfigGroup => "ConfigGroup".to_string(),
+            EventType::ConfigGroups => "ConfigGroups".to_string(),
         }
     }
 }
@@ -120,6 +163,13 @@ impl CacheItemType {
     pub fn to_config_file(&self) -> Option<ConfigFileCacheItem> {
         match self {
             CacheItemType::ConfigFile(item) => Some(item.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn to_config_group(&self) -> Option<ConfigGroupCacheItem> {
+        match self {
+            CacheItemType::ConfigGroup(item) => Some(item.clone()),
             _ => None,
         }
     }
@@ -774,6 +824,21 @@ impl ConfigGroupCacheItem {
             group: String::new(),
             files: Arc::new(RwLock::new(Vec::new())),
             revision: String::new(),
+        }
+    }
+
+    pub async fn to_config_group(&self) -> ConfigGroup {
+        let cache_files = self.files.read().await;
+        let mut files = Vec::<ConfigFile>::with_capacity(cache_files.len());
+        for item in cache_files.iter() {
+            files.push(item.clone());
+        }
+
+        ConfigGroup {
+            namespace: self.namespace.clone(),
+            group: self.group.clone(),
+            files: files,
+            revision: self.revision.clone(),
         }
     }
 

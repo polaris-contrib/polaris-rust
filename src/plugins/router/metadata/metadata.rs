@@ -79,7 +79,7 @@ impl ServiceRouter for MetadataRouter {
         if let Some(_custom_failover_type) = svc_info.metadata.get(KEY_METADATA_FAILOVER) {
             failover_type = paese_custom_failover_type(_custom_failover_type);
         }
-        let req_meta = get_router_metadata(&svc_info, &route_ctx);
+        let req_meta = route_ctx.route_info.metadata.clone();
         let mut ret = Vec::<Instance>::with_capacity(instances.instances.len());
 
         let mut total_weight = 0 as u64;
@@ -161,29 +161,6 @@ impl ServiceRouter for MetadataRouter {
     async fn enable(&self, route_info: RouteContext, instances: ServiceInstances) -> bool {
         return true;
     }
-}
-
-fn get_router_metadata(
-    svc_info: &ServiceInfo,
-    route_ctx: &RouteContext,
-) -> HashMap<String, String> {
-    let mut metadata = HashMap::new();
-    if !svc_info.metadata.is_empty() {
-        for (key, value) in svc_info.metadata.iter() {
-            metadata.insert(key.clone(), value.clone());
-        }
-        return metadata;
-    }
-    if let Some(val) = route_ctx
-        .route_info
-        .route_labels
-        .get(DEFAULT_ROUTER_METADATA)
-    {
-        for arg in val.iter() {
-            arg.to_label(&mut metadata);
-        }
-    }
-    metadata
 }
 
 fn paese_custom_failover_type(v: &str) -> MetadataFailoverType {

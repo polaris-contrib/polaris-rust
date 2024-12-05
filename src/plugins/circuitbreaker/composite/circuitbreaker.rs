@@ -21,6 +21,8 @@ use crate::core::{
     plugin::{circuitbreaker::CircuitBreaker, plugins::Plugin},
 };
 
+static PLUGIN_NAME: &str = "composite";
+
 fn new_circuir_breaker() -> Box<dyn CircuitBreaker> {
     Box::new(CompositeCircuitBreaker {})
 }
@@ -29,7 +31,7 @@ pub struct CompositeCircuitBreaker {}
 
 impl CompositeCircuitBreaker {
     pub fn builder() -> (fn() -> Box<dyn CircuitBreaker>, String) {
-        (new_circuir_breaker, "composite".to_string())
+        (new_circuir_breaker, PLUGIN_NAME.to_string())
     }
 }
 
@@ -39,7 +41,7 @@ impl Plugin for CompositeCircuitBreaker {
     fn destroy(&self) {}
 
     fn name(&self) -> String {
-        "composite".to_string()
+        PLUGIN_NAME.to_string()
     }
 }
 

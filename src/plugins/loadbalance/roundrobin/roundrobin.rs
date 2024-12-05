@@ -24,6 +24,8 @@ use crate::core::{
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
 };
 
+static PLUGIN_NAME: &str = "weightedRoundRobin";
+
 /// WeightedRoundRobinBalancer 权重轮训负载均衡
 pub struct WeightedRoundRobinBalancer {
     round_robin_cache: Arc<RwLock<HashMap<String, WeightedRoundRobins>>>,
@@ -31,7 +33,7 @@ pub struct WeightedRoundRobinBalancer {
 
 impl WeightedRoundRobinBalancer {
     pub fn builder() -> (fn() -> Box<dyn LoadBalancer>, String) {
-        (new_instance, "weightedRoundRobin".to_string())
+        (new_instance, PLUGIN_NAME.to_string())
     }
 }
 
@@ -43,7 +45,7 @@ fn new_instance() -> Box<dyn LoadBalancer> {
 
 impl Plugin for WeightedRoundRobinBalancer {
     fn name(&self) -> String {
-        "weightedRoundRobin".to_string()
+        PLUGIN_NAME.to_string()
     }
 
     fn init(&mut self) {

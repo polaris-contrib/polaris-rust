@@ -22,9 +22,12 @@ use crate::core::model::naming::{
     Instance, Location, ServiceContract, ServiceInstances, ServiceInstancesChangeEvent,
 };
 use crate::core::model::router::RouteInfo;
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+
+use super::default::InstanceResourceListener;
 
 #[derive(Clone, Debug)]
 pub struct InstanceRegisterRequest {
@@ -326,7 +329,27 @@ impl WatchInstanceRequest {
     }
 }
 
-pub struct WatchInstanceResponse {}
+pub struct WatchInstanceResponse {
+    pub watch_id: u64,
+    watch_key: String,
+    owner: Arc<InstanceResourceListener>,
+}
+
+impl WatchInstanceResponse {
+    pub fn new(watch_id: u64, watch_key: String, owner: Arc<InstanceResourceListener>) -> Self {
+        WatchInstanceResponse {
+            watch_id,
+            watch_key,
+            owner,
+        }
+    }
+
+    pub async fn cancel_watch(&self) {
+        self.owner
+            .cancel_watch(&self.watch_key, self.watch_id)
+            .await;
+    }
+}
 
 pub struct ServiceCallResult {}
 
@@ -358,7 +381,7 @@ pub struct GetServiceRuleRequest {
 }
 
 pub struct ServiceRuleResponse {
-    pub rules: Vec<Box<dyn Message>>,
+    pub rules: Vec<Box<dyn Any + Send>>,
 }
 
 // LossLessAPI request and response definition

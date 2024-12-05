@@ -32,6 +32,7 @@ use crate::plugins::loadbalance::ringhash::ringhash::ConsistentHashLoadBalancer;
 use crate::plugins::loadbalance::roundrobin::roundrobin::WeightedRoundRobinBalancer;
 use crate::plugins::location::local::local::LocalLocationSupplier;
 use crate::plugins::location::remotehttp::remotehttp::RemoteHttpLocationSupplier;
+use crate::plugins::ratelimit::concurrency::concurrency::ConcurrencyLimiter;
 use crate::plugins::router::health::health::HealthRouter;
 use crate::plugins::router::lane::lane::LaneRouter;
 use crate::plugins::router::metadata::metadata::MetadataRouter;
@@ -53,6 +54,7 @@ use super::connector::InitConnectorOption;
 use super::filter::DiscoverFilter;
 use super::loadbalance::LoadBalancer;
 use super::location::{LocationProvider, LocationSupplier, LocationType};
+use super::ratelimit::ServiceRateLimiter;
 use super::router::RouterContainer;
 
 static SEQ: AtomicU64 = AtomicU64::new(1);
@@ -392,7 +394,9 @@ pub struct PluginContainer {
     load_balancers: HashMap<String, fn() -> Box<dyn LoadBalancer>>,
     // circuit_breakers: 熔断器
     circuit_breakers: HashMap<String, fn() -> Box<dyn CircuitBreaker>>,
-    //
+    // ratelimiter: 限流器
+    ratelimiter: HashMap<String, fn() -> Box<dyn ServiceRateLimiter>>,
+    // custom_cache_failover 用户自定义缓存容灾实现
     custom_cache_failover: Option<Arc<dyn ResourceCacheFailover>>,
 }
 
@@ -404,6 +408,7 @@ impl PluginContainer {
         self.register_service_routers();
         self.register_load_balancer();
         self.register_circuit_breaker();
+        self.register_service_ratelimiter();
     }
 
     fn register_connector(&mut self) {
@@ -464,6 +469,14 @@ impl PluginContainer {
         }
     }
 
+    fn register_service_ratelimiter(&mut self) {
+        let vec = vec![ConcurrencyLimiter::builder];
+        for c in vec {
+            let (supplier, name) = c();
+            self.ratelimiter.insert(name, supplier);
+        }
+    }
+
     fn get_connector_supplier(
         &self,
         name: &str,
@@ -483,6 +496,10 @@ impl PluginContainer {
         name: &str,
     ) -> fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError> {
         *self.discover_filters.get(name).unwrap()
+    }
+
+    fn get_ratelimiter_supplier(&self, name: &str) -> fn() -> Box<dyn ServiceRateLimiter> {
+        *self.ratelimiter.get(name).unwrap()
     }
 
     /// register_custom_service_router 注册自定义的服务路由

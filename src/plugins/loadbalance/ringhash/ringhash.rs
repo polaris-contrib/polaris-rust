@@ -24,6 +24,8 @@ use crate::core::{
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
 };
 
+static PLUGIN_NAME: &str = "ringHash";
+
 const DEFAULT_REPLICAS: usize = 5;
 
 /// ConsistentHashLoadBalancer 一致性哈希负载均衡
@@ -34,7 +36,7 @@ pub struct ConsistentHashLoadBalancer {
 
 impl ConsistentHashLoadBalancer {
     pub fn builder() -> (fn() -> Box<dyn LoadBalancer>, String) {
-        (new_instance, "ringHash".to_string())
+        (new_instance, PLUGIN_NAME.to_string())
     }
 }
 
@@ -46,7 +48,7 @@ fn new_instance() -> Box<dyn LoadBalancer> {
 
 impl Plugin for ConsistentHashLoadBalancer {
     fn name(&self) -> String {
-        "ringHash".to_string()
+        PLUGIN_NAME.to_string()
     }
 
     fn init(&mut self) {}

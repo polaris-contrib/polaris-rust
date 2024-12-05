@@ -12,3 +12,30 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+use std::{any::Any, time::Duration};
+
+use crate::core::model::naming::ServiceKey;
+
+pub trait ResultToErrorCode
+where
+    Self: Send + Sync,
+{
+    fn on_success(&self, ret: dyn Any) -> i32;
+    fn on_error(&self, err: dyn Any) -> i32;
+}
+
+pub struct RequestContext {
+    pub caller_service: ServiceKey,
+    pub callee_service: ServiceKey,
+    pub protocol: String,
+    pub method: String,
+    pub path: String,
+    pub result_to_code: Box<dyn ResultToErrorCode>,
+}
+
+pub struct ResponseContext {
+    pub duration: Duration,
+    pub result: Option<Box<dyn Any>>,
+    pub error: Option<Box<dyn Any>>,
+}

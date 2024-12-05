@@ -16,7 +16,7 @@
 use polaris_specification::v1::HeartbeatHealthCheck;
 use prost::Message;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 #[derive(Default)]
 pub struct Services {
@@ -25,7 +25,7 @@ pub struct Services {
     pub initialized: bool,
 }
 
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct ServiceKey {
     pub namespace: String,
     pub name: String,
@@ -178,7 +178,7 @@ impl Location {
 }
 
 pub struct ServiceRule {
-    pub rules: Vec<Box<dyn Message>>,
+    pub rules: Vec<Box<dyn Any + Send>>,
     pub revision: String,
     pub initialized: bool,
 }

@@ -17,18 +17,56 @@ use std::sync::Arc;
 
 use crate::core::{
     context::SDKContext,
+    flow::RouterFlow,
     model::error::{ErrorCode, PolarisError},
+    plugin::router::RouteContext,
 };
 
 use super::{api::RouterAPI, req::ProcessRouteResponse};
 
 pub struct DefaultRouterAPI {
+    manage_sdk: bool,
     context: Arc<SDKContext>,
+    flow: Arc<RouterFlow>,
 }
 
 impl DefaultRouterAPI {
+    pub fn new_raw(context: SDKContext) -> Self {
+        let ctx = Arc::new(context);
+        let extensions = ctx.get_engine().get_extensions();
+        Self {
+            manage_sdk: true,
+            context: ctx,
+            flow: Arc::new(RouterFlow::new(extensions)),
+        }
+    }
+
     pub fn new(context: Arc<SDKContext>) -> Self {
-        Self { context }
+        let extensions = context.get_engine().get_extensions();
+        Self {
+            manage_sdk: false,
+            context: context,
+            flow: Arc::new(RouterFlow::new(extensions)),
+        }
+    }
+}
+
+impl Drop for DefaultRouterAPI {
+    fn drop(&mut self) {
+        if !self.manage_sdk {
+            return;
+        }
+        let ctx = self.context.to_owned();
+        let ret = Arc::try_unwrap(ctx);
+
+        match ret {
+            Ok(ctx) => {
+                drop(ctx);
+            }
+            Err(_) => {
+                // do nothing
+            }
+        }
     }
 }
 
@@ -41,8 +79,7 @@ impl RouterAPI for DefaultRouterAPI {
         tracing::debug!("[polaris][router_api] route request {:?}", req);
 
         let ret = self
-            .context
-            .get_engine()
+            .flow
             .choose_instances(req.route_info.clone(), req.service_instances)
             .await;
 
@@ -67,11 +104,7 @@ impl RouterAPI for DefaultRouterAPI {
             lb_policy.clone_from(&self.context.conf.consumer.load_balancer.default_policy);
         }
 
-        let lb = self
-            .context
-            .get_engine()
-            .lookup_loadbalancer(&lb_policy)
-            .await;
+        let lb = self.flow.lookup_loadbalancer(&lb_policy).await;
 
         if lb.is_none() {
             tracing::error!(
@@ -80,7 +113,7 @@ impl RouterAPI for DefaultRouterAPI {
             );
             return Err(PolarisError::new(
                 ErrorCode::PluginError,
-                format!("load balancer {} not found", lb_policy,),
+                format!("load balancer {} not found", lb_policy),
             ));
         }
 

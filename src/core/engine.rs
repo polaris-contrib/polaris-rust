@@ -17,10 +17,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
-use tokio::sync::RwLock;
 
+use super::flow::{CircuitBreakerFlow, ClientFlow, RouterFlow};
+use super::model::config::{ConfigFile, ConfigGroup};
+use super::model::naming::{ServiceContractRequest, ServiceInstances};
+use super::model::router::RouteInfo;
+use super::model::ClientContext;
+use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
+use super::plugin::connector::Connector;
+use super::plugin::loadbalance::LoadBalancer;
+use super::plugin::location::{LocationProvider, LocationSupplier};
+use super::plugin::router::RouteContext;
 use crate::config::req::{
-    CreateConfigFileRequest, GetConfigFileRequest, PublishConfigFileRequest,
+    CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
     UpdateConfigFileRequest, UpsertAndPublishConfigFileRequest,
 };
 use crate::core::config::config::Configuration;
@@ -34,17 +43,6 @@ use crate::discovery::req::{
     ReportServiceContractRequest, ServiceRuleResponse,
 };
 
-use super::flow::{ClientFlow, RouterFlow};
-use super::model::config::ConfigFile;
-use super::model::naming::{ServiceContractRequest, ServiceInstances};
-use super::model::router::RouteInfo;
-use super::model::ClientContext;
-use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
-use super::plugin::connector::Connector;
-use super::plugin::loadbalance::LoadBalancer;
-use super::plugin::location::{LocationProvider, LocationSupplier};
-use super::plugin::router::RouteContext;
-
 pub struct Engine
 where
     Self: Send + Sync,
@@ -54,10 +52,8 @@ where
     local_cache: Arc<Box<dyn ResourceCache>>,
     server_connector: Arc<Box<dyn Connector>>,
     location_provider: Arc<LocationProvider>,
-    load_balancer: Arc<RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
     client_ctx: Arc<ClientContext>,
     client_flow: ClientFlow,
-    router_flow: Arc<RouterFlow>,
 }
 
 impl Engine {
@@ -84,7 +80,6 @@ impl Engine {
         let server_connector = extension.get_server_connector();
         let local_cache = extension.get_resource_cache();
         let location_provider = extension.get_location_provider();
-        let loadbalancers = extension.get_loadbalancers();
 
         let mut client_flow = ClientFlow::new(client_ctx.clone(), extension.clone());
         client_flow.run_flow();
@@ -95,10 +90,8 @@ impl Engine {
             local_cache,
             server_connector,
             location_provider: location_provider,
-            load_balancer: loadbalancers,
             client_ctx: client_ctx,
             client_flow,
-            router_flow: Arc::new(RouterFlow::new(extension)),
         })
     }
 
@@ -369,10 +362,31 @@ impl Engine {
         }
     }
 
-    // lookup_loadbalancer 查找负载均衡器
-    pub async fn lookup_loadbalancer(&self, name: &str) -> Option<Arc<Box<dyn LoadBalancer>>> {
-        let lb = self.load_balancer.read().await;
-        lb.get(name).cloned()
+    pub async fn get_config_group_files(
+        &self,
+        req: GetConfigGroupRequest,
+    ) -> Result<ConfigGroup, PolarisError> {
+        let local_cache = self.local_cache.clone();
+        let mut filter = HashMap::<String, String>::new();
+        filter.insert("group".to_string(), req.group.clone());
+        let ret = local_cache
+            .load_config_group_files(Filter {
+                resource_key: ResourceEventKey {
+                    namespace: req.namespace.clone(),
+                    event_type: EventType::ConfigGroup,
+                    filter,
+                },
+                internal_request: false,
+                include_cache: true,
+                timeout: req.timeout,
+            })
+            .await;
+
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
+        }
+
+        Ok(ret.unwrap())
     }
 
     /// register_resource_listener 注册资源监听器
@@ -380,24 +394,11 @@ impl Engine {
         self.local_cache.register_resource_listener(listener).await;
     }
 
-    /// choose_instances 路由选择实例
-    pub async fn choose_instances(
-        &self,
-        route_info: RouteInfo,
-        instances: ServiceInstances,
-    ) -> Result<ServiceInstances, PolarisError> {
-        self.router_flow
-            .choose_instances(
-                RouteContext {
-                    route_info,
-                    extensions: Some(self.extensions.clone()),
-                },
-                instances,
-            )
-            .await
-    }
-
     pub fn get_executor(&self) -> Arc<Runtime> {
         self.runtime.clone()
+    }
+
+    pub fn get_extensions(&self) -> Arc<Extensions> {
+        self.extensions.clone()
     }
 }

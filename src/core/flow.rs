@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 use std::{
+    collections::HashMap,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -21,7 +22,7 @@ use std::{
     time::Duration,
 };
 
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 
 use crate::core::plugin::router::ServiceRouter;
 
@@ -30,9 +31,13 @@ use super::{
         circuitbreaker::{CheckResult, CircuitBreakerStatus, Resource, ResourceStat, Status},
         error::PolarisError,
         naming::ServiceInstances,
+        router::RouteInfo,
         ClientContext, ReportClientRequest,
     },
-    plugin::{location::LocationSupplier, plugins::Extensions, router::RouteContext},
+    plugin::{
+        loadbalance::LoadBalancer, location::LocationSupplier, plugins::Extensions,
+        router::RouteContext,
+    },
 };
 
 pub struct ClientFlow
@@ -109,13 +114,13 @@ impl CircuitBreakerFlow {
 
     pub async fn check_resource(&self, resource: Resource) -> Result<CheckResult, PolarisError> {
         let circuit_breaker_opt = self.extensions.circuit_breaker.clone();
+        // 没有熔断插件，直接结束流程
         if circuit_breaker_opt.is_none() {
             return Ok(CheckResult::pass());
         }
 
         let circuit_breaker = circuit_breaker_opt.unwrap();
         let status = circuit_breaker.check_resource(resource).await?;
-
         Ok(CircuitBreakerFlow::convert_from_status(status))
     }
 
@@ -140,20 +145,35 @@ impl CircuitBreakerFlow {
 }
 
 pub struct RouterFlow {
+    load_balancer: Arc<RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
     extensions: Arc<Extensions>,
 }
 
 impl RouterFlow {
     pub fn new(extensions: Arc<Extensions>) -> Self {
-        RouterFlow { extensions }
+        RouterFlow {
+            load_balancer: extensions.get_loadbalancers(),
+            extensions,
+        }
+    }
+
+    /// lookup_loadbalancer 查找负载均衡器
+    pub async fn lookup_loadbalancer(&self, name: &str) -> Option<Arc<Box<dyn LoadBalancer>>> {
+        let lb = self.load_balancer.read().await;
+        lb.get(name).cloned()
     }
 
     pub async fn choose_instances(
         &self,
-        route_ctx: RouteContext,
+        route_info: RouteInfo,
         instances: ServiceInstances,
     ) -> Result<ServiceInstances, PolarisError> {
         let router_container = self.extensions.get_router_container();
+
+        let route_ctx = RouteContext {
+            route_info,
+            extensions: Some(self.extensions.clone()),
+        };
 
         let mut routers = Vec::<Arc<Box<dyn ServiceRouter>>>::new();
         let chain = &route_ctx.route_info.chain;
@@ -208,4 +228,8 @@ impl RouterFlow {
 
         Ok(tmp_instance)
     }
+}
+
+pub struct ReatelimitFlow {
+    extensions: Arc<Extensions>,
 }

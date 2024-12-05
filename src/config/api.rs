@@ -16,10 +16,13 @@
 use std::sync::Arc;
 
 use crate::{
-    config::default::DefaultConfigFileAPI,
+    config::default::{DefaultConfigFileAPI, DefaultConfigGroupAPI},
     core::{
         context::SDKContext,
-        model::{config::ConfigFile, error::PolarisError},
+        model::{
+            config::{ConfigFile, ConfigGroup},
+            error::PolarisError,
+        },
     },
 };
 
@@ -37,17 +40,14 @@ pub fn new_config_file_api() -> Result<impl ConfigFileAPI, PolarisError> {
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
-    Ok(DefaultConfigFileAPI::new(
-        Arc::new(context_ret.unwrap()),
-        true,
-    ))
+    Ok(DefaultConfigFileAPI::new_raw(context_ret.unwrap()))
 }
 
 /// new_config_file_api_by_context
 pub fn new_config_file_api_by_context(
     context: Arc<SDKContext>,
 ) -> Result<impl ConfigFileAPI, PolarisError> {
-    Ok(DefaultConfigFileAPI::new(context, false))
+    Ok(DefaultConfigFileAPI::new(context))
 }
 
 /// ConfigFileAPI 配置文件API
@@ -84,6 +84,24 @@ where
     ) -> Result<WatchConfigFileResponse, PolarisError>;
 }
 
+/// new_config_group_api
+pub fn new_config_group_api() -> Result<impl ConfigGroupAPI, PolarisError> {
+    let start_time = std::time::Instant::now();
+    let context_ret = SDKContext::default();
+    tracing::info!("create sdk context cost: {:?}", start_time.elapsed());
+    if context_ret.is_err() {
+        return Err(context_ret.err().unwrap());
+    }
+    Ok(DefaultConfigGroupAPI::new_raw(context_ret.unwrap()))
+}
+
+/// new_config_group_api_by_context
+pub fn new_config_group_api_by_context(
+    context: Arc<SDKContext>,
+) -> Result<impl ConfigGroupAPI, PolarisError> {
+    Ok(DefaultConfigGroupAPI::new(context))
+}
+
 /// ConfigGroupAPI 配置组API
 #[async_trait::async_trait]
 pub trait ConfigGroupAPI
@@ -94,7 +112,7 @@ where
     async fn get_publish_config_files(
         &self,
         req: GetConfigGroupRequest,
-    ) -> Result<Vec<ConfigFile>, PolarisError>;
+    ) -> Result<ConfigGroup, PolarisError>;
 
     /// watch_publish_config_files 监听发布的配置文件变更
     async fn watch_publish_config_files(

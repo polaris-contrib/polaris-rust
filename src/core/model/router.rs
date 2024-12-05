@@ -15,7 +15,10 @@
 
 use std::collections::HashMap;
 
-use super::{naming::ServiceInstances, TrafficArgument};
+use super::{
+    naming::{ServiceInstances, ServiceKey},
+    ArgumentType, TrafficArgument,
+};
 
 pub static DEFAULT_ROUTER_ISOLATED: &str = "isolatedRouter";
 
@@ -55,15 +58,16 @@ pub struct RouteResult {
 #[derive(Clone, Debug)]
 pub struct RouteInfo {
     // 主调服务数据信息
-    pub namespace: String,
-    pub service: String,
+    pub caller: ServiceKey,
+    // 被调服务数据信息
+    pub callee: ServiceKey,
     // 路由链
     pub chain: RouterChain,
     // 用于元数据路由
     pub metadata: HashMap<String, String>,
     pub metadata_failover: MetadataFailoverType,
-    // 用于路由规则
-    pub route_labels: HashMap<String, Vec<TrafficArgument>>,
+    // traffic_label_provider 流量标签提供者
+    pub traffic_label_provider: Option<fn(ArgumentType, str) -> str>,
     // 北极星内部治理规则执行时，会识别规则中的参数来源类别，如果发现规则中的参数来源指定为外部数据源时，会调用本接口进行获取
     pub external_parameter_supplier: Option<fn(str) -> str>,
 }
@@ -71,13 +75,13 @@ pub struct RouteInfo {
 impl Default for RouteInfo {
     fn default() -> Self {
         Self {
-            namespace: Default::default(),
-            service: Default::default(),
+            caller: Default::default(),
+            callee: Default::default(),
             chain: Default::default(),
             metadata: HashMap::<String, String>::new(),
             metadata_failover: MetadataFailoverType::MetadataFailoverNone,
-            route_labels: Default::default(),
             external_parameter_supplier: Default::default(),
+            traffic_label_provider: Default::default(),
         }
     }
 }
@@ -87,4 +91,12 @@ pub struct RouterChain {
     pub before: Vec<String>,
     pub core: Vec<String>,
     pub after: Vec<String>,
+}
+
+impl RouterChain {
+    pub fn exist_route(&self, n: &str) -> bool {
+        self.before.iter().any(|x| x == n)
+            || self.core.iter().any(|x| x == n)
+            || self.after.iter().any(|x| x == n)
+    }
 }

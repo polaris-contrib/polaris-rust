@@ -13,12 +13,36 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::sync::Arc;
+
+use crate::core::{context::SDKContext, model::error::PolarisError};
+
+use super::{
+    default::DefaultRateLimitAPI,
+    req::{QuotaRequest, QuotaResponse},
+};
+
+/// new_ratelimit_api
+pub fn new_ratelimit_api() -> Result<impl RateLimitAPI, PolarisError> {
+    let context_ret = SDKContext::default();
+    if context_ret.is_err() {
+        return Err(context_ret.err().unwrap());
+    }
+
+    Ok(DefaultRateLimitAPI::new_raw(context_ret.unwrap()))
+}
+
+/// new_ratelimit_api_by_context
+pub fn new_ratelimit_api_by_context(
+    context: Arc<SDKContext>,
+) -> Result<impl RateLimitAPI, PolarisError> {
+    Ok(DefaultRateLimitAPI::new(context))
+}
+
 #[async_trait::async_trait]
 pub trait RateLimitAPI
 where
     Self: Send + Sync,
 {
-    async fn get_quota() {
-        
-    }
+    async fn get_quota(&self, req: QuotaRequest) -> Result<QuotaResponse, PolarisError>;
 }

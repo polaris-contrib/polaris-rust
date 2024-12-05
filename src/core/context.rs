@@ -24,6 +24,10 @@ pub struct SDKContext {
     engine: Arc<Engine>,
 }
 
+impl Drop for SDKContext {
+    fn drop(&mut self) {}
+}
+
 impl SDKContext {
     // default
     pub fn default() -> Result<SDKContext, PolarisError> {
