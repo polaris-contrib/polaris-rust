@@ -78,10 +78,28 @@ impl DiscoverResponseInfo {
 pub enum ArgumentType {
     Custom,
     Method,
+    Path,
     Header,
+    Cookie,
     Query,
     CallerService,
     CallerIP,
+}
+
+impl ArgumentType {
+    pub fn parse_from_str(s: &str) -> Self {
+        match s {
+            "custom" => ArgumentType::Custom,
+            "method" => ArgumentType::Method,
+            "path" => ArgumentType::Path,
+            "header" => ArgumentType::Header,
+            "cookie" => ArgumentType::Cookie,
+            "query" => ArgumentType::Query,
+            "caller_service" => ArgumentType::CallerService,
+            "caller_ip" => ArgumentType::CallerIP,
+            _ => ArgumentType::Custom,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -116,6 +134,10 @@ impl TrafficArgument {
         TrafficArgument::new(ArgumentType::Custom, key, value)
     }
 
+    pub fn build_path(path: String) -> Self {
+        TrafficArgument::new(ArgumentType::Path, String::new(), path)
+    }
+
     pub fn build_method(method: String) -> Self {
         TrafficArgument::new(ArgumentType::Method, String::new(), method)
     }
@@ -126,6 +148,10 @@ impl TrafficArgument {
 
     pub fn build_query(query_key: String, query_value: String) -> Self {
         TrafficArgument::new(ArgumentType::Query, query_key, query_value)
+    }
+
+    pub fn build_cookie(cookie_key: String, cookie_value: String) -> Self {
+        TrafficArgument::new(ArgumentType::Cookie, cookie_key, cookie_value)
     }
 
     pub fn build_caller_service(namespace: String, service: String) -> Self {
@@ -150,6 +176,10 @@ impl TrafficArgument {
                 label_key["caller_service".len()..].to_string(),
                 label_value,
             )
+        } else if label_key == "path" {
+            TrafficArgument::build_path(label_value)
+        } else if label_key.starts_with("cookie") {
+            TrafficArgument::build_cookie(label_key["cookie".len()..].to_string(), label_value)
         } else {
             TrafficArgument::build_custom(label_key, label_value)
         }
@@ -164,16 +194,22 @@ impl TrafficArgument {
                 labels.insert("caller_ip".to_string(), self.value.clone());
             }
             ArgumentType::Header => {
-                labels.insert(format!("header{}", self.key), self.value.clone());
+                labels.insert(format!("header.{}", self.key), self.value.clone());
             }
             ArgumentType::Query => {
-                labels.insert(format!("query{}", self.key), self.value.clone());
+                labels.insert(format!("query.{}", self.key), self.value.clone());
             }
             ArgumentType::CallerService => {
                 labels.insert(format!("caller_service{}", self.key), self.value.clone());
             }
             ArgumentType::Custom => {
                 labels.insert(self.key.clone(), self.value.clone());
+            }
+            ArgumentType::Path => {
+                labels.insert("path".to_string(), self.value.clone());
+            }
+            ArgumentType::Cookie => {
+                labels.insert(format!("cookie.{}", self.key), self.value.clone());
             }
         }
     }

@@ -13,9 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::{any::Any, collections::HashMap, sync::Arc, time::Duration};
+use std::{any::Any, collections::HashMap, ops::Index, sync::Arc, time::Duration};
 
-use polaris_specification::v1::Routing;
+use polaris_specification::v1::{Route, Routing};
 
 use crate::core::{
     config::consumer::ServiceRouterPluginConfig,
@@ -24,6 +24,7 @@ use crate::core::{
         error::{ErrorCode, PolarisError},
         naming::{Instance, ServiceInstances},
         router::{RouteResult, RouteState, DEFAULT_ROUTER_RULE},
+        ArgumentType, TrafficArgument,
     },
     plugin::{
         cache::Filter,
@@ -32,8 +33,10 @@ use crate::core::{
     },
 };
 
+use super::helper::{match_callee_caller, traffic_match};
+
 #[derive(Debug, PartialEq, Eq)]
-enum Direction {
+pub enum Direction {
     Callee,
     Caller,
 }
@@ -102,7 +105,7 @@ impl RuleRouter {
         extensions: Arc<Extensions>,
         rctx: &RouteContext,
         dir: Direction,
-    ) -> Result<Vec<Box<Routing>>, PolarisError> {
+    ) -> Result<Vec<Route>, PolarisError> {
         let local_cache = extensions.get_resource_cache();
 
         let mut ns = &rctx.route_info.caller.namespace;
@@ -145,16 +148,29 @@ impl RuleRouter {
                 }
             }
         }
-        Ok(rules)
+        // rules 只会有一个的，所以这里指拿第一个即可
+        let rule = rules.remove(0);
+        if dir == Direction::Callee {
+            return Ok(rule.inbounds);
+        }
+        return Ok(rule.outbounds);
     }
 
     fn filter_instances(
         &self,
-        _rctx: &RouteContext,
+        rctx: &RouteContext,
         instances: &ServiceInstances,
-        _rules: Vec<Box<Routing>>,
+        rules: Vec<Route>,
     ) -> Result<Vec<Instance>, PolarisError> {
-        Ok(instances.instances.clone())
+        for ele in rules {
+            if !traffic_match(rctx, &ele) {
+                continue;
+            }
+
+            // 匹配实例分组
+        }
+        // 返回空实例列表
+        Ok(vec![])
     }
 }
 
@@ -266,7 +282,7 @@ impl ServiceRouter for RuleRouter {
         if caller_ret.is_err() {
             return false;
         }
-        let caller_rule = caller_ret.unwrap();
+        let caller_empty = caller_ret.unwrap().is_empty();
 
         let callee_ret = self
             .fetch_rule(
@@ -278,7 +294,9 @@ impl ServiceRouter for RuleRouter {
         if callee_ret.is_err() {
             return false;
         }
-        let callee_rule = callee_ret.unwrap();
-        !caller_rule.is_empty() || !callee_rule.is_empty()
+        let callee_empty = callee_ret.unwrap().is_empty();
+
+        // 其中一个有规则即可
+        caller_empty || callee_empty
     }
 }

@@ -55,6 +55,17 @@ pub struct RouteResult {
     pub instances: ServiceInstances,
 }
 
+fn default_traffic_label_provider(_: ArgumentType, _: &str) -> Option<String> {
+    None
+}
+
+fn default_external_parameter_supplier(key: &str) -> Option<String> {
+    match std::env::var(key) {
+        Ok(v) => Some(v),
+        Err(_) => None,
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct RouteInfo {
     // 主调服务数据信息
@@ -67,9 +78,9 @@ pub struct RouteInfo {
     pub metadata: HashMap<String, String>,
     pub metadata_failover: MetadataFailoverType,
     // traffic_label_provider 流量标签提供者
-    pub traffic_label_provider: Option<fn(ArgumentType, str) -> str>,
+    pub traffic_label_provider: fn(ArgumentType, &str) -> Option<String>,
     // 北极星内部治理规则执行时，会识别规则中的参数来源类别，如果发现规则中的参数来源指定为外部数据源时，会调用本接口进行获取
-    pub external_parameter_supplier: Option<fn(str) -> str>,
+    pub external_parameter_supplier: fn(&str) -> Option<String>,
 }
 
 impl Default for RouteInfo {
@@ -80,8 +91,8 @@ impl Default for RouteInfo {
             chain: Default::default(),
             metadata: HashMap::<String, String>::new(),
             metadata_failover: MetadataFailoverType::MetadataFailoverNone,
-            external_parameter_supplier: Default::default(),
-            traffic_label_provider: Default::default(),
+            external_parameter_supplier: default_external_parameter_supplier,
+            traffic_label_provider: default_traffic_label_provider,
         }
     }
 }
