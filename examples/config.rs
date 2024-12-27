@@ -15,22 +15,19 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use polaris_rust::{
-    config::{
-        api::{new_config_file_api_by_context, ConfigFileAPI},
-        req::{
-            CreateConfigFileRequest, PublishConfigFileRequest, UpdateConfigFileRequest,
-            UpsertAndPublishConfigFileRequest, WatchConfigFileRequest,
-        },
+use polaris_rust::{config::{
+    api::{new_config_file_api_by_context, ConfigFileAPI},
+    req::{
+        CreateConfigFileRequest, PublishConfigFileRequest, UpdateConfigFileRequest,
+        UpsertAndPublishConfigFileRequest, WatchConfigFileRequest,
     },
-    core::{
-        context::SDKContext,
-        model::{
-            config::{ConfigFile, ConfigFileRelease},
-            error::PolarisError,
-        },
+}, core::{
+    context::SDKContext,
+    model::{
+        config::{ConfigFile, ConfigFileRelease},
+        error::PolarisError,
     },
-};
+}, info};
 use tracing::level_filters::LevelFilter;
 
 #[tokio::main]
@@ -163,7 +160,7 @@ async fn main() -> Result<(), PolarisError> {
             group: "rust".to_string(),
             file: "rust.toml".to_string(),
             call_back: Arc::new(|event| {
-                tracing::info!("receive config change event: {:?}", event);
+                info!("receive config change event: {:?}", event);
             }),
         })
         .await;

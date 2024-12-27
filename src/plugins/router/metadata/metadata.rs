@@ -181,6 +181,7 @@ mod tests {
     use super::*;
 
     use tracing::metadata::LevelFilter;
+    use crate::info;
 
     static LOGGER_INIT: Once = Once::new();
 
@@ -314,7 +315,7 @@ mod tests {
         assert!(result.is_ok());
         let route_result = result.unwrap();
         assert_eq!(route_result.instances.instances.len(), 1);
-        tracing::info!("{:?}", route_result.instances.instances[0]);
+        info!("{:?}", route_result.instances.instances[0]);
         assert!(route_result.instances.instances[0].metadata.is_empty());
     }
 }

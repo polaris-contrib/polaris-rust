@@ -59,6 +59,8 @@ tonic = {version = "0.11.0"}
 
 # logging
 tracing = {version = "0.1.36"}
+tracing-appender = {version = "0.2.3"}
+tracing-subscriber = {version = "0.3", features = ["default"]}
 
 # crypto
 aes = {version = "0.7.4"}
@@ -69,7 +71,6 @@ rand = {version = "0.8.4"}
 rsa = {version = "0.9.6"}
 
 [dev-dependencies]
-tracing-subscriber = {version = "0.3", features = ["default"]}
 
 [[example]]
 name = "discover"

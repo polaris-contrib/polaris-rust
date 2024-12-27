@@ -20,6 +20,7 @@ use crate::core::config::provider::ProviderConfig;
 use serde::Deserialize;
 use std::path::Path;
 use std::{env, fs, io};
+use crate::info;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -38,7 +39,7 @@ pub fn load_default<'a>() -> Result<Configuration, io::Error> {
     }
     if env::var("POLARIS_RUST_CONFIG").is_ok() {
         let custom_conf_path = env::var("POLARIS_RUST_CONFIG").unwrap();
-        tracing::info!("load config from env: {}", custom_conf_path);
+        info!("load config from env: {}", custom_conf_path);
         return load(env::var("POLARIS_RUST_CONFIG").unwrap());
     }
     load(path)

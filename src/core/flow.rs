@@ -93,7 +93,7 @@ impl ClientFlow {
         };
         let ret = server_connector.report_client(req).await;
         if let Err(e) = ret {
-            tracing::error!("report client failed: {:?}", e);
+            crate::error!("report client failed: {:?}", e);
         }
     }
 

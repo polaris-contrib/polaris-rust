@@ -18,7 +18,7 @@ use crate::core::{
     model::{
         error::PolarisError,
         naming::ServiceInstances,
-        router::{RouteInfo, RouteResult, RouteState, DEFAULT_ROUTER_LANE},
+        router::{RouteResult, RouteState, DEFAULT_ROUTER_LANE},
     },
     plugin::{
         plugins::Plugin,

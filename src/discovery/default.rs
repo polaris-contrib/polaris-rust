@@ -351,12 +351,12 @@ impl ProviderAPI for DefaultProviderAPI {
         let auto_heartbeat = req.auto_heartbeat;
         let ttl = req.ttl;
         let beat_req = req.to_heartbeat_request();
-        tracing::info!("[polaris][discovery][provider] register instance request: {req:?}");
+        crate::info!("[polaris][discovery][provider] register instance request: {req:?}");
         let rsp = self.context.get_engine().register_instance(req).await;
         let engine = self.context.get_engine();
         if rsp.is_ok() && auto_heartbeat {
             let task_key = beat_req.beat_key();
-            tracing::info!(
+            crate::info!(
                 "[polaris][discovery][heartbeat] add one auto_beat task={} duration={}s",
                 task_key,
                 ttl,
@@ -366,12 +366,12 @@ impl ProviderAPI for DefaultProviderAPI {
             let handler = engine.get_executor().spawn(async move {
                 loop {
                     tokio::time::sleep(tokio::time::Duration::from_secs(u64::from(ttl))).await;
-                    tracing::debug!(
+                    crate::debug!(
                         "[polaris][discovery][heartbeat] start to auto_beat instance: {beat_req:?}"
                     );
                     let beat_ret = beat_engine.instance_heartbeat(beat_req.clone()).await;
                     if let Err(e) = beat_ret {
-                        tracing::error!(
+                        crate::error!(
                         "[polaris][discovery][heartbeat] auto_beat instance to server fail: {e}"
                     );
                     }
@@ -387,7 +387,7 @@ impl ProviderAPI for DefaultProviderAPI {
         let task_key = beat_req.beat_key();
         let wait_remove_task = self.beat_tasks.write().await.remove(&task_key);
         if let Some(task) = wait_remove_task {
-            tracing::info!(
+            crate::info!(
                 "[polaris][discovery][heartbeat] remove one auto_beat task={}",
                 task_key,
             );

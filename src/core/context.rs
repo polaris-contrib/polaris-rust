@@ -14,10 +14,12 @@
 // specific language governing permissions and limitations under the License.
 
 use std::sync::Arc;
-
+use tracing::log::{log, logger};
 use crate::core::config::config::{load_default, Configuration};
 use crate::core::engine::Engine;
+use crate::core::logger;
 use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::info;
 
 pub struct SDKContext {
     pub conf: Arc<Configuration>,
@@ -59,7 +61,8 @@ impl SDKContext {
         let start_time = std::time::Instant::now();
         let cfg = Arc::new(cfg);
         let ret = Engine::new(cfg.clone());
-        tracing::info!("create engine cost: {:?}", start_time.elapsed());
+        info!("create engine cost: {:?}", start_time.elapsed());
+        info!("create engine cost: {:?}", start_time.elapsed());
         if ret.is_err() {
             return Err(ret.err().unwrap());
         }

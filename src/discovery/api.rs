@@ -24,7 +24,7 @@ use crate::discovery::req::*;
 pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
     let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
-    tracing::info!("create sdk context cost: {:?}", start_time.elapsed());
+    crate::info!("create sdk context cost: {:?}", start_time.elapsed());
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }

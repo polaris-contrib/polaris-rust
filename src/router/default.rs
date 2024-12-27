@@ -21,7 +21,7 @@ use crate::core::{
     model::error::{ErrorCode, PolarisError},
     plugin::router::RouteContext,
 };
-
+use crate::debug;
 use super::{api::RouterAPI, req::ProcessRouteResponse};
 
 pub struct DefaultRouterAPI {
@@ -76,7 +76,7 @@ impl RouterAPI for DefaultRouterAPI {
         &self,
         req: super::req::ProcessRouteRequest,
     ) -> Result<super::req::ProcessRouteResponse, PolarisError> {
-        tracing::debug!("[polaris][router_api] route request {:?}", req);
+        debug!("[polaris][router_api] route request {:?}", req);
 
         let ret = self
             .flow
@@ -95,7 +95,7 @@ impl RouterAPI for DefaultRouterAPI {
         &self,
         req: super::req::ProcessLoadBalanceRequest,
     ) -> Result<super::req::ProcessLoadBalanceResponse, PolarisError> {
-        tracing::debug!("[polaris][router_api] load_balance request {:?}", req);
+        debug!("[polaris][router_api] load_balance request {:?}", req);
 
         let criteria = req.criteria.clone();
         let mut lb_policy = criteria.policy.clone();
@@ -107,7 +107,7 @@ impl RouterAPI for DefaultRouterAPI {
         let lb = self.flow.lookup_loadbalancer(&lb_policy).await;
 
         if lb.is_none() {
-            tracing::error!(
+            crate::error!(
                 "[polaris][router_api] load balancer {} not found",
                 lb_policy
             );

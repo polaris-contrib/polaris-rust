@@ -20,6 +20,7 @@ use crate::core::{
     },
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
 };
+use crate::debug;
 
 static PLUGIN_NAME: &str = "weightedRandom";
 
@@ -72,7 +73,7 @@ impl LoadBalancer for WeightRandomLoadbalancer {
             left = right;
         }
 
-        tracing::debug!(
+        debug!(
             "[polaris][loadbalancer][weight_random] choose instance failed, rand_weight: {}",
             rand_weight
         );

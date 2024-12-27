@@ -13,9 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::{any::Any, collections::HashMap, ops::Index, sync::Arc, time::Duration};
+use std::{any::Any, collections::HashMap, sync::Arc, time::Duration};
 
-use polaris_specification::v1::{Route, Routing};
+use polaris_specification::v1::{Destination, Route, Routing};
 
 use crate::core::{
     config::consumer::ServiceRouterPluginConfig,
@@ -24,7 +24,6 @@ use crate::core::{
         error::{ErrorCode, PolarisError},
         naming::{Instance, ServiceInstances},
         router::{RouteResult, RouteState, DEFAULT_ROUTER_RULE},
-        ArgumentType, TrafficArgument,
     },
     plugin::{
         cache::Filter,
@@ -32,8 +31,8 @@ use crate::core::{
         router::{RouteContext, ServiceRouter},
     },
 };
-
-use super::helper::{match_callee_caller, traffic_match};
+use crate::warn;
+use super::helper::route_traffic_match;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Direction {
@@ -163,11 +162,21 @@ impl RuleRouter {
         rules: Vec<Route>,
     ) -> Result<Vec<Instance>, PolarisError> {
         for ele in rules {
-            if !traffic_match(rctx, &ele) {
+            if !route_traffic_match(rctx, &ele) {
                 continue;
             }
-
             // 匹配实例分组
+
+            let destination = filter_available_destinations(ele.destinations);
+            for (_, dest) in destination.iter().enumerate() {
+                let ret = match_callee_group(dest, instances);
+                if ret.is_empty() {
+                    continue;
+                }
+                // 返回目标实例分组结果
+                return Ok(ret);
+            }
+            // 没有符合的实例分组，需要看下兜底逻辑
         }
         // 返回空实例列表
         Ok(vec![])
@@ -239,8 +248,8 @@ impl ServiceRouter for RuleRouter {
                 })
             }
             _ => {
-                tracing::warn!(
-                    "route rule not match, rule status: {:?}, not matched callee:{:?} caller:{:?}",
+                warn!(
+                    "[router][rule] route rule not match, rule status: {:?}, not matched callee:{:?} caller:{:?}",
                     status,
                     route_ctx.route_info.caller,
                     route_ctx.route_info.callee,
@@ -299,4 +308,27 @@ impl ServiceRouter for RuleRouter {
         // 其中一个有规则即可
         caller_empty || callee_empty
     }
+}
+
+fn match_callee_group(dest: &Destination, instances: &ServiceInstances) -> Vec<Instance> {
+    todo!()
+}
+
+fn filter_available_destinations(dests: Vec<Destination>) -> Vec<Destination> {
+    let mut ret = Vec::<Destination>::with_capacity(dests.capacity());
+
+    for ele in dests {
+        if ele.isolate.unwrap_or(false) {
+            ret.push(ele);
+        }
+    }
+
+    // 优先级按照 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 以此类推
+    ret.sort_by(|a, b| {
+        let a_weight = a.weight.unwrap_or(0);
+        let b_weight = b.weight.unwrap_or(0);
+        a_weight.cmp(&b_weight)
+    });
+
+    ret
 }

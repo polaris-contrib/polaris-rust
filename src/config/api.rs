@@ -15,16 +15,13 @@
 
 use std::sync::Arc;
 
-use crate::{
-    config::default::{DefaultConfigFileAPI, DefaultConfigGroupAPI},
-    core::{
-        context::SDKContext,
-        model::{
-            config::{ConfigFile, ConfigGroup},
-            error::PolarisError,
-        },
+use crate::{config::default::{DefaultConfigFileAPI, DefaultConfigGroupAPI}, core::{
+    context::SDKContext,
+    model::{
+        config::{ConfigFile, ConfigGroup},
+        error::PolarisError,
     },
-};
+}, info};
 
 use super::req::{
     CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
@@ -36,7 +33,7 @@ use super::req::{
 pub fn new_config_file_api() -> Result<impl ConfigFileAPI, PolarisError> {
     let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
-    tracing::info!("create sdk context cost: {:?}", start_time.elapsed());
+    info!("create sdk context cost: {:?}", start_time.elapsed());
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
@@ -88,7 +85,7 @@ where
 pub fn new_config_group_api() -> Result<impl ConfigGroupAPI, PolarisError> {
     let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
-    tracing::info!("create sdk context cost: {:?}", start_time.elapsed());
+    info!("create sdk context cost: {:?}", start_time.elapsed());
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }

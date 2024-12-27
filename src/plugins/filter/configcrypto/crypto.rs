@@ -37,6 +37,7 @@ use base64::{engine::general_purpose::STANDARD as base64_standard, Engine as _};
 use block_modes::{block_padding::Pkcs7, BlockMode, Cbc};
 use rsa::{pkcs1::EncodeRsaPublicKey, pkcs8::LineEnding, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
+use crate::error;
 
 #[derive(Serialize, Deserialize)]
 pub struct CryptoConfig {
@@ -77,7 +78,7 @@ fn load_cryptors(conf: CryptoConfig) -> HashMap<String, Box<dyn Cryptor>> {
                 repo.insert(name.to_string(), val.1);
             }
             None => {
-                tracing::error!(
+                error!(
                     "[polaris][plugin][config_filter] crypto not found expect algo: {}",
                     name
                 );
@@ -171,7 +172,7 @@ impl DiscoverFilter for ConfigFileCryptoFilter {
                 data_key = key;
             }
             Err(err) => {
-                tracing::error!(
+                error!(
                     "[polaris][plugin][config_filter] cipher datakey use rsa decrypt fail: {}",
                     err
                 );

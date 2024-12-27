@@ -21,8 +21,8 @@ use crate::core::{model::ArgumentType, plugin::router::RouteContext};
 
 static WILDCARD: &str = "*";
 
-// traffic_match 匹配主、被调服务信息，以及匹配请求流量标签
-pub fn traffic_match(ctx: &RouteContext, rule: &Route) -> bool {
+// route_traffic_match 匹配主、被调服务信息，以及匹配请求流量标签
+pub fn route_traffic_match(ctx: &RouteContext, rule: &Route) -> bool {
     if !match_callee_caller(ctx, rule) {
         return false;
     }

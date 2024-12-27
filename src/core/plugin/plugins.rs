@@ -22,7 +22,6 @@ use crate::core::model::ClientContext;
 use crate::core::plugin::cache::ResourceCache;
 use crate::core::plugin::connector::Connector;
 use crate::core::plugin::router::ServiceRouter;
-use crate::plugins::cache::memory::failover;
 use crate::plugins::cache::memory::memory::MemoryCache;
 use crate::plugins::circuitbreaker::composite::circuitbreaker::CompositeCircuitBreaker;
 use crate::plugins::connector::grpc::connector::GrpcConnector;
@@ -570,11 +569,11 @@ pub fn acquire_client_self_ip(conf: Arc<Configuration>) -> String {
                     return format!("{}", ipv6);
                 }
             }
-            tracing::error!("acquire_client_self_ip not ipv4 or ipv6, impossible run here");
+            crate::error!("acquire_client_self_ip not ipv4 or ipv6, impossible run here");
             "127.0.0.1".to_string()
         }
         Err(_err) => {
-            tracing::error!("acquire_client_self_ip error: {:?}", _err);
+            crate::error!("acquire_client_self_ip error: {:?}", _err);
             "127.0.0.1".to_string()
         }
     }

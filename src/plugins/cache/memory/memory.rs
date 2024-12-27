@@ -34,7 +34,7 @@ use crate::core::plugin::plugins::Plugin;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use crate::{error, info};
 use super::failover::DiskCacheFailover;
 
 static MEMORY_CACHE_NAME: &str = "memory";
@@ -96,7 +96,7 @@ impl MemoryCache {
 
     fn submit_resource_watch(&self, event_type: EventType, resource_key: ResourceEventKey) {
         let search_namespace = resource_key.namespace.clone();
-        tracing::info!(
+        info!(
             "[polaris][resource_cache][memory] load remote resource: {:?}",
             resource_key
         );
@@ -115,7 +115,7 @@ impl MemoryCache {
                 )))
                 .await;
             if register_ret.is_err() {
-                tracing::error!(
+                error!(
                 "[polaris][resource_cache][memory] register resource handler failed: {}, err: {}",
                 resource_key.namespace.clone(),
                 register_ret.err().unwrap()
@@ -125,7 +125,7 @@ impl MemoryCache {
     }
 
     async fn on_spec_event(handler: Arc<MemoryResourceHandler>, event: RemoteData) {
-        tracing::info!(
+        info!(
             "[polaris][resource_cache][memory] on spec event: {:?}",
             event
         );
@@ -155,7 +155,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] service_instance cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -188,7 +188,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] router_rule cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -218,7 +218,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] circuit_breaker cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -247,7 +247,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] ratelimit cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -276,7 +276,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] fault_detect cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -303,7 +303,7 @@ impl MemoryCache {
                 let mut safe_map = handler.config_files.write().await;
                 let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] config_file cache not found: namespace={} group={} file={}",
                         event_key.namespace.clone(),
                         filter.get("group").unwrap(),
@@ -331,7 +331,7 @@ impl MemoryCache {
                 let mut safe_map = handler.config_groups.write().await;
                 let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] config_group cache not found: namespace={} group={}",
                         event_key.namespace.clone(),
                         filter.get("group").unwrap()
@@ -801,7 +801,7 @@ impl ResourceHandler for MemoryResourceWatcher {
         match self.processor.send(event) {
             Ok(_) => {}
             Err(err) => {
-                tracing::error!(
+                error!(
                     "[polaris][resource_cache][memory] send event to processor failed: {}",
                     err
                 );
