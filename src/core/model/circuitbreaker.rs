@@ -16,10 +16,10 @@
 use std::{
     fmt::{self, format, Display},
     iter::Map,
-    str,
+    str, time::Duration,
 };
 
-use super::error::{ErrorCode, PolarisError};
+use super::{error::{ErrorCode, PolarisError}, naming::ServiceKey};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Status {
@@ -43,6 +43,7 @@ pub struct CircuitBreakerStatus {
     pub destroy: bool,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RetStatus {
     RetUnknown,
     RetSuccess,
@@ -55,7 +56,7 @@ pub enum RetStatus {
 pub struct ResourceStat {
     pub resource: Resource,
     pub ret_code: String,
-    pub delay: u32,
+    pub delay: Duration,
     pub status: RetStatus,
 }
 
@@ -65,13 +66,44 @@ pub enum Resource {
     InstanceResource(InstanceResource),
 }
 
-pub struct ServiceResource {}
+/// ServiceResource 服务资源
+pub struct ServiceResource {
+    pub callee: ServiceKey,
+    pub caller: Option<ServiceKey>,
+}
 
-impl ServiceResource {}
+impl ServiceResource {
 
-pub struct MethodResource {}
+    pub fn new(callee: ServiceKey) -> Self {
+        ServiceResource { caller: None, callee }
+    }
 
-impl MethodResource {}
+    pub fn new_waith_caller(caller: ServiceKey, callee: ServiceKey) -> Self {
+        ServiceResource { caller: Some(caller), callee }
+    }
+
+}
+
+/// MethodResource 方法资源
+pub struct MethodResource {
+    pub callee: ServiceKey,
+    pub caller: Option<ServiceKey>,
+    pub protocol: String,
+    pub method: String,
+    pub path: String,
+}
+
+impl MethodResource {
+
+    pub fn new(callee: ServiceKey, protocol: String, method: String, path: String) -> Self {
+        MethodResource { caller: None, callee, protocol, method, path }
+    }
+
+    pub fn new_waith_caller(caller: ServiceKey, callee: ServiceKey, protocol: String, method: String, path: String) -> Self {
+        MethodResource { caller: Some(caller), callee, protocol, method, path }
+    }
+
+}
 
 pub struct InstanceResource {}
 

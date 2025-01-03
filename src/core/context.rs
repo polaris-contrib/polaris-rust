@@ -14,10 +14,8 @@
 // specific language governing permissions and limitations under the License.
 
 use std::sync::Arc;
-use tracing::log::{log, logger};
 use crate::core::config::config::{load_default, Configuration};
 use crate::core::engine::Engine;
-use crate::core::logger;
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::info;
 

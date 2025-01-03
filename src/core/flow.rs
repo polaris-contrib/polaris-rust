@@ -144,6 +144,7 @@ impl CircuitBreakerFlow {
     }
 }
 
+/// RouterFlow 路由流程
 pub struct RouterFlow {
     load_balancer: Arc<RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
     extensions: Arc<Extensions>,
@@ -230,6 +231,15 @@ impl RouterFlow {
     }
 }
 
-pub struct ReatelimitFlow {
+/// RatelimitFlow 限流流程
+pub struct RatelimitFlow {
     extensions: Arc<Extensions>,
+}
+
+impl RatelimitFlow {
+    pub fn new(extensions: Arc<Extensions>) -> Self {
+        Self {
+            extensions,
+        }
+    }
 }

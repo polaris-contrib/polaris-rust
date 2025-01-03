@@ -21,8 +21,8 @@ pub trait ResultToErrorCode
 where
     Self: Send + Sync,
 {
-    fn on_success(&self, ret: dyn Any) -> i32;
-    fn on_error(&self, err: dyn Any) -> i32;
+    fn on_success(&self, ret: Box<dyn Any>) -> i32;
+    fn on_error(&self, err: Box<dyn Any>) -> i32;
 }
 
 pub struct RequestContext {
@@ -31,7 +31,7 @@ pub struct RequestContext {
     pub protocol: String,
     pub method: String,
     pub path: String,
-    pub result_to_code: Box<dyn ResultToErrorCode>,
+    pub result_to_code: Option<Box<dyn ResultToErrorCode>>,
 }
 
 pub struct ResponseContext {

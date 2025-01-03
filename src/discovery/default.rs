@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 
 use crate::core::context::SDKContext;
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::ServiceInstancesChangeEvent;
+use crate::core::model::naming::{ServiceInstancesChangeEvent, ServiceKey};
 use crate::core::plugin::cache::ResourceListener;
 use crate::discovery::api::{ConsumerAPI, LosslessAPI, ProviderAPI};
 use crate::discovery::req::{
@@ -176,6 +176,13 @@ impl ConsumerAPI for DefaultConsumerAPI {
             )
             .await;
 
+        // 重新设置被调服务数据信息
+        let mut route_info = req.route_info;
+        route_info.callee  = ServiceKey{
+            namespace: req.namespace.clone(),
+            name: req.service.clone(),
+        };
+
         match rsp {
             Ok(rsp) => {
                 let instances = rsp.instances;
@@ -186,7 +193,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
                     .router_api
                     .router(ProcessRouteRequest {
                         service_instances: instances,
-                        route_info: req.route_info,
+                        route_info: route_info,
                     })
                     .await;
 

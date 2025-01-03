@@ -122,6 +122,7 @@ where
     async fn report_service_call(&self, req: ServiceCallResult);
 }
 
+/// new_lossless_api 创建优雅上下线客户端实例
 pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
@@ -131,12 +132,14 @@ pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {
     Ok(DefaultLosslessAPI::new(context_ret.unwrap()))
 }
 
+/// new_lossless_api_by_context 创建优雅上下线客户端实例
 pub(crate) fn new_lossless_api_by_context(
     context: SDKContext,
 ) -> Result<Arc<dyn LosslessAPI>, PolarisError> {
     Ok(Arc::new(DefaultLosslessAPI::new(context)))
 }
 
+/// LosslessAPI 负责优雅上下线客户端的生命周期管理
 pub(crate) trait LosslessAPI {
     fn set_action_provider(
         &self,

@@ -19,7 +19,6 @@ use crate::core::{
     context::SDKContext,
     flow::RouterFlow,
     model::error::{ErrorCode, PolarisError},
-    plugin::router::RouteContext,
 };
 use crate::debug;
 use super::{api::RouterAPI, req::ProcessRouteResponse};

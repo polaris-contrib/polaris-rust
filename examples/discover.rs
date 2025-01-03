@@ -17,12 +17,11 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use polaris_rust::{core::{
     context::SDKContext,
-    model::{error::PolarisError, naming::Location},
+    model::{error::PolarisError, loadbalance::Criteria, naming::Location, router::RouteInfo},
 }, discovery::{
     api::{new_consumer_api_by_context, new_provider_api_by_context, ConsumerAPI, ProviderAPI},
     req::{
-        GetAllInstanceRequest, InstanceDeregisterRequest, InstanceRegisterRequest,
-        WatchInstanceRequest,
+        GetAllInstanceRequest, GetOneInstanceRequest, InstanceDeregisterRequest, InstanceRegisterRequest, WatchInstanceRequest
     },
 }, error, info};
 use tracing::level_filters::LevelFilter;
@@ -149,6 +148,30 @@ async fn main() -> Result<(), PolarisError> {
         }
         Ok(instances) => {
             info!("get all instance: {:?}", instances);
+        }
+    }
+
+    // 执行路由以及负载均衡能力
+    let mut route_info = RouteInfo::default();
+
+    let ret = consumer.get_one_instance(GetOneInstanceRequest{
+        flow_id: uuid::Uuid::new_v4().to_string(),
+        timeout: Duration::from_secs(10),
+        namespace: "rust-demo".to_string(),
+        service: "polaris-rust-provider".to_string(),
+        criteria: Criteria{
+            policy: "random".to_string(),
+            hash_key: "".to_string(),
+        },
+        route_info: route_info,
+    }).await;
+
+    match ret {
+        Err(err) => {
+            tracing::error!("get one instance fail: {}", err.to_string());
+        }
+        Ok(instance) => {
+            tracing::info!("get one instance: {:?}", instance);
         }
     }
 

@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use crate::core::{context::SDKContext, model::error::PolarisError};
+use crate::core::{context::SDKContext, flow::RatelimitFlow, model::error::PolarisError};
 
 use super::{
     api::RateLimitAPI,
@@ -25,20 +25,26 @@ use super::{
 pub struct DefaultRateLimitAPI {
     manage_sdk: bool,
     context: Arc<SDKContext>,
+    flow: Arc<RatelimitFlow>,
 }
 
 impl DefaultRateLimitAPI {
     pub fn new_raw(context: SDKContext) -> Self {
+        let ctx = Arc::new(context);
+        let extensions = ctx.get_engine().get_extensions();
         Self {
             manage_sdk: true,
-            context: Arc::new(context),
+            context: ctx,
+            flow: Arc::new(RatelimitFlow::new(extensions)),
         }
     }
 
     pub fn new(context: Arc<SDKContext>) -> Self {
+        let extensions = context.get_engine().get_extensions();
         Self {
             manage_sdk: false,
-            context,
+            context: context,
+            flow: Arc::new(RatelimitFlow::new(extensions)),
         }
     }
 }
@@ -65,6 +71,9 @@ impl Drop for DefaultRateLimitAPI {
 #[async_trait::async_trait]
 impl RateLimitAPI for DefaultRateLimitAPI {
     async fn get_quota(&self, req: QuotaRequest) -> Result<QuotaResponse, PolarisError> {
+        let check_ret = req.check_valid();
+        check_ret?;
+
         todo!()
     }
 }
