@@ -15,6 +15,7 @@
 
 use std::{
     collections::HashMap,
+    fmt::Display,
     sync::{atomic::AtomicBool, Arc},
     thread::sleep,
     time::Duration,
@@ -22,15 +23,17 @@ use std::{
 
 use tokio::sync::RwLock;
 
+use polaris_specification::v1::{
+    config_discover_request::ConfigDiscoverRequestType,
+    config_discover_response::ConfigDiscoverResponseType, discover_request::DiscoverRequestType,
+    discover_response::DiscoverResponseType, CircuitBreaker, ClientConfigFileInfo,
+    ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverFilter, DiscoverRequest,
+    DiscoverResponse, FaultDetector, LaneGroup, RateLimit, Routing, Service,
+};
+
 use super::{
-    config::ConfigFile,
+    config::{ConfigFile, ConfigGroup},
     naming::{Instance, ServiceInfo},
-    pb::lib::{
-        config_discover_request::ConfigDiscoverRequestType, discover_request::DiscoverRequestType,
-        CircuitBreaker, ClientConfigFileInfo, ConfigDiscoverRequest, ConfigDiscoverResponse,
-        DiscoverFilter, DiscoverRequest, DiscoverResponse, FaultDetector, LaneGroup, RateLimit,
-        Routing, Service,
-    },
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
@@ -47,6 +50,49 @@ pub enum EventType {
     Namespaces,
     ConfigFile,
     ConfigGroup,
+    ConfigGroups,
+}
+
+impl EventType {
+    pub fn to_persist_file(&self) -> String {
+        match self {
+            EventType::Instance => "instance.data".to_string(),
+            EventType::RouterRule => "router_rule.data".to_string(),
+            EventType::CircuitBreakerRule => "circuit_breaker_rule.data".to_string(),
+            EventType::RateLimitRule => "rate_limit_rule.data".to_string(),
+            EventType::Service => "service.data".to_string(),
+            EventType::FaultDetectRule => "fault_detect_rule.data".to_string(),
+            EventType::ServiceContract => "service_contract.data".to_string(),
+            EventType::LaneRule => "lane_rule.data".to_string(),
+            EventType::Namespaces => "namespaces.data".to_string(),
+            EventType::ConfigFile => "config_file.data".to_string(),
+            EventType::ConfigGroup => "config_group.data".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
+
+    pub fn naming_spec_to_persist_file(t: DiscoverResponseType) -> String {
+        match t {
+            DiscoverResponseType::Instance => "instance.data".to_string(),
+            DiscoverResponseType::Routing => "router_rule.data".to_string(),
+            DiscoverResponseType::CircuitBreaker => "circuit_breaker_rule.data".to_string(),
+            DiscoverResponseType::RateLimit => "rate_limit_rule.data".to_string(),
+            DiscoverResponseType::Services => "service.data".to_string(),
+            DiscoverResponseType::FaultDetector => "fault_detect_rule.data".to_string(),
+            DiscoverResponseType::Lane => "lane_rule.data".to_string(),
+            DiscoverResponseType::Namespaces => "namespaces.data".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
+
+    pub fn config_spec_to_persist_file(t: ConfigDiscoverResponseType) -> String {
+        match t {
+            ConfigDiscoverResponseType::ConfigFile => "config_file.data".to_string(),
+            ConfigDiscoverResponseType::ConfigFileNames => "config_files.data".to_string(),
+            ConfigDiscoverResponseType::ConfigFileGroups => "config_group.data".to_string(),
+            _ => "unknown".to_string(),
+        }
+    }
 }
 
 impl Default for EventType {
@@ -70,6 +116,7 @@ impl ToString for EventType {
             EventType::Namespaces => "Namespaces".to_string(),
             EventType::ConfigFile => "ConfigFile".to_string(),
             EventType::ConfigGroup => "ConfigGroup".to_string(),
+            EventType::ConfigGroups => "ConfigGroups".to_string(),
         }
     }
 }
@@ -88,6 +135,23 @@ pub enum CacheItemType {
     ConfigGroup(ConfigGroupCacheItem),
 }
 
+impl Display for CacheItemType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CacheItemType::Instance(_) => write!(f, "Instance"),
+            CacheItemType::RouterRule(_) => write!(f, "RouterRule"),
+            CacheItemType::CircuitBreakerRule(_) => write!(f, "CircuitBreakerRule"),
+            CacheItemType::RateLimitRule(_) => write!(f, "RateLimitRule"),
+            CacheItemType::Service(_) => write!(f, "Service"),
+            CacheItemType::FaultDetectRule(_) => write!(f, "FaultDetectRule"),
+            CacheItemType::LaneRule(_) => write!(f, "LaneRule"),
+            CacheItemType::ConfigFile(_) => write!(f, "ConfigFile"),
+            CacheItemType::ConfigGroup(_) => write!(f, "ConfigGroup"),
+            _ => write!(f, "Unknown"),
+        }
+    }
+}
+
 impl CacheItemType {
     pub fn to_service_instances(&self) -> Option<ServiceInstancesCacheItem> {
         match self {
@@ -99,6 +163,13 @@ impl CacheItemType {
     pub fn to_config_file(&self) -> Option<ConfigFileCacheItem> {
         match self {
             CacheItemType::ConfigFile(item) => Some(item.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn to_config_group(&self) -> Option<ConfigGroupCacheItem> {
+        match self {
+            CacheItemType::ConfigGroup(item) => Some(item.clone()),
             _ => None,
         }
     }
@@ -277,7 +348,9 @@ pub trait RegistryCacheValue {
 // ServicesCacheItem 服务列表
 pub struct ServicesCacheItem {
     initialized: Arc<AtomicBool>,
+    pub namespace: String,
     pub value: Arc<RwLock<Vec<ServiceInfo>>>,
+    pub revision: String,
 }
 
 impl Default for ServicesCacheItem {
@@ -289,8 +362,10 @@ impl Default for ServicesCacheItem {
 impl ServicesCacheItem {
     pub fn new() -> Self {
         Self {
+            namespace: String::new(),
             initialized: Arc::new(AtomicBool::new(false)),
             value: Arc::new(RwLock::new(Vec::new())),
+            revision: String::new(),
         }
     }
 }
@@ -298,8 +373,10 @@ impl ServicesCacheItem {
 impl Clone for ServicesCacheItem {
     fn clone(&self) -> Self {
         Self {
+            namespace: self.namespace.clone(),
             initialized: self.initialized.clone(),
             value: self.value.clone(),
+            revision: self.revision.clone(),
         }
     }
 }
@@ -747,6 +824,21 @@ impl ConfigGroupCacheItem {
             group: String::new(),
             files: Arc::new(RwLock::new(Vec::new())),
             revision: String::new(),
+        }
+    }
+
+    pub async fn to_config_group(&self) -> ConfigGroup {
+        let cache_files = self.files.read().await;
+        let mut files = Vec::<ConfigFile>::with_capacity(cache_files.len());
+        for item in cache_files.iter() {
+            files.push(item.clone());
+        }
+
+        ConfigGroup {
+            namespace: self.namespace.clone(),
+            group: self.group.clone(),
+            files: files,
+            revision: self.revision.clone(),
         }
     }
 

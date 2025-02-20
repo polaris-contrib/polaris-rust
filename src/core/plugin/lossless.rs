@@ -16,14 +16,15 @@
 use crate::core::plugin::plugins::Plugin;
 use crate::discovery::req::{BaseInstance, InstanceProperties};
 
+#[async_trait::async_trait]
 pub trait LosslessPolicy: Plugin {
     fn build_instance_properties(&self, instance_properties: InstanceProperties);
 
-    fn lossless_register(
+    async fn lossless_register(
         &self,
         instance: dyn BaseInstance,
         instance_properties: InstanceProperties,
     );
 
-    fn lossless_deregister(&self, instance: dyn BaseInstance);
+    async fn lossless_deregister(&self, instance: dyn BaseInstance);
 }

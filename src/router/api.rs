@@ -13,13 +13,32 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+use std::sync::Arc;
+
 use crate::{
-    core::model::error::PolarisError,
+    core::{context::SDKContext, model::error::PolarisError},
     router::req::{
         ProcessLoadBalanceRequest, ProcessLoadBalanceResponse, ProcessRouteRequest,
         ProcessRouteResponse,
     },
 };
+
+use super::default::DefaultRouterAPI;
+
+/// new_router_api
+pub fn new_router_api() -> Result<impl RouterAPI, PolarisError> {
+    let context_ret = SDKContext::default();
+    if context_ret.is_err() {
+        return Err(context_ret.err().unwrap());
+    }
+
+    Ok(DefaultRouterAPI::new_raw(context_ret.unwrap()))
+}
+
+/// new_router_api_by_context
+pub fn new_router_api_by_context(context: Arc<SDKContext>) -> Result<impl RouterAPI, PolarisError> {
+    Ok(DefaultRouterAPI::new(context))
+}
 
 #[async_trait::async_trait]
 pub trait RouterAPI

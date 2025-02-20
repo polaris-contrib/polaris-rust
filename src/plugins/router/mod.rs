@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations under the License.
 
 pub mod health;
-pub mod isolated;
 pub mod lane;
 pub mod metadata;
 pub mod nearby;

@@ -24,21 +24,18 @@ use crate::discovery::req::*;
 pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
     let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
-    tracing::info!("create sdk context cost: {:?}", start_time.elapsed());
+    crate::info!("create sdk context cost: {:?}", start_time.elapsed());
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultProviderAPI::new(
-        Arc::new(context_ret.unwrap()),
-        true,
-    ))
+    Ok(DefaultProviderAPI::new_raw(context_ret.unwrap()))
 }
 
 pub fn new_provider_api_by_context(
     context: Arc<SDKContext>,
 ) -> Result<impl ProviderAPI, PolarisError> {
-    Ok(DefaultProviderAPI::new(context, false))
+    Ok(DefaultProviderAPI::new(context))
 }
 
 /// ProviderAPI 负责服务提供者的生命周期管理
@@ -76,7 +73,7 @@ pub fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
         return Err(context_ret.err().unwrap());
     }
 
-    Ok(DefaultConsumerAPI::new(Arc::new(context_ret.unwrap())))
+    Ok(DefaultConsumerAPI::new_raw(context_ret.unwrap()))
 }
 
 pub fn new_consumer_api_by_context(
@@ -125,6 +122,7 @@ where
     async fn report_service_call(&self, req: ServiceCallResult);
 }
 
+/// new_lossless_api 创建优雅上下线客户端实例
 pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
@@ -134,12 +132,14 @@ pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {
     Ok(DefaultLosslessAPI::new(context_ret.unwrap()))
 }
 
+/// new_lossless_api_by_context 创建优雅上下线客户端实例
 pub(crate) fn new_lossless_api_by_context(
     context: SDKContext,
 ) -> Result<Arc<dyn LosslessAPI>, PolarisError> {
     Ok(Arc::new(DefaultLosslessAPI::new(context)))
 }
 
+/// LosslessAPI 负责优雅上下线客户端的生命周期管理
 pub(crate) trait LosslessAPI {
     fn set_action_provider(
         &self,

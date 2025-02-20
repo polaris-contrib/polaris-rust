@@ -19,6 +19,8 @@ use crate::core::{
     plugin::{location::LocationSupplier, plugins::Plugin},
 };
 
+static PLUGIN_NAME: &str = "local";
+
 pub struct LocalLocationSupplier {
     loc_cache: Location,
 }
@@ -51,7 +53,7 @@ impl Plugin for LocalLocationSupplier {
     fn destroy(&self) {}
 
     fn name(&self) -> String {
-        "local".to_string()
+        PLUGIN_NAME.to_string()
     }
 }
 

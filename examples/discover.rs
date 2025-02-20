@@ -15,19 +15,15 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use polaris_rust::{
-    core::{
-        context::SDKContext,
-        model::{error::PolarisError, naming::Location},
+use polaris_rust::{core::{
+    context::SDKContext,
+    model::{error::PolarisError, loadbalance::Criteria, naming::Location, router::RouteInfo},
+}, discovery::{
+    api::{new_consumer_api_by_context, new_provider_api_by_context, ConsumerAPI, ProviderAPI},
+    req::{
+        GetAllInstanceRequest, GetOneInstanceRequest, InstanceDeregisterRequest, InstanceRegisterRequest, WatchInstanceRequest
     },
-    discovery::{
-        api::{new_consumer_api_by_context, new_provider_api_by_context, ConsumerAPI, ProviderAPI},
-        req::{
-            GetAllInstanceRequest, InstanceDeregisterRequest, InstanceRegisterRequest,
-            WatchInstanceRequest,
-        },
-    },
-};
+}, error, info};
 use tracing::level_filters::LevelFilter;
 
 #[tokio::main]
@@ -48,7 +44,7 @@ async fn main() -> Result<(), PolarisError> {
 
     let sdk_context_ret = SDKContext::default();
     if sdk_context_ret.is_err() {
-        tracing::error!(
+        error!(
             "create sdk context fail: {}",
             sdk_context_ret.err().unwrap()
         );
@@ -61,7 +57,7 @@ async fn main() -> Result<(), PolarisError> {
 
     let provider_ret = new_provider_api_by_context(arc_ctx.clone());
     if provider_ret.is_err() {
-        tracing::error!("create provider fail: {}", provider_ret.err().unwrap());
+        error!("create provider fail: {}", provider_ret.err().unwrap());
         return Err(PolarisError::new(
             polaris_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
@@ -70,7 +66,7 @@ async fn main() -> Result<(), PolarisError> {
 
     let consumer_ret = new_consumer_api_by_context(arc_ctx);
     if consumer_ret.is_err() {
-        tracing::error!("create consumer fail: {}", consumer_ret.err().unwrap());
+        error!("create consumer fail: {}", consumer_ret.err().unwrap());
         return Err(PolarisError::new(
             polaris_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
@@ -80,7 +76,7 @@ async fn main() -> Result<(), PolarisError> {
     let provider = provider_ret.unwrap();
     let consumer = consumer_ret.unwrap();
 
-    tracing::info!(
+    info!(
         "create discovery api client cost: {:?}",
         start_time.elapsed()
     );
@@ -114,25 +110,25 @@ async fn main() -> Result<(), PolarisError> {
     let _ret = provider.register(req).await;
     match _ret {
         Err(err) => {
-            tracing::error!("register fail: {}", err.to_string());
+            error!("register fail: {}", err.to_string());
         }
         Ok(_) => {}
     }
 
-    tracing::info!("begin do watch service_instances change");
+    info!("begin do watch service_instances change");
     let watch_rsp = consumer
         .watch_instance(WatchInstanceRequest {
             namespace: "rust-demo".to_string(),
             service: "polaris-rust-provider".to_string(),
             call_back: Arc::new(|instances| {
-                tracing::info!("watch instance: {:?}", instances.instances);
+                info!("watch instance: {:?}", instances.instances);
             }),
         })
         .await;
 
     match watch_rsp {
         Err(err) => {
-            tracing::error!("watch instance fail: {}", err.to_string());
+            error!("watch instance fail: {}", err.to_string());
         }
         Ok(_) => {}
     }
@@ -148,10 +144,34 @@ async fn main() -> Result<(), PolarisError> {
 
     match instances_ret {
         Err(err) => {
-            tracing::error!("get all instance fail: {}", err.to_string());
+            error!("get all instance fail: {}", err.to_string());
         }
         Ok(instances) => {
-            tracing::info!("get all instance: {:?}", instances);
+            info!("get all instance: {:?}", instances);
+        }
+    }
+
+    // 执行路由以及负载均衡能力
+    let mut route_info = RouteInfo::default();
+
+    let ret = consumer.get_one_instance(GetOneInstanceRequest{
+        flow_id: uuid::Uuid::new_v4().to_string(),
+        timeout: Duration::from_secs(10),
+        namespace: "rust-demo".to_string(),
+        service: "polaris-rust-provider".to_string(),
+        criteria: Criteria{
+            policy: "random".to_string(),
+            hash_key: "".to_string(),
+        },
+        route_info: route_info,
+    }).await;
+
+    match ret {
+        Err(err) => {
+            tracing::error!("get one instance fail: {}", err.to_string());
+        }
+        Ok(instance) => {
+            tracing::info!("get one instance: {:?}", instance);
         }
     }
 
@@ -173,7 +193,7 @@ async fn main() -> Result<(), PolarisError> {
     let _ret = provider.deregister(deregister_req).await;
     match _ret {
         Err(err) => {
-            tracing::error!("deregister fail: {}", err.to_string());
+            error!("deregister fail: {}", err.to_string());
         }
         Ok(_) => {}
     }

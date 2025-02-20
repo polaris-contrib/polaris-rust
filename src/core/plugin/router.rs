@@ -13,6 +13,51 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::plugin::plugins::Plugin;
+use std::{collections::HashMap, sync::Arc};
 
-pub trait ServiceRouter: Plugin {}
+use crate::core::{
+    model::{
+        error::PolarisError,
+        naming::ServiceInstances,
+        router::{RouteInfo, RouteResult},
+    },
+    plugin::plugins::Plugin,
+};
+
+use super::plugins::Extensions;
+
+#[derive(Clone)]
+pub struct RouterContainer {
+    pub before_routers: HashMap<String, Arc<Box<dyn ServiceRouter>>>,
+    pub core_routers: HashMap<String, Arc<Box<dyn ServiceRouter>>>,
+    pub after_routers: HashMap<String, Arc<Box<dyn ServiceRouter>>>,
+}
+
+impl RouterContainer {
+    pub fn new() -> Self {
+        RouterContainer {
+            before_routers: HashMap::new(),
+            core_routers: HashMap::new(),
+            after_routers: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct RouteContext {
+    pub route_info: RouteInfo,
+    pub extensions: Option<Arc<Extensions>>,
+}
+
+#[async_trait::async_trait]
+pub trait ServiceRouter: Plugin {
+    /// choose_instances 实例路由
+    async fn choose_instances(
+        &self,
+        route_info: RouteContext,
+        instances: ServiceInstances,
+    ) -> Result<RouteResult, PolarisError>;
+
+    /// enable 是否启用
+    async fn enable(&self, route_info: RouteContext, instances: ServiceInstances) -> bool;
+}

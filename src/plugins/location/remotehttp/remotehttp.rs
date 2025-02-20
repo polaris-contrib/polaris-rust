@@ -20,9 +20,12 @@ use crate::core::{
 };
 
 use reqwest::blocking::Client;
+use crate::error;
+
+static PLUGIN_NAME: &str = "remotehttp";
 
 pub struct RemoteHttpLocationSupplier {
-    opt: LocationProviderConfig,
+    _opt: LocationProviderConfig,
     access_url: Location,
 }
 
@@ -48,7 +51,7 @@ impl RemoteHttpLocationSupplier {
         }
 
         Self {
-            opt,
+            _opt: opt,
             access_url: loc_ret,
         }
     }
@@ -60,7 +63,7 @@ impl Plugin for RemoteHttpLocationSupplier {
     fn destroy(&self) {}
 
     fn name(&self) -> String {
-        "remotehttp".to_string()
+        PLUGIN_NAME.to_string()
     }
 }
 
@@ -81,7 +84,7 @@ impl LocationSupplier for RemoteHttpLocationSupplier {
         );
 
         if region.is_empty() && zone.is_empty() && campus.is_empty() {
-            tracing::error!("get location from remote http: all location is empty")
+            error!("get location from remote http: all location is empty")
         }
 
         Location {
@@ -102,13 +105,13 @@ impl RemoteHttpLocationSupplier {
                 match ret {
                     Ok(body) => body,
                     Err(e) => {
-                        tracing::error!("get http response error: {}, label: {}", e, label);
+                        error!("get http response error: {}, label: {}", e, label);
                         "".to_string()
                     }
                 }
             }
             Err(e) => {
-                tracing::error!("get http response error: {}, label: {}", e, label);
+                error!("get http response error: {}, label: {}", e, label);
                 "".to_string()
             }
         }

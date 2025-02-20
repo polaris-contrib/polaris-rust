@@ -17,18 +17,55 @@ use std::sync::Arc;
 
 use crate::core::{
     context::SDKContext,
+    flow::RouterFlow,
     model::error::{ErrorCode, PolarisError},
 };
-
+use crate::debug;
 use super::{api::RouterAPI, req::ProcessRouteResponse};
 
 pub struct DefaultRouterAPI {
+    manage_sdk: bool,
     context: Arc<SDKContext>,
+    flow: Arc<RouterFlow>,
 }
 
 impl DefaultRouterAPI {
+    pub fn new_raw(context: SDKContext) -> Self {
+        let ctx = Arc::new(context);
+        let extensions = ctx.get_engine().get_extensions();
+        Self {
+            manage_sdk: true,
+            context: ctx,
+            flow: Arc::new(RouterFlow::new(extensions)),
+        }
+    }
+
     pub fn new(context: Arc<SDKContext>) -> Self {
-        Self { context }
+        let extensions = context.get_engine().get_extensions();
+        Self {
+            manage_sdk: false,
+            context: context,
+            flow: Arc::new(RouterFlow::new(extensions)),
+        }
+    }
+}
+
+impl Drop for DefaultRouterAPI {
+    fn drop(&mut self) {
+        if !self.manage_sdk {
+            return;
+        }
+        let ctx = self.context.to_owned();
+        let ret = Arc::try_unwrap(ctx);
+
+        match ret {
+            Ok(ctx) => {
+                drop(ctx);
+            }
+            Err(_) => {
+                // do nothing
+            }
+        }
     }
 }
 
@@ -38,16 +75,27 @@ impl RouterAPI for DefaultRouterAPI {
         &self,
         req: super::req::ProcessRouteRequest,
     ) -> Result<super::req::ProcessRouteResponse, PolarisError> {
-        // TODO: 需要支持路由规则，当前直接原封不动进行返回
-        Ok(ProcessRouteResponse {
-            service_instances: req.service_instances,
-        })
+        debug!("[polaris][router_api] route request {:?}", req);
+
+        let ret = self
+            .flow
+            .choose_instances(req.route_info.clone(), req.service_instances)
+            .await;
+
+        match ret {
+            Ok(result) => Ok(ProcessRouteResponse {
+                service_instances: result,
+            }),
+            Err(e) => Err(e),
+        }
     }
 
     async fn load_balance(
         &self,
         req: super::req::ProcessLoadBalanceRequest,
     ) -> Result<super::req::ProcessLoadBalanceResponse, PolarisError> {
+        debug!("[polaris][router_api] load_balance request {:?}", req);
+
         let criteria = req.criteria.clone();
         let mut lb_policy = criteria.policy.clone();
 
@@ -55,20 +103,16 @@ impl RouterAPI for DefaultRouterAPI {
             lb_policy.clone_from(&self.context.conf.consumer.load_balancer.default_policy);
         }
 
-        let lb = self
-            .context
-            .get_engine()
-            .lookup_loadbalancer(&lb_policy)
-            .await;
+        let lb = self.flow.lookup_loadbalancer(&lb_policy).await;
 
         if lb.is_none() {
-            tracing::error!(
+            crate::error!(
                 "[polaris][router_api] load balancer {} not found",
                 lb_policy
             );
             return Err(PolarisError::new(
                 ErrorCode::PluginError,
-                format!("load balancer {} not found", lb_policy,),
+                format!("load balancer {} not found", lb_policy),
             ));
         }
 

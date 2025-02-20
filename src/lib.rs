@@ -20,6 +20,8 @@ pub mod discovery;
 pub mod plugins;
 pub mod ratelimit;
 pub mod router;
+#[macro_use]
+mod macros;
 
 #[cfg(test)]
 mod tests {
@@ -57,10 +59,10 @@ mod tests {
         setup_log();
         let start_time = std::time::Instant::now();
         let provider_ret = new_provider_api();
-        tracing::info!("create provider cost: {:?}", start_time.elapsed());
+        info!("create provider cost: {:?}", start_time.elapsed());
         match provider_ret {
             Err(err) => {
-                tracing::error!("create provider fail: {}", err.to_string());
+                error!("create provider fail: {}", err.to_string());
             }
             Ok(provier) => {
                 let metadata = HashMap::new();
@@ -93,7 +95,7 @@ mod tests {
                 let _ret = provier.register(req).await;
                 match _ret {
                     Err(err) => {
-                        tracing::error!("register fail: {}", err.to_string());
+                        error!("register fail: {}", err.to_string());
                     }
                     Ok(_) => {}
                 }
@@ -135,7 +137,7 @@ mod tests {
                 let _ret = arc_provider.clone().deregister(deregister_req).await;
                 match _ret {
                     Err(err) => {
-                        tracing::error!("deregister fail: {}", err.to_string());
+                        error!("deregister fail: {}", err.to_string());
                     }
                     Ok(_) => {}
                 }

@@ -12,4 +12,22 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
-mod router;
+
+use crate::core::model::error::PolarisError;
+
+use super::plugins::Plugin;
+
+/// ServiceRateLimiter 服务速率限制器
+#[async_trait::async_trait]
+pub trait ServiceRateLimiter: Plugin {
+    // allocate_quota 申请配额
+    async fn allocate_quota(&self) -> Result<(), PolarisError>;
+    // return_quota 归还配额
+    async fn return_quota(&self) -> Result<(), PolarisError>;
+    // on_remote_update 远程更新
+    async fn on_remote_update(&self) -> Result<(), PolarisError>;
+    // fetch_local_usage 获取本地使用情况
+    async fn fetch_local_usage(&self) -> Result<(), PolarisError>;
+    // get_amount 获取数量
+    async fn get_amount(&self) -> Result<(), PolarisError>;
+}

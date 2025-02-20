@@ -17,40 +17,40 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
-use tokio::sync::RwLock;
 
+use super::flow::{CircuitBreakerFlow, ClientFlow, RouterFlow};
+use super::model::config::{ConfigFile, ConfigGroup};
+use super::model::naming::{ServiceContractRequest, ServiceInstances};
+use super::model::ClientContext;
+use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
+use super::plugin::connector::Connector;
+use super::plugin::location::{LocationProvider, LocationSupplier};
 use crate::config::req::{
-    CreateConfigFileRequest, GetConfigFileRequest, PublishConfigFileRequest,
+    CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
     UpdateConfigFileRequest, UpsertAndPublishConfigFileRequest,
 };
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey};
 use crate::core::model::error::PolarisError;
 use crate::core::model::naming::InstanceRequest;
-use crate::core::plugin::location::new_location_provider;
 use crate::core::plugin::plugins::Extensions;
 use crate::discovery::req::{
     GetAllInstanceRequest, GetServiceRuleRequest, InstanceDeregisterRequest,
     InstanceHeartbeatRequest, InstanceRegisterRequest, InstanceRegisterResponse, InstancesResponse,
-    ServiceRuleResponse,
+    ReportServiceContractRequest, ServiceRuleResponse,
 };
-
-use super::model::config::ConfigFile;
-use super::model::naming::ServiceInstances;
-use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
-use super::plugin::connector::Connector;
-use super::plugin::loadbalance::LoadBalancer;
-use super::plugin::location::{LocationProvider, LocationSupplier};
 
 pub struct Engine
 where
     Self: Send + Sync,
 {
+    extensions: Arc<Extensions>,
     runtime: Arc<Runtime>,
     local_cache: Arc<Box<dyn ResourceCache>>,
     server_connector: Arc<Box<dyn Connector>>,
     location_provider: Arc<LocationProvider>,
-    load_balancer: Arc<RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
+    client_ctx: Arc<ClientContext>,
+    client_flow: ClientFlow,
 }
 
 impl Engine {
@@ -63,48 +63,32 @@ impl Engine {
                 .build()
                 .unwrap(),
         );
-
-        let client_id = crate::core::plugin::plugins::acquire_client_id(arc_conf.clone());
+        let client_ctx = crate::core::plugin::plugins::acquire_client_context(arc_conf.clone());
+        let client_ctx = Arc::new(client_ctx);
 
         // 初始化 extensions
-        let extensions_ret = Extensions::build(client_id, arc_conf.clone(), runtime.clone());
+        let extensions_ret =
+            Extensions::build(client_ctx.clone(), arc_conf.clone(), runtime.clone());
         if extensions_ret.is_err() {
             return Err(extensions_ret.err().unwrap());
         }
-        let mut extension = extensions_ret.unwrap();
 
-        let ret = extension.load_config_file_filters(&arc_conf.config.config_filter);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
+        let extension = Arc::new(extensions_ret.unwrap());
+        let server_connector = extension.get_server_connector();
+        let local_cache = extension.get_resource_cache();
+        let location_provider = extension.get_location_provider();
 
-        // 初始化 server_connector
-        let ret = extension.load_server_connector(&arc_conf.global.server_connectors);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-        let server_connector = ret.unwrap();
-
-        // 初始化 local_cache
-        let ret = extension.load_resource_cache(&arc_conf.global.local_cache);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-        let local_cache = ret.unwrap();
-
-        // 初始化 location_provider
-        let ret = new_location_provider(&arc_conf.global.location);
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-        let location_provider = ret.unwrap();
+        let mut client_flow = ClientFlow::new(client_ctx.clone(), extension.clone());
+        client_flow.run_flow();
 
         Ok(Self {
+            extensions: extension.clone(),
             runtime,
-            local_cache: Arc::new(local_cache),
+            local_cache,
             server_connector,
-            location_provider: Arc::new(location_provider),
-            load_balancer: Arc::new(RwLock::new(extension.load_loadbalancers())),
+            location_provider: location_provider,
+            client_ctx: client_ctx,
+            client_flow,
         })
     }
 
@@ -232,6 +216,26 @@ impl Engine {
         })
     }
 
+    /// report_service_contract 上报服务契约数据
+    pub async fn report_service_contract(
+        &self,
+        req: ReportServiceContractRequest,
+    ) -> Result<bool, PolarisError> {
+        let connector = self.server_connector.clone();
+        return connector
+            .report_service_contract(ServiceContractRequest {
+                flow_id: {
+                    let mut flow_id = req.flow_id.clone();
+                    if flow_id.is_empty() {
+                        flow_id = uuid::Uuid::new_v4().to_string();
+                    }
+                    flow_id
+                },
+                contract: req.contract,
+            })
+            .await;
+    }
+
     /// get_service_rule 获取服务规则
     pub async fn get_service_rule(
         &self,
@@ -355,9 +359,31 @@ impl Engine {
         }
     }
 
-    pub async fn lookup_loadbalancer(&self, name: &str) -> Option<Arc<Box<dyn LoadBalancer>>> {
-        let lb = self.load_balancer.read().await;
-        lb.get(name).cloned()
+    pub async fn get_config_group_files(
+        &self,
+        req: GetConfigGroupRequest,
+    ) -> Result<ConfigGroup, PolarisError> {
+        let local_cache = self.local_cache.clone();
+        let mut filter = HashMap::<String, String>::new();
+        filter.insert("group".to_string(), req.group.clone());
+        let ret = local_cache
+            .load_config_group_files(Filter {
+                resource_key: ResourceEventKey {
+                    namespace: req.namespace.clone(),
+                    event_type: EventType::ConfigGroup,
+                    filter,
+                },
+                internal_request: false,
+                include_cache: true,
+                timeout: req.timeout,
+            })
+            .await;
+
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
+        }
+
+        Ok(ret.unwrap())
     }
 
     /// register_resource_listener 注册资源监听器
@@ -367,5 +393,9 @@ impl Engine {
 
     pub fn get_executor(&self) -> Arc<Runtime> {
         self.runtime.clone()
+    }
+
+    pub fn get_extensions(&self) -> Arc<Extensions> {
+        self.extensions.clone()
     }
 }

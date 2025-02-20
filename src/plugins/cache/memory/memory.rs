@@ -27,14 +27,20 @@ use crate::core::model::config::{ConfigFile, ConfigGroup};
 use crate::core::model::error::{ErrorCode, PolarisError};
 use crate::core::model::naming::{Instance, ServiceRule, Services};
 use crate::core::plugin::cache::{
-    Action, Filter, InitResourceCacheOption, ResourceCache, ResourceListener,
+    Action, Filter, InitResourceCacheOption, ResourceCache, ResourceCacheFailover, ResourceListener,
 };
 use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::{error, info};
+use super::failover::DiskCacheFailover;
+
+static MEMORY_CACHE_NAME: &str = "memory";
 
 struct MemoryResourceHandler {
+    failover: Option<Arc<dyn ResourceCacheFailover>>,
     // 资源类型变化监听
     listeners: Arc<RwLock<HashMap<EventType, Vec<Arc<dyn ResourceListener>>>>>,
     // services 服务列表缓存
@@ -61,6 +67,8 @@ pub struct MemoryCache {
     server_connector: Arc<Box<dyn Connector>>,
     handler: Arc<MemoryResourceHandler>,
     remote_sender: UnboundedSender<RemoteData>,
+    //
+    failover: Option<Arc<dyn ResourceCacheFailover>>,
 }
 
 impl MemoryCache {
@@ -68,7 +76,7 @@ impl MemoryCache {
         fn(InitResourceCacheOption) -> Box<dyn ResourceCache>,
         String,
     ) {
-        (new_resource_cache, "memory".to_string())
+        (new_resource_cache, MEMORY_CACHE_NAME.to_string())
     }
 
     async fn run_remote_data_recive(
@@ -88,7 +96,7 @@ impl MemoryCache {
 
     fn submit_resource_watch(&self, event_type: EventType, resource_key: ResourceEventKey) {
         let search_namespace = resource_key.namespace.clone();
-        tracing::info!(
+        info!(
             "[polaris][resource_cache][memory] load remote resource: {:?}",
             resource_key
         );
@@ -107,7 +115,7 @@ impl MemoryCache {
                 )))
                 .await;
             if register_ret.is_err() {
-                tracing::error!(
+                error!(
                 "[polaris][resource_cache][memory] register resource handler failed: {}, err: {}",
                 resource_key.namespace.clone(),
                 register_ret.err().unwrap()
@@ -117,7 +125,7 @@ impl MemoryCache {
     }
 
     async fn on_spec_event(handler: Arc<MemoryResourceHandler>, event: RemoteData) {
-        tracing::info!(
+        info!(
             "[polaris][resource_cache][memory] on spec event: {:?}",
             event
         );
@@ -129,6 +137,8 @@ impl MemoryCache {
         let event_key = event.event_key.clone();
         let event_type = event_key.event_type;
         let filter = event_key.filter;
+
+        let copy_event = event.clone();
 
         match event_type {
             EventType::Service => {}
@@ -145,7 +155,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] service_instance cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -178,7 +188,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] router_rule cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -208,7 +218,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] circuit_breaker cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -237,7 +247,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] ratelimit cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -266,7 +276,7 @@ impl MemoryCache {
                     .as_str(),
                 );
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] fault_detect cache not found: namespace={} service={}",
                         svc.namespace.unwrap(),
                         svc.name.unwrap()
@@ -293,7 +303,7 @@ impl MemoryCache {
                 let mut safe_map = handler.config_files.write().await;
                 let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] config_file cache not found: namespace={} group={} file={}",
                         event_key.namespace.clone(),
                         filter.get("group").unwrap(),
@@ -321,7 +331,7 @@ impl MemoryCache {
                 let mut safe_map = handler.config_groups.write().await;
                 let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
-                    tracing::error!(
+                    error!(
                         "[polaris][resource_cache][memory] config_group cache not found: namespace={} group={}",
                         event_key.namespace.clone(),
                         filter.get("group").unwrap()
@@ -343,6 +353,24 @@ impl MemoryCache {
             _ => {}
         }
 
+        // 容灾调用
+        if copy_event.discover_value.is_some() {
+            let _ = handler
+                .failover
+                .clone()
+                .unwrap()
+                .save_naming_failover(copy_event.discover_value.unwrap())
+                .await;
+        }
+        if copy_event.config_value.is_some() {
+            let _ = handler
+                .failover
+                .clone()
+                .unwrap()
+                .save_config_failover(copy_event.config_value.unwrap())
+                .await;
+        }
+
         // 通知所有的 listener
         let listeners = { handler.listeners.read().await.clone() };
         let expect_watcher_opt = listeners.get(&event_type);
@@ -359,11 +387,13 @@ impl MemoryCache {
 fn new_resource_cache(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
     let (sx, mut rx) = mpsc::unbounded_channel::<RemoteData>();
     let server_connector = opt.server_connector.clone();
+    let failover = Arc::new(DiskCacheFailover::new(opt.conf.clone()));
 
     let mc = MemoryCache {
         opt,
         server_connector,
         handler: Arc::new(MemoryResourceHandler {
+            failover: Some(failover.clone()),
             listeners: Arc::new(RwLock::new(HashMap::new())),
             services: Arc::new(RwLock::new(HashMap::new())),
             instances: Arc::new(RwLock::new(HashMap::new())),
@@ -375,6 +405,8 @@ fn new_resource_cache(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
             config_files: Arc::new(RwLock::new(HashMap::new())),
         }),
         remote_sender: sx,
+        // 默认使用磁盘容灾
+        failover: Some(failover),
     };
 
     let handler = mc.handler.clone();
@@ -391,12 +423,16 @@ impl Plugin for MemoryCache {
     fn destroy(&self) {}
 
     fn name(&self) -> String {
-        "memory".to_string()
+        MEMORY_CACHE_NAME.to_string()
     }
 }
 
 #[async_trait::async_trait]
 impl ResourceCache for MemoryCache {
+    fn set_failover_provider(&mut self, failover: Arc<dyn ResourceCacheFailover>) {
+        self.failover = Some(failover);
+    }
+
     async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
         let event_type = filter.get_event_type();
         let search_namespace = filter.resource_key.namespace.clone();
@@ -436,7 +472,7 @@ impl ResourceCache for MemoryCache {
 
                 let mut rules = vec![];
                 for (_, val) in cache_val.value.read().await.iter().enumerate() {
-                    rules.push(Box::new(val.clone()) as Box<dyn Message>);
+                    rules.push(Box::new(val.clone()) as Box<dyn Any + Send>);
                 }
                 Ok(ServiceRule {
                     rules,
@@ -475,7 +511,7 @@ impl ResourceCache for MemoryCache {
                 }
 
                 Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Message>],
+                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
                     revision: cache_val.revision(),
                     initialized: cache_val.is_initialized(),
                 })
@@ -511,7 +547,7 @@ impl ResourceCache for MemoryCache {
                 }
 
                 Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Message>],
+                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
                     revision: cache_val.revision(),
                     initialized: cache_val.is_initialized(),
                 })
@@ -547,7 +583,7 @@ impl ResourceCache for MemoryCache {
                 }
 
                 Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Message>],
+                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
                     revision: cache_val.revision(),
                     initialized: cache_val.is_initialized(),
                 })
@@ -730,6 +766,7 @@ impl ResourceCache for MemoryCache {
             namespace: cache_val.namespace.clone(),
             group: cache_val.group.clone(),
             files: cache_val.files.read().await.clone(),
+            revision: cache_val.revision.clone(),
         };
 
         Ok(ret)
@@ -744,6 +781,7 @@ impl ResourceCache for MemoryCache {
     }
 }
 
+/// MemoryResourceWatcher 用于监听远程资源变化
 struct MemoryResourceWatcher {
     event_key: ResourceEventKey,
     processor: UnboundedSender<RemoteData>,
@@ -763,7 +801,7 @@ impl ResourceHandler for MemoryResourceWatcher {
         match self.processor.send(event) {
             Ok(_) => {}
             Err(err) => {
-                tracing::error!(
+                error!(
                     "[polaris][resource_cache][memory] send event to processor failed: {}",
                     err
                 );

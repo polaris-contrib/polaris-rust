@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 
 use crate::core::context::SDKContext;
 use crate::core::model::error::PolarisError;
-use crate::core::model::naming::ServiceInstancesChangeEvent;
+use crate::core::model::naming::{ServiceInstancesChangeEvent, ServiceKey};
 use crate::core::plugin::cache::ResourceListener;
 use crate::discovery::api::{ConsumerAPI, LosslessAPI, ProviderAPI};
 use crate::discovery::req::{
@@ -41,9 +41,21 @@ struct InstanceWatcher {
     req: WatchInstanceRequest,
 }
 
-struct InstanceResourceListener {
+pub struct InstanceResourceListener {
+    // watcher_id: 监听 listener key 的唯一标识
+    watcher_id: Arc<AtomicU64>,
     // watchers: namespace#service -> InstanceWatcher
-    watchers: Arc<RwLock<HashMap<String, Vec<InstanceWatcher>>>>,
+    watchers: Arc<RwLock<HashMap<String, HashMap<u64, InstanceWatcher>>>>,
+}
+
+impl InstanceResourceListener {
+    pub async fn cancel_watch(&self, watch_key: &str, watch_id: u64) {
+        let mut watchers = self.watchers.write().await;
+        let items = watchers.get_mut(watch_key);
+        if let Some(vals) = items {
+            vals.remove(&watch_id);
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -65,7 +77,7 @@ impl ResourceListener for InstanceResourceListener {
             match ins_cache_opt {
                 Some(ins_cache_val) => {
                     for watcher in watchers {
-                        (watcher.req.call_back)(ServiceInstancesChangeEvent {
+                        (watcher.1.req.call_back)(ServiceInstancesChangeEvent {
                             service: ins_cache_val.get_service_info(),
                             instances: ins_cache_val.list_instances(false).await,
                         })
@@ -85,6 +97,7 @@ impl ResourceListener for InstanceResourceListener {
 
 /// DefaultConsumerAPI
 pub struct DefaultConsumerAPI {
+    manage_sdk: bool,
     context: Arc<SDKContext>,
     router_api: Box<DefaultRouterAPI>,
     // watchers: namespace#service -> InstanceWatcher
@@ -94,14 +107,49 @@ pub struct DefaultConsumerAPI {
 }
 
 impl DefaultConsumerAPI {
-    pub fn new(context: Arc<SDKContext>) -> Self {
+    pub fn new_raw(context: SDKContext) -> Self {
+        let ctx = Arc::new(context);
         Self {
-            context: context.clone(),
-            router_api: Box::new(DefaultRouterAPI::new(context.clone())),
+            manage_sdk: true,
+            context: ctx.clone(),
+            router_api: Box::new(DefaultRouterAPI::new(ctx)),
             watchers: Arc::new(InstanceResourceListener {
+                watcher_id: Arc::new(AtomicU64::new(0)),
                 watchers: Arc::new(RwLock::new(HashMap::new())),
             }),
             register_resource_watcher: AtomicBool::new(false),
+        }
+    }
+
+    pub fn new(context: Arc<SDKContext>) -> Self {
+        Self {
+            manage_sdk: true,
+            context: context.clone(),
+            router_api: Box::new(DefaultRouterAPI::new(context.clone())),
+            watchers: Arc::new(InstanceResourceListener {
+                watcher_id: Arc::new(AtomicU64::new(0)),
+                watchers: Arc::new(RwLock::new(HashMap::new())),
+            }),
+            register_resource_watcher: AtomicBool::new(false),
+        }
+    }
+}
+
+impl Drop for DefaultConsumerAPI {
+    fn drop(&mut self) {
+        if !self.manage_sdk {
+            return;
+        }
+        let ctx = self.context.to_owned();
+        let ret = Arc::try_unwrap(ctx);
+
+        match ret {
+            Ok(ctx) => {
+                drop(ctx);
+            }
+            Err(_) => {
+                // do nothing
+            }
         }
     }
 }
@@ -128,18 +176,24 @@ impl ConsumerAPI for DefaultConsumerAPI {
             )
             .await;
 
+        // 重新设置被调服务数据信息
+        let mut route_info = req.route_info;
+        route_info.callee  = ServiceKey{
+            namespace: req.namespace.clone(),
+            name: req.service.clone(),
+        };
+
         match rsp {
             Ok(rsp) => {
                 let instances = rsp.instances;
-                let criteria = req.caller_info.clone().criteria;
+                let criteria = req.criteria;
 
                 // 执行路由逻辑
                 let route_ret = self
                     .router_api
                     .router(ProcessRouteRequest {
                         service_instances: instances,
-                        caller_info: req.caller_info,
-                        callee_info: req.callee_info,
+                        route_info: route_info,
                     })
                     .await;
 
@@ -224,10 +278,15 @@ impl ConsumerAPI for DefaultConsumerAPI {
         let mut watchers = self.watchers.watchers.write().await;
 
         let watch_key = req.get_key();
-        let items = watchers.entry(watch_key.clone()).or_insert_with(Vec::new);
+        let items = watchers.entry(watch_key.clone()).or_insert(HashMap::new());
+        let watch_id = self.watchers.watcher_id.fetch_add(1, Ordering::Relaxed);
 
-        items.push(InstanceWatcher { req });
-        Ok(WatchInstanceResponse {})
+        items.insert(watch_id, InstanceWatcher { req });
+        Ok(WatchInstanceResponse::new(
+            watch_id,
+            watch_key,
+            self.watchers.clone(),
+        ))
     }
 
     async fn get_service_rule(
@@ -248,17 +307,44 @@ pub struct DefaultProviderAPI
 where
     Self: Send + Sync,
 {
-    _manage_sdk: bool,
+    manage_sdk: bool,
     context: Arc<SDKContext>,
     beat_tasks: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
 }
 
 impl DefaultProviderAPI {
-    pub fn new(context: Arc<SDKContext>, manage_sdk: bool) -> Self {
+    pub fn new_raw(context: SDKContext) -> Self {
+        Self {
+            context: Arc::new(context),
+            manage_sdk: true,
+            beat_tasks: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub fn new(context: Arc<SDKContext>) -> Self {
         Self {
             context,
-            _manage_sdk: manage_sdk,
+            manage_sdk: false,
             beat_tasks: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+}
+
+impl Drop for DefaultProviderAPI {
+    fn drop(&mut self) {
+        if !self.manage_sdk {
+            return;
+        }
+        let ctx = self.context.to_owned();
+        let ret = Arc::try_unwrap(ctx);
+
+        match ret {
+            Ok(ctx) => {
+                drop(ctx);
+            }
+            Err(_) => {
+                // do nothing
+            }
         }
     }
 }
@@ -272,12 +358,12 @@ impl ProviderAPI for DefaultProviderAPI {
         let auto_heartbeat = req.auto_heartbeat;
         let ttl = req.ttl;
         let beat_req = req.to_heartbeat_request();
-        tracing::info!("[polaris][discovery][provider] register instance request: {req:?}");
+        crate::info!("[polaris][discovery][provider] register instance request: {req:?}");
         let rsp = self.context.get_engine().register_instance(req).await;
         let engine = self.context.get_engine();
         if rsp.is_ok() && auto_heartbeat {
             let task_key = beat_req.beat_key();
-            tracing::info!(
+            crate::info!(
                 "[polaris][discovery][heartbeat] add one auto_beat task={} duration={}s",
                 task_key,
                 ttl,
@@ -287,12 +373,12 @@ impl ProviderAPI for DefaultProviderAPI {
             let handler = engine.get_executor().spawn(async move {
                 loop {
                     tokio::time::sleep(tokio::time::Duration::from_secs(u64::from(ttl))).await;
-                    tracing::debug!(
+                    crate::debug!(
                         "[polaris][discovery][heartbeat] start to auto_beat instance: {beat_req:?}"
                     );
                     let beat_ret = beat_engine.instance_heartbeat(beat_req.clone()).await;
                     if let Err(e) = beat_ret {
-                        tracing::error!(
+                        crate::error!(
                         "[polaris][discovery][heartbeat] auto_beat instance to server fail: {e}"
                     );
                     }
@@ -308,7 +394,7 @@ impl ProviderAPI for DefaultProviderAPI {
         let task_key = beat_req.beat_key();
         let wait_remove_task = self.beat_tasks.write().await.remove(&task_key);
         if let Some(task) = wait_remove_task {
-            tracing::info!(
+            crate::info!(
                 "[polaris][discovery][heartbeat] remove one auto_beat task={}",
                 task_key,
             );

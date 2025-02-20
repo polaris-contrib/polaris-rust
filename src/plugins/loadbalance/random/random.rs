@@ -20,12 +20,16 @@ use crate::core::{
     },
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
 };
+use crate::debug;
 
+static PLUGIN_NAME: &str = "weightedRandom";
+
+/// WeightRandomLoadbalancer 权重随机负载均衡
 pub struct WeightRandomLoadbalancer {}
 
 impl WeightRandomLoadbalancer {
     pub fn builder() -> (fn() -> Box<dyn LoadBalancer>, String) {
-        (new_instance, "weightedRandom".to_string())
+        (new_instance, PLUGIN_NAME.to_string())
     }
 }
 
@@ -35,7 +39,7 @@ fn new_instance() -> Box<dyn LoadBalancer> {
 
 impl Plugin for WeightRandomLoadbalancer {
     fn name(&self) -> String {
-        "weightedRandom".to_string()
+        PLUGIN_NAME.to_string()
     }
 
     fn init(&mut self) {}
@@ -69,7 +73,7 @@ impl LoadBalancer for WeightRandomLoadbalancer {
             left = right;
         }
 
-        tracing::debug!(
+        debug!(
             "[polaris][loadbalancer][weight_random] choose instance failed, rand_weight: {}",
             rand_weight
         );

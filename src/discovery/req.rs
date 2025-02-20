@@ -17,13 +17,17 @@ use prost::Message;
 
 use crate::core::model::cache::EventType;
 use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::loadbalance::Criteria;
 use crate::core::model::naming::{
-    Instance, Location, ServiceInstances, ServiceInstancesChangeEvent,
+    Instance, Location, ServiceContract, ServiceInstances, ServiceInstancesChangeEvent,
 };
-use crate::core::model::router::{CalleeInfo, CallerInfo};
+use crate::core::model::router::RouteInfo;
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+
+use super::default::InstanceResourceListener;
 
 #[derive(Clone, Debug)]
 pub struct InstanceRegisterRequest {
@@ -193,7 +197,11 @@ impl InstanceHeartbeatRequest {
     }
 }
 
-pub struct ReportServiceContractRequest {}
+pub struct ReportServiceContractRequest {
+    pub flow_id: String,
+    pub timeout: Duration,
+    pub contract: ServiceContract,
+}
 
 // ConsumerAPI request and response definition
 
@@ -202,8 +210,10 @@ pub struct GetOneInstanceRequest {
     pub timeout: Duration,
     pub service: String,
     pub namespace: String,
-    pub caller_info: CallerInfo,
-    pub callee_info: CalleeInfo,
+    // 用于负载均衡
+    pub criteria: Criteria,
+    // 用于路由
+    pub route_info: RouteInfo,
 }
 
 impl GetOneInstanceRequest {
@@ -319,7 +329,27 @@ impl WatchInstanceRequest {
     }
 }
 
-pub struct WatchInstanceResponse {}
+pub struct WatchInstanceResponse {
+    pub watch_id: u64,
+    watch_key: String,
+    owner: Arc<InstanceResourceListener>,
+}
+
+impl WatchInstanceResponse {
+    pub fn new(watch_id: u64, watch_key: String, owner: Arc<InstanceResourceListener>) -> Self {
+        WatchInstanceResponse {
+            watch_id,
+            watch_key,
+            owner,
+        }
+    }
+
+    pub async fn cancel_watch(&self) {
+        self.owner
+            .cancel_watch(&self.watch_key, self.watch_id)
+            .await;
+    }
+}
 
 pub struct ServiceCallResult {}
 
@@ -351,7 +381,7 @@ pub struct GetServiceRuleRequest {
 }
 
 pub struct ServiceRuleResponse {
-    pub rules: Vec<Box<dyn Message>>,
+    pub rules: Vec<Box<dyn Any + Send>>,
 }
 
 // LossLessAPI request and response definition

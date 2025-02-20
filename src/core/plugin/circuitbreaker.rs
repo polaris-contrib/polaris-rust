@@ -12,4 +12,19 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
-pub mod lib;
+
+use crate::core::model::circuitbreaker::{Resource, ResourceStat};
+use crate::core::model::{circuitbreaker::CircuitBreakerStatus, error::PolarisError};
+
+use crate::core::plugin::plugins::Plugin;
+
+#[async_trait::async_trait]
+pub trait CircuitBreaker: Plugin {
+    /// check_resource 检查资源
+    async fn check_resource(
+        &self,
+        resource: Resource,
+    ) -> Result<CircuitBreakerStatus, PolarisError>;
+    /// report_stat 上报统计信息
+    async fn report_stat(&self, stat: ResourceStat) -> Result<(), PolarisError>;
+}
