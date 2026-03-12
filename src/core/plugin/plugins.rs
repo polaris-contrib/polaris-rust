@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,9 +15,12 @@
 
 use crate::core::config::config::Configuration;
 use crate::core::config::config_file::ConfigFilter;
-use crate::core::config::consumer::{ServiceRouterConfig, ServiceRouterPluginConfig};
+use crate::core::config::consumer::{
+    CircuitBreakerConfig, ServiceRouterConfig, ServiceRouterPluginConfig,
+};
 use crate::core::config::global::{LocalCacheConfig, LocationConfig, ServerConnectorConfig};
-use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::error::{ErrorCode, PoleError};
+use crate::core::model::instance_stat::InstanceStatManager;
 use crate::core::model::ClientContext;
 use crate::core::plugin::cache::ResourceCache;
 use crate::core::plugin::connector::Connector;
@@ -26,19 +29,24 @@ use crate::plugins::cache::memory::memory::MemoryCache;
 use crate::plugins::circuitbreaker::composite::circuitbreaker::CompositeCircuitBreaker;
 use crate::plugins::connector::grpc::connector::GrpcConnector;
 use crate::plugins::filter::configcrypto::crypto::ConfigFileCryptoFilter;
+use crate::plugins::loadbalance::leastconnections::leastconnections::LeastConnectionsLoadBalancer;
+use crate::plugins::loadbalance::leastrt::leastrt::LeastRtLoadBalancer;
 use crate::plugins::loadbalance::random::random::WeightRandomLoadbalancer;
 use crate::plugins::loadbalance::ringhash::ringhash::ConsistentHashLoadBalancer;
 use crate::plugins::loadbalance::roundrobin::roundrobin::WeightedRoundRobinBalancer;
 use crate::plugins::location::local::local::LocalLocationSupplier;
 use crate::plugins::location::remotehttp::remotehttp::RemoteHttpLocationSupplier;
 use crate::plugins::ratelimit::concurrency::concurrency::ConcurrencyLimiter;
+use crate::plugins::ratelimit::reject::reject::RejectLimiter;
+use crate::plugins::ratelimit::unirate::unirate::UnirateLimiter;
 use crate::plugins::router::health::health::HealthRouter;
+use crate::plugins::router::isolated::isolated::IsolatedRouter;
 use crate::plugins::router::lane::lane::LaneRouter;
 use crate::plugins::router::metadata::metadata::MetadataRouter;
 use crate::plugins::router::nearby::nearby::NearbyRouter;
 use crate::plugins::router::rule::rule::RuleRouter;
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
 use std::net::{IpAddr, ToSocketAddrs};
@@ -57,6 +65,26 @@ use super::ratelimit::ServiceRateLimiter;
 use super::router::RouterContainer;
 
 static SEQ: AtomicU64 = AtomicU64::new(1);
+
+fn validate_router_chain_plugins(
+    chain: &[ServiceRouterPluginConfig],
+    chain_name: &str,
+    suppliers: &HashMap<String, fn(&ServiceRouterPluginConfig) -> Box<dyn ServiceRouter>>,
+) -> Result<(), PoleError> {
+    for router_conf in chain {
+        if suppliers.contains_key(&router_conf.name) {
+            continue;
+        }
+        return Err(PoleError::new(
+            ErrorCode::InvalidConfig,
+            format!(
+                "service router plugin {} not found in {} chain",
+                router_conf.name, chain_name
+            ),
+        ));
+    }
+    Ok(())
+}
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum PluginType {
@@ -111,6 +139,8 @@ where
     pub service_routers: Option<Arc<RouterContainer>>,
     // load_balancers 负载均衡器
     pub load_balancers: Arc<tokio::sync::RwLock<HashMap<String, Arc<Box<dyn LoadBalancer>>>>>,
+    // instance_stat_manager 实例运行时统计仓库
+    pub instance_stat_manager: Arc<InstanceStatManager>,
 }
 
 impl Extensions {
@@ -118,7 +148,7 @@ impl Extensions {
         client_ctx: Arc<ClientContext>,
         conf: Arc<Configuration>,
         runetime: Arc<Runtime>,
-    ) -> Result<Self, PolarisError> {
+    ) -> Result<Self, PoleError> {
         let mut extension = Self {
             client_ctx: client_ctx,
             runtime: runetime,
@@ -130,6 +160,7 @@ impl Extensions {
             resource_cache: None,
             service_routers: None,
             load_balancers: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            instance_stat_manager: Arc::new(InstanceStatManager::new()),
         };
 
         let ret = extension.load_all_plugins(conf.clone());
@@ -140,7 +171,7 @@ impl Extensions {
         Ok(extension)
     }
 
-    fn load_all_plugins(&mut self, conf: Arc<Configuration>) -> Result<(), PolarisError> {
+    fn load_all_plugins(&mut self, conf: Arc<Configuration>) -> Result<(), PoleError> {
         let ret = self.load_config_file_filters(&conf.config.config_filter);
         if ret.is_err() {
             return Err(ret.err().unwrap());
@@ -160,6 +191,12 @@ impl Extensions {
 
         // 初始化 location_provider
         let ret = self.load_location_providers(&conf.global.location);
+        if ret.is_err() {
+            return Err(ret.err().unwrap());
+        }
+
+        // 初始化 circuit_breaker
+        let ret = self.load_circuit_breaker(&conf.consumer.circuit_breaker);
         if ret.is_err() {
             return Err(ret.err().unwrap());
         }
@@ -201,12 +238,22 @@ impl Extensions {
         self.service_routers.clone().unwrap()
     }
 
+    pub fn get_ratelimiter_supplier(
+        &self,
+        name: &str,
+    ) -> Option<fn() -> Box<dyn ServiceRateLimiter>> {
+        CLIENT_PLUGIN_CONTAINER
+            .read()
+            .ok()
+            .and_then(|container| container.ratelimiter.get(name).copied())
+    }
+
     fn load_server_connector(
         &mut self,
         connector_opt: &ServerConnectorConfig,
-    ) -> Result<(), PolarisError> {
+    ) -> Result<(), PoleError> {
         if connector_opt.addresses.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InvalidConfig,
                 "server_connector addresses is empty".to_string(),
             ));
@@ -231,10 +278,10 @@ impl Extensions {
         Ok(())
     }
 
-    fn load_resource_cache(&mut self, cache_opt: &LocalCacheConfig) -> Result<(), PolarisError> {
+    fn load_resource_cache(&mut self, cache_opt: &LocalCacheConfig) -> Result<(), PoleError> {
         let cache_name = cache_opt.name.clone();
         if cache_name.is_empty() {
-            return Err(PolarisError::new(ErrorCode::InvalidConfig, "".to_string()));
+            return Err(PoleError::new(ErrorCode::InvalidConfig, "".to_string()));
         }
 
         let supplier = CLIENT_PLUGIN_CONTAINER
@@ -262,7 +309,7 @@ impl Extensions {
         Ok(())
     }
 
-    fn load_config_file_filters(&mut self, filter_conf: &ConfigFilter) -> Result<(), PolarisError> {
+    fn load_config_file_filters(&mut self, filter_conf: &ConfigFilter) -> Result<(), PoleError> {
         let mut filters = Vec::<Box<dyn DiscoverFilter>>::new();
         if filter_conf.enable {
             for (_i, name) in filter_conf.chain.iter().enumerate() {
@@ -284,68 +331,119 @@ impl Extensions {
         Ok(())
     }
 
-    fn load_service_routers(
-        &mut self,
-        route_conf: &ServiceRouterConfig,
-    ) -> Result<(), PolarisError> {
+    fn load_service_routers(&mut self, route_conf: &ServiceRouterConfig) -> Result<(), PoleError> {
         let mut container = RouterContainer::new();
-        for (name, supplier) in CLIENT_PLUGIN_CONTAINER
-            .read()
-            .unwrap()
-            .service_routers
-            .iter()
-        {
-            for (_i, router_conf) in route_conf.before_chain.iter().enumerate() {
-                if router_conf.name == name.to_string() {
-                    let router = supplier(router_conf);
-                    container
-                        .before_routers
-                        .insert(name.clone(), Arc::new(router));
-                }
-            }
-            for (_i, router_conf) in route_conf.core_chain.iter().enumerate() {
-                if router_conf.name == name.to_string() {
-                    let router = supplier(router_conf);
-                    container
-                        .core_routers
-                        .insert(name.clone(), Arc::new(router));
-                }
-            }
+        let plugin_container = CLIENT_PLUGIN_CONTAINER.read().unwrap();
+        let suppliers = &plugin_container.service_routers;
 
-            for (_i, router_conf) in route_conf.after_chain.iter().enumerate() {
-                if router_conf.name == name.to_string() {
-                    let router = supplier(router_conf);
-                    container
-                        .after_routers
-                        .insert(name.clone(), Arc::new(router));
-                }
-            }
+        validate_router_chain_plugins(&route_conf.before_chain, "before", suppliers)?;
+        validate_router_chain_plugins(&route_conf.core_chain, "core", suppliers)?;
+        validate_router_chain_plugins(&route_conf.after_chain, "after", suppliers)?;
+
+        for router_conf in route_conf.before_chain.iter() {
+            let supplier = suppliers.get(&router_conf.name).unwrap();
+            let router = supplier(router_conf);
+            container
+                .before_routers
+                .insert(router_conf.name.clone(), Arc::new(router));
+        }
+
+        for router_conf in route_conf.core_chain.iter() {
+            let supplier = suppliers.get(&router_conf.name).unwrap();
+            let router = supplier(router_conf);
+            container
+                .core_routers
+                .insert(router_conf.name.clone(), Arc::new(router));
+        }
+
+        for router_conf in route_conf.after_chain.iter() {
+            let supplier = suppliers.get(&router_conf.name).unwrap();
+            let router = supplier(router_conf);
+            container
+                .after_routers
+                .insert(router_conf.name.clone(), Arc::new(router));
         }
 
         self.service_routers = Some(Arc::new(container));
         Ok(())
     }
 
-    fn load_loadbalancers(&mut self) -> Result<(), PolarisError> {
-        let mut loadbalancers = HashMap::<String, Arc<Box<dyn LoadBalancer>>>::new();
-        for (name, supplier) in CLIENT_PLUGIN_CONTAINER
+    fn load_circuit_breaker(&mut self, opt: &CircuitBreakerConfig) -> Result<(), PoleError> {
+        if !opt.enable {
+            self.circuit_breaker = None;
+            return Ok(());
+        }
+
+        let supplier = CLIENT_PLUGIN_CONTAINER
             .read()
             .unwrap()
-            .load_balancers
-            .iter()
-        {
-            let lb = supplier();
+            .get_circuit_breaker_supplier("composite");
+        let mut breaker = supplier();
+        breaker.set_resource_cache(self.resource_cache.clone().unwrap());
+        breaker.set_instance_stat_manager(self.instance_stat_manager.clone());
+        breaker.init();
+        self.circuit_breaker = Some(Arc::new(breaker));
+        Ok(())
+    }
+
+    fn load_loadbalancers(&mut self) -> Result<(), PoleError> {
+        let mut loadbalancers = HashMap::<String, Arc<Box<dyn LoadBalancer>>>::new();
+        let configured = self
+            .conf
+            .consumer
+            .load_balancer
+            .plugins
+            .clone()
+            .unwrap_or_default();
+        let mut enabled = HashSet::<String>::new();
+        for name in configured {
+            enabled.insert(name);
+        }
+        // 默认策略必须可用，防止策略缺失导致运行时失败
+        if !self.conf.consumer.load_balancer.default_policy.is_empty() {
+            enabled.insert(self.conf.consumer.load_balancer.default_policy.clone());
+        }
+        let use_filter = !enabled.is_empty();
+
+        let plugin_container = CLIENT_PLUGIN_CONTAINER.read().unwrap();
+        if use_filter {
+            for name in enabled.iter() {
+                if !plugin_container.load_balancers.contains_key(name) {
+                    return Err(PoleError::new(
+                        ErrorCode::InvalidConfig,
+                        format!("load balancer plugin {} not found", name),
+                    ));
+                }
+            }
+        }
+
+        for (name, supplier) in plugin_container.load_balancers.iter() {
+            if use_filter && !enabled.contains(name) {
+                continue;
+            }
+
+            let mut lb = supplier();
+            lb.set_instance_stat_manager(self.instance_stat_manager.clone());
+            lb.init();
             loadbalancers.insert(name.clone(), Arc::new(lb));
         }
+
+        if loadbalancers.is_empty() {
+            return Err(PoleError::new(
+                ErrorCode::InvalidConfig,
+                "no load balancer plugin enabled".to_string(),
+            ));
+        }
+
         self.load_balancers = Arc::new(tokio::sync::RwLock::new(loadbalancers));
         Ok(())
     }
 
-    fn load_location_providers(&mut self, opt: &LocationConfig) -> Result<(), PolarisError> {
+    fn load_location_providers(&mut self, opt: &LocationConfig) -> Result<(), PoleError> {
         let mut chain = Vec::<Box<dyn LocationSupplier>>::new();
         let providers = opt.clone().providers;
         if providers.is_none() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "".to_string(),
             ));
@@ -385,7 +483,7 @@ pub struct PluginContainer {
     caches: HashMap<String, fn(InitResourceCacheOption) -> Box<dyn ResourceCache>>,
     // discover_filters: 发现过滤器
     discover_filters:
-        HashMap<String, fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError>>,
+        HashMap<String, fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PoleError>>,
     /// ------- 治理规则相关插件 -------
     // service_routers: 路由器
     service_routers: HashMap<String, fn(&ServiceRouterPluginConfig) -> Box<dyn ServiceRouter>>,
@@ -428,9 +526,10 @@ impl PluginContainer {
 
     fn register_service_routers(&mut self) {
         let vec = vec![
+            IsolatedRouter::builder,
+            MetadataRouter::builder,
             HealthRouter::builder,
             LaneRouter::builder,
-            MetadataRouter::builder,
             NearbyRouter::builder,
             RuleRouter::builder,
         ];
@@ -453,6 +552,8 @@ impl PluginContainer {
             WeightRandomLoadbalancer::builder,
             ConsistentHashLoadBalancer::builder,
             WeightedRoundRobinBalancer::builder,
+            LeastConnectionsLoadBalancer::builder,
+            LeastRtLoadBalancer::builder,
         ];
         for c in vec {
             let (supplier, name) = c();
@@ -469,7 +570,11 @@ impl PluginContainer {
     }
 
     fn register_service_ratelimiter(&mut self) {
-        let vec = vec![ConcurrencyLimiter::builder];
+        let vec = vec![
+            ConcurrencyLimiter::builder,
+            RejectLimiter::builder,
+            UnirateLimiter::builder,
+        ];
         for c in vec {
             let (supplier, name) = c();
             self.ratelimiter.insert(name, supplier);
@@ -493,12 +598,12 @@ impl PluginContainer {
     fn get_discover_filter_supplier(
         &self,
         name: &str,
-    ) -> fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError> {
+    ) -> fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PoleError> {
         *self.discover_filters.get(name).unwrap()
     }
 
-    fn get_ratelimiter_supplier(&self, name: &str) -> fn() -> Box<dyn ServiceRateLimiter> {
-        *self.ratelimiter.get(name).unwrap()
+    fn get_circuit_breaker_supplier(&self, name: &str) -> fn() -> Box<dyn CircuitBreaker> {
+        *self.circuit_breakers.get(name).unwrap()
     }
 
     /// register_custom_service_router 注册自定义的服务路由
@@ -522,6 +627,52 @@ impl PluginContainer {
     /// register_custom_cache_failover 注册自定义的缓存容灾
     pub fn register_custom_cache_failover(&mut self, failover: Arc<dyn ResourceCacheFailover>) {
         self.custom_cache_failover = Some(failover);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::core::config::consumer::ServiceRouterPluginConfig;
+
+    use super::{validate_router_chain_plugins, PluginContainer};
+
+    #[test]
+    fn test_validate_router_chain_plugins_should_pass_for_registered_plugin() {
+        let mut container = PluginContainer::default();
+        container.register_service_routers();
+        let chain = vec![
+            ServiceRouterPluginConfig {
+                name: "isolatedRouter".to_string(),
+                options: None,
+            },
+            ServiceRouterPluginConfig {
+                name: "metadataRouter".to_string(),
+                options: None,
+            },
+            ServiceRouterPluginConfig {
+                name: "ruleBasedRouter".to_string(),
+                options: None,
+            },
+        ];
+
+        let ret = validate_router_chain_plugins(&chain, "core", &container.service_routers);
+        assert!(ret.is_ok());
+    }
+
+    #[test]
+    fn test_validate_router_chain_plugins_should_reject_unknown_plugin() {
+        let mut container = PluginContainer::default();
+        container.register_service_routers();
+        let chain = vec![ServiceRouterPluginConfig {
+            name: "unknownRouter".to_string(),
+            options: None,
+        }];
+
+        let ret = validate_router_chain_plugins(&chain, "before", &container.service_routers);
+        assert!(ret.is_err());
+        let err = ret.err().unwrap().to_string();
+        assert!(err.contains("unknownRouter"));
+        assert!(err.contains("before"));
     }
 }
 
