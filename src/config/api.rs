@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,13 +15,17 @@
 
 use std::sync::Arc;
 
-use crate::{config::default::{DefaultConfigFileAPI, DefaultConfigGroupAPI}, core::{
-    context::SDKContext,
-    model::{
-        config::{ConfigFile, ConfigGroup},
-        error::PolarisError,
+use crate::{
+    config::default::{DefaultConfigFileAPI, DefaultConfigGroupAPI},
+    core::{
+        context::SDKContext,
+        model::{
+            config::{ConfigFile, ConfigGroup},
+            error::PoleError,
+        },
     },
-}, info};
+    info,
+};
 
 use super::req::{
     CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
@@ -30,7 +34,7 @@ use super::req::{
 };
 
 /// new_config_file_api
-pub fn new_config_file_api() -> Result<impl ConfigFileAPI, PolarisError> {
+pub fn new_config_file_api() -> Result<impl ConfigFileAPI, PoleError> {
     let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
     info!("create sdk context cost: {:?}", start_time.elapsed());
@@ -43,7 +47,7 @@ pub fn new_config_file_api() -> Result<impl ConfigFileAPI, PolarisError> {
 /// new_config_file_api_by_context
 pub fn new_config_file_api_by_context(
     context: Arc<SDKContext>,
-) -> Result<impl ConfigFileAPI, PolarisError> {
+) -> Result<impl ConfigFileAPI, PoleError> {
     Ok(DefaultConfigFileAPI::new(context))
 }
 
@@ -54,35 +58,26 @@ where
     Self: Send + Sync,
 {
     /// get_config_file 获取配置文件
-    async fn get_config_file(&self, req: GetConfigFileRequest) -> Result<ConfigFile, PolarisError>;
+    async fn get_config_file(&self, req: GetConfigFileRequest) -> Result<ConfigFile, PoleError>;
 
     /// create_config_file 创建配置文件
-    async fn create_config_file(&self, req: CreateConfigFileRequest) -> Result<bool, PolarisError>;
+    async fn create_config_file(&self, req: CreateConfigFileRequest) -> Result<bool, PoleError>;
 
     /// update_config_file 更新配置文件
-    async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PolarisError>;
+    async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PoleError>;
 
     /// publish_config_file 发布配置文件
-    async fn publish_config_file(
-        &self,
-        req: PublishConfigFileRequest,
-    ) -> Result<bool, PolarisError>;
-
-    /// upsert_publish_config_file 创建/更新配置文件后并发布
-    async fn upsert_publish_config_file(
-        &self,
-        req: UpsertAndPublishConfigFileRequest,
-    ) -> Result<bool, PolarisError>;
+    async fn publish_config_file(&self, req: PublishConfigFileRequest) -> Result<bool, PoleError>;
 
     /// watch_config_file 监听配置文件变更
     async fn watch_config_file(
         &self,
         req: WatchConfigFileRequest,
-    ) -> Result<WatchConfigFileResponse, PolarisError>;
+    ) -> Result<WatchConfigFileResponse, PoleError>;
 }
 
 /// new_config_group_api
-pub fn new_config_group_api() -> Result<impl ConfigGroupAPI, PolarisError> {
+pub fn new_config_group_api() -> Result<impl ConfigGroupAPI, PoleError> {
     let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
     info!("create sdk context cost: {:?}", start_time.elapsed());
@@ -95,7 +90,7 @@ pub fn new_config_group_api() -> Result<impl ConfigGroupAPI, PolarisError> {
 /// new_config_group_api_by_context
 pub fn new_config_group_api_by_context(
     context: Arc<SDKContext>,
-) -> Result<impl ConfigGroupAPI, PolarisError> {
+) -> Result<impl ConfigGroupAPI, PoleError> {
     Ok(DefaultConfigGroupAPI::new(context))
 }
 
@@ -109,11 +104,11 @@ where
     async fn get_publish_config_files(
         &self,
         req: GetConfigGroupRequest,
-    ) -> Result<ConfigGroup, PolarisError>;
+    ) -> Result<ConfigGroup, PoleError>;
 
     /// watch_publish_config_files 监听发布的配置文件变更
     async fn watch_publish_config_files(
         &self,
         req: WatchConfigGroupRequest,
-    ) -> Result<WatchConfigGroupResponse, PolarisError>;
+    ) -> Result<WatchConfigGroupResponse, PoleError>;
 }

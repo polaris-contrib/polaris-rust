@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,10 +13,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use prost::Message;
-
 use crate::core::model::cache::EventType;
-use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::error::{ErrorCode, PoleError};
 use crate::core::model::loadbalance::Criteria;
 use crate::core::model::naming::{
     Instance, Location, ServiceContract, ServiceInstances, ServiceInstancesChangeEvent,
@@ -38,7 +36,6 @@ pub struct InstanceRegisterRequest {
     pub service: String,
     pub ip: String,
     pub port: u32,
-    pub vpc_id: String,
     pub version: String,
     pub protocol: String,
     pub health: bool,
@@ -69,7 +66,6 @@ impl InstanceRegisterRequest {
             service: self.service.clone(),
             ip: self.ip.clone(),
             port: self.port,
-            vpc_id: self.vpc_id.clone(),
             version: self.version.clone(),
             protocol: self.protocol.clone(),
             health: self.health,
@@ -91,7 +87,6 @@ impl InstanceRegisterRequest {
             service: self.service.clone(),
             ip: self.ip.clone(),
             port: self.port,
-            vpc_id: self.vpc_id.clone(),
         }
     }
 }
@@ -120,7 +115,6 @@ impl InstanceDeregisterRequest {
             service: self.service.clone(),
             ip: self.ip.clone(),
             port: self.port,
-            vpc_id: self.vpc_id.clone(),
             version: "".to_string(),
             protocol: "".to_string(),
             health: false,
@@ -142,7 +136,6 @@ impl InstanceDeregisterRequest {
             service: self.service.clone(),
             ip: self.ip.clone(),
             port: self.port,
-            vpc_id: self.vpc_id.clone(),
         }
     }
 }
@@ -157,7 +150,6 @@ pub struct InstanceHeartbeatRequest {
     pub service: String,
     pub ip: String,
     pub port: u32,
-    pub vpc_id: String,
 }
 
 impl InstanceHeartbeatRequest {
@@ -166,8 +158,7 @@ impl InstanceHeartbeatRequest {
         let service = self.service.clone();
         let ip = self.ip.clone();
         let port: u32 = self.port;
-        let vpc_id = self.vpc_id.clone();
-        format!("{}_{}_{}_{}_{}", namespace, service, ip, port, vpc_id)
+        format!("{}_{}_{}_{}", namespace, service, ip, port)
     }
 
     pub fn convert_instance(&self) -> Instance {
@@ -176,14 +167,12 @@ impl InstanceHeartbeatRequest {
         let namespace = self.namespace.clone();
         let service = self.service.clone();
         let port = self.port;
-        let vpc_id = self.vpc_id.clone();
         Instance {
             id: instance_id.as_ref().unwrap_or(&"".to_string()).clone(),
             namespace,
             service,
             ip,
             port,
-            vpc_id,
             version: "".to_string(),
             protocol: "".to_string(),
             health: false,
@@ -217,16 +206,16 @@ pub struct GetOneInstanceRequest {
 }
 
 impl GetOneInstanceRequest {
-    pub fn check_valid(&self) -> Result<(), PolarisError> {
+    pub fn check_valid(&self) -> Result<(), PoleError> {
         if self.service.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "service is empty".to_string(),
             ));
         }
 
         if self.namespace.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "namespace is empty".to_string(),
             ));
@@ -243,16 +232,16 @@ pub struct GetHealthInstanceRequest {
 }
 
 impl GetHealthInstanceRequest {
-    pub fn check_valid(&self) -> Result<(), PolarisError> {
+    pub fn check_valid(&self) -> Result<(), PoleError> {
         if self.service.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "service is empty".to_string(),
             ));
         }
 
         if self.namespace.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "namespace is empty".to_string(),
             ));
@@ -270,16 +259,16 @@ pub struct GetAllInstanceRequest {
 }
 
 impl GetAllInstanceRequest {
-    pub fn check_valid(&self) -> Result<(), PolarisError> {
+    pub fn check_valid(&self) -> Result<(), PoleError> {
         if self.service.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "service is empty".to_string(),
             ));
         }
 
         if self.namespace.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "namespace is empty".to_string(),
             ));
@@ -305,16 +294,16 @@ pub struct WatchInstanceRequest {
 }
 
 impl WatchInstanceRequest {
-    pub fn check_valid(&self) -> Result<(), PolarisError> {
+    pub fn check_valid(&self) -> Result<(), PoleError> {
         if self.service.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "service is empty".to_string(),
             ));
         }
 
         if self.namespace.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "namespace is empty".to_string(),
             ));
@@ -351,7 +340,55 @@ impl WatchInstanceResponse {
     }
 }
 
-pub struct ServiceCallResult {}
+#[derive(Clone, Debug)]
+pub enum ServiceCallStep {
+    Begin,
+    End,
+}
+
+#[derive(Clone, Debug)]
+pub struct ServiceCallResult {
+    pub namespace: String,
+    pub service: String,
+    pub instance: Instance,
+    pub duration: Duration,
+    pub success: bool,
+    pub error_code: Option<String>,
+    pub step: ServiceCallStep,
+}
+
+impl ServiceCallResult {
+    pub fn begin(namespace: String, service: String, instance: Instance) -> Self {
+        Self {
+            namespace,
+            service,
+            instance,
+            duration: Duration::default(),
+            success: true,
+            error_code: None,
+            step: ServiceCallStep::Begin,
+        }
+    }
+
+    pub fn end(
+        namespace: String,
+        service: String,
+        instance: Instance,
+        duration: Duration,
+        success: bool,
+        error_code: Option<String>,
+    ) -> Self {
+        Self {
+            namespace,
+            service,
+            instance,
+            duration,
+            success,
+            error_code,
+            step: ServiceCallStep::End,
+        }
+    }
+}
 
 pub enum ServiceRuleType {
     Router,

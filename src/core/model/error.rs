@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -68,7 +68,7 @@ impl Default for ErrorCode {
 }
 
 #[derive(Debug, Clone)]
-pub struct PolarisError
+pub struct PoleError
 where
     Self: Display + Send + Sync,
 {
@@ -76,15 +76,15 @@ where
     err_code: ErrorCode,
 }
 
-impl Display for PolarisError {
+impl Display for PoleError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "err_code={:?} err_msg={}", self.err_code, self.err_msg)
     }
 }
 
-impl PolarisError {
+impl PoleError {
     pub fn new(code: ErrorCode, err_msg: String) -> Self {
-        PolarisError {
+        PoleError {
             err_msg,
             err_code: code,
         }

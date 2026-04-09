@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -18,26 +18,27 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use polaris_specification::v1::{
+use pole_specification::v1::{
     config_discover_request::ConfigDiscoverRequestType,
-    config_discover_response::ConfigDiscoverResponseType, ConfigDiscoverRequest,
+    config_discover_response::ConfigDiscoverResponseType, ConfigDiscoverFilter,
+    ConfigDiscoverRequest,
 };
 
 use crate::core::{
     model::{
         config::{get_encrypt_algo, get_encrypt_data_key},
-        error::PolarisError,
+        error::PoleError,
         DiscoverRequestInfo, DiscoverResponseInfo,
     },
     plugin::{filter::DiscoverFilter, plugins::Plugin},
 };
 
+use crate::error;
 use aes::Aes128;
 use base64::{engine::general_purpose::STANDARD as base64_standard, Engine as _};
 use block_modes::{block_padding::Pkcs7, BlockMode, Cbc};
 use rsa::{pkcs1::EncodeRsaPublicKey, pkcs8::LineEnding, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
-use crate::error;
 
 #[derive(Serialize, Deserialize)]
 pub struct CryptoConfig {
@@ -58,10 +59,10 @@ where
     Self: Send + Sync,
 {
     /// encrypt
-    fn encrypt(&self, plaintext: String, key: String) -> Result<String, PolarisError>;
+    fn encrypt(&self, plaintext: String, key: String) -> Result<String, PoleError>;
 
     /// decrypt
-    fn decrypt(&self, ciphertext: String, key: String) -> Result<String, PolarisError>;
+    fn decrypt(&self, ciphertext: String, key: String) -> Result<String, PoleError>;
 }
 
 fn load_cryptors(conf: CryptoConfig) -> HashMap<String, Box<dyn Cryptor>> {
@@ -79,7 +80,7 @@ fn load_cryptors(conf: CryptoConfig) -> HashMap<String, Box<dyn Cryptor>> {
             }
             None => {
                 error!(
-                    "[polaris][plugin][config_filter] crypto not found expect algo: {}",
+                    "[pole][plugin][config_filter] crypto not found expect algo: {}",
                     name
                 );
             }
@@ -88,7 +89,7 @@ fn load_cryptors(conf: CryptoConfig) -> HashMap<String, Box<dyn Cryptor>> {
     repo
 }
 
-pub fn new_filter(plugin_opt: serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError> {
+pub fn new_filter(plugin_opt: serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PoleError> {
     let rsa_cryptor = RSACryptor::new();
     if rsa_cryptor.is_err() {
         return Err(rsa_cryptor.err().unwrap());
@@ -109,7 +110,7 @@ pub struct ConfigFileCryptoFilter {
 
 impl ConfigFileCryptoFilter {
     pub fn builder() -> (
-        fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PolarisError>,
+        fn(serde_yaml::Value) -> Result<Box<dyn DiscoverFilter>, PoleError>,
         String,
     ) {
         (new_filter, "crypto".to_string())
@@ -130,38 +131,40 @@ impl DiscoverFilter for ConfigFileCryptoFilter {
     fn request_process(
         &self,
         request: crate::core::model::DiscoverRequestInfo,
-    ) -> Result<crate::core::model::DiscoverRequestInfo, crate::core::model::error::PolarisError>
-    {
+    ) -> Result<crate::core::model::DiscoverRequestInfo, crate::core::model::error::PoleError> {
         let expect_req = request.to_config_request();
         if expect_req.r#type() != ConfigDiscoverRequestType::ConfigFile {
             return Ok(request);
         }
         let pub_key = self.rsa_cryptor.public_key.clone();
         let encrypt_key = base64::prelude::BASE64_STANDARD.encode(pub_key);
-        let mut config_file = expect_req.config_file.unwrap().clone();
-        config_file.public_key = Some(encrypt_key);
+        let mut config_file = expect_req.file.unwrap().clone();
         Ok(DiscoverRequestInfo::Configuration(ConfigDiscoverRequest {
             r#type: ConfigDiscoverRequestType::ConfigFile.into(),
-            config_file: Some(config_file),
+            file: Some(config_file),
             revision: expect_req.revision,
+            filter: Some(ConfigDiscoverFilter {
+                public_key: encrypt_key,
+                caller: None,
+            }),
         }))
     }
 
     fn response_process(
         &self,
         response: crate::core::model::DiscoverResponseInfo,
-    ) -> Result<crate::core::model::DiscoverResponseInfo, crate::core::model::error::PolarisError>
+    ) -> Result<crate::core::model::DiscoverResponseInfo, crate::core::model::error::PoleError>
     {
         let mut expect_rsp = response.to_config_response();
         if expect_rsp.r#type() != ConfigDiscoverResponseType::ConfigFile {
             return Ok(response);
         }
 
-        let mut config_file = expect_rsp.config_file.unwrap().clone();
-        let encrypted = config_file.encrypted.unwrap_or(false);
-        if !encrypted {
-            return Ok(response);
-        }
+        let mut config_file = expect_rsp.file.unwrap().clone();
+        // let encrypted = config_file.labels.get("").unwrap_or(false);
+        // if !encrypted {
+        //     return Ok(response);
+        // }
         // 通过 rsa 将 data_key 解密
         let encrypt_data_key = self
             .rsa_cryptor
@@ -173,7 +176,7 @@ impl DiscoverFilter for ConfigFileCryptoFilter {
             }
             Err(err) => {
                 error!(
-                    "[polaris][plugin][config_filter] cipher datakey use rsa decrypt fail: {}",
+                    "[pole][plugin][config_filter] cipher datakey use rsa decrypt fail: {}",
                     err
                 );
                 let u8_slice = base64_standard
@@ -190,17 +193,17 @@ impl DiscoverFilter for ConfigFileCryptoFilter {
         match cryptor_opt {
             Some(cryptor) => {
                 let source_content = config_file.content;
-                let decrypted = cryptor.decrypt(source_content.unwrap(), data_key);
-                match decrypted {
+                let decrypt_ret = cryptor.decrypt(source_content, data_key);
+                match decrypt_ret {
                     Ok(decrypted) => {
-                        config_file.content = Some(decrypted);
-                        expect_rsp.config_file = Some(config_file);
+                        config_file.content = decrypted;
+                        expect_rsp.file = Some(config_file);
                         Ok(DiscoverResponseInfo::Configuration(expect_rsp))
                     }
                     Err(err) => Err(err),
                 }
             }
-            None => Err(PolarisError::new(
+            None => Err(PoleError::new(
                 crate::core::model::error::ErrorCode::ConfigCryptoError,
                 format!("unsupported encrypt algorithm: {}", algo),
             )),
@@ -215,12 +218,12 @@ struct RSACryptor {
 }
 
 impl RSACryptor {
-    fn new() -> Result<RSACryptor, PolarisError> {
+    fn new() -> Result<RSACryptor, PoleError> {
         let mut rng = rand::thread_rng();
         let bits = 1024;
         let priv_key_ret = RsaPrivateKey::new(&mut rng, bits);
         if priv_key_ret.is_err() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 crate::core::model::error::ErrorCode::RsaKeyGenerateError,
                 format!(
                     "failed to generate rsa key: {}",
@@ -232,7 +235,7 @@ impl RSACryptor {
         let pub_key = RsaPublicKey::from(&priv_key);
         let public_key_base64 = pub_key.to_pkcs1_pem(LineEnding::LF);
         if public_key_base64.is_err() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 crate::core::model::error::ErrorCode::RsaKeyGenerateError,
                 format!(
                     "failed to generate rsa key: {}",
@@ -247,13 +250,13 @@ impl RSACryptor {
         })
     }
 
-    fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, PolarisError> {
+    fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, PoleError> {
         let mut rng = rand::thread_rng();
         let ret = self
             ._pub_key
             .encrypt(&mut rng, rsa::Pkcs1v15Encrypt, plaintext);
         if ret.is_err() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 crate::core::model::error::ErrorCode::AesDecryptError,
                 format!("failed to encrypt: {}", ret.err().unwrap()),
             ));
@@ -261,10 +264,10 @@ impl RSACryptor {
         Ok(ret.unwrap())
     }
 
-    fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, PolarisError> {
+    fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, PoleError> {
         let ret = self.priv_key.decrypt(rsa::Pkcs1v15Encrypt, ciphertext);
         if ret.is_err() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 crate::core::model::error::ErrorCode::AesDecryptError,
                 format!("failed to decrypt: {}", ret.err().unwrap()),
             ));
@@ -272,7 +275,7 @@ impl RSACryptor {
         Ok(ret.unwrap())
     }
 
-    fn encrypt_to_base64(&self, plaintext: &[u8]) -> Result<String, PolarisError> {
+    fn encrypt_to_base64(&self, plaintext: &[u8]) -> Result<String, PoleError> {
         let ciphertext = self.encrypt(plaintext);
         match ciphertext {
             Ok(ciphertext) => {
@@ -284,7 +287,7 @@ impl RSACryptor {
         }
     }
 
-    fn decrypt_from_base64(&self, base64_ciphertext: String) -> Result<String, PolarisError> {
+    fn decrypt_from_base64(&self, base64_ciphertext: String) -> Result<String, PoleError> {
         let ret = base64_standard.decode(base64_ciphertext);
         match ret {
             Ok(ciphertext) => {
@@ -294,7 +297,7 @@ impl RSACryptor {
                     Err(err) => Err(err),
                 }
             }
-            Err(err) => Err(PolarisError::new(
+            Err(err) => Err(PoleError::new(
                 crate::core::model::error::ErrorCode::AesDecryptError,
                 err.to_string(),
             )),
@@ -307,7 +310,7 @@ type Aes256Cbc = Cbc<Aes128, Pkcs7>;
 pub struct AESCryptor {}
 
 impl Cryptor for AESCryptor {
-    fn encrypt(&self, plaintext: String, key: String) -> Result<String, PolarisError> {
+    fn encrypt(&self, plaintext: String, key: String) -> Result<String, PoleError> {
         let key_slice = key.as_bytes();
         let iv = key.as_bytes()[0..16].to_vec();
         let cipher = Aes256Cbc::new_from_slices(key_slice, &iv).unwrap();
@@ -316,7 +319,7 @@ impl Cryptor for AESCryptor {
         Ok(base64_standard.encode(encrypted_data))
     }
 
-    fn decrypt(&self, ciphertext: String, key: String) -> Result<String, PolarisError> {
+    fn decrypt(&self, ciphertext: String, key: String) -> Result<String, PoleError> {
         let key_slice = key.as_bytes();
         let iv = key.as_bytes()[0..16].to_vec();
         let cipher = Aes256Cbc::new_from_slices(key_slice, &iv).unwrap();
@@ -329,19 +332,19 @@ impl Cryptor for AESCryptor {
                         let ret = String::from_utf8(data);
                         match ret {
                             Ok(txt) => Ok(txt),
-                            Err(_) => Err(PolarisError::new(
+                            Err(_) => Err(PoleError::new(
                                 crate::core::model::error::ErrorCode::AesDecryptError,
                                 "failed to convert decrypted data to string".to_string(),
                             )),
                         }
                     }
-                    Err(err) => Err(PolarisError::new(
+                    Err(err) => Err(PoleError::new(
                         crate::core::model::error::ErrorCode::AesDecryptError,
                         format!("failed to decrypt: {}", err),
                     )),
                 }
             }
-            Err(err) => Err(PolarisError::new(
+            Err(err) => Err(PoleError::new(
                 crate::core::model::error::ErrorCode::AesDecryptError,
                 format!("failed to decode base64 ciphertext: {}", err),
             )),

@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -28,6 +28,13 @@ macro_rules! debug {
 }
 
 #[macro_export]
+macro_rules! debug_enabled {
+    () => {{
+        $crate::core::logger::logger::enabled(tracing::Level::DEBUG)
+    }};
+}
+
+#[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => {{
         $crate::core::logger::logger::log(tracing::Level::INFO, &format!($($arg)*));
@@ -47,4 +54,3 @@ macro_rules! error {
         $crate::core::logger::logger::log(tracing::Level::ERROR, &format!($($arg)*));
     }}
 }
-

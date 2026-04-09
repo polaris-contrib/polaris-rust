@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,32 +15,36 @@
 
 use std::env::VarError;
 
-use polaris_specification::v1::{match_string::ValueType, MatchString, Route};
+use pole_specification::v1::{match_string::ValueType, CustomRoute, CustomRouteRule};
 
-use crate::core::{model::ArgumentType, plugin::router::RouteContext};
-
-static WILDCARD: &str = "*";
+use crate::core::{helper::helper, model::ArgumentType, plugin::router::RouteContext};
 
 // route_traffic_match 匹配主、被调服务信息，以及匹配请求流量标签
-pub fn route_traffic_match(ctx: &RouteContext, rule: &Route) -> bool {
-    if !match_callee_caller(ctx, rule) {
-        return false;
+pub fn route_traffic_match(
+    ctx: &RouteContext,
+    custom_route: &CustomRoute,
+) -> Option<CustomRouteRule> {
+    if !match_callee_caller(ctx, custom_route) {
+        return None;
     }
 
     let traffic_provider = ctx.route_info.traffic_label_provider;
     let ext_provider = ctx.route_info.external_parameter_supplier;
 
     // 匹配流量标签
-    for (_, ele) in rule.sources.iter().enumerate() {
+    for (_, ele) in custom_route.rules.iter().enumerate() {
         let mut matched = true;
-        for (_, (key, rule_value)) in ele.metadata.iter().enumerate() {
-            let mut match_key = key.as_str();
-            let mut actual_val = String::new();
+        let traffic_labels = ele.arguments.as_ref().unwrap();
 
-            match rule_value.value_type() {
+        for (_, source_match) in traffic_labels.arguments.iter().enumerate() {
+            let mut match_key = source_match.key.as_str();
+            let match_value = source_match.value.as_ref().unwrap();
+            let mut actual_val = Option::<String>::default();
+
+            match match_value.value_type() {
                 ValueType::Text => {
                     let mut traffic_type = ArgumentType::Custom;
-                    if key.contains(".") {
+                    if match_key.contains(".") {
                         let parts: Vec<&str> = match_key.splitn(2, '.').collect();
                         match_key = parts[1];
                         let mut label_prefix = parts[0];
@@ -49,106 +53,63 @@ pub fn route_traffic_match(ctx: &RouteContext, rule: &Route) -> bool {
                         }
                         traffic_type = ArgumentType::parse_from_str(label_prefix);
                     }
-                    actual_val = traffic_provider(traffic_type, match_key).unwrap_or(String::new());
+                    // 假设 traffic_provider 返回 Option<&str>，需转成 Option<String>
+                    actual_val = traffic_provider(traffic_type, match_key);
                 }
                 // 匹配参数，那就直接从 traffic_labels 中获取
                 ValueType::Parameter => continue,
                 // 上下文环境变量，value 为环境变量名
                 ValueType::Variable => match std::env::var(match_key) {
-                    Ok(v) => actual_val = v,
+                    Ok(v) => actual_val = Some(v),
                     Err(err) => {
                         if err != VarError::NotPresent {
-                            return false;
+                            continue;
                         }
                         match ext_provider(match_key) {
-                            Some(v) => actual_val = v,
-                            None => return false,
+                            Some(v) => actual_val = Some(v.to_string()),
+                            None => continue,
                         }
                     }
                 },
             }
 
-            if match_label_value(rule_value, actual_val) {
+            if helper::match_label_value(match_value, actual_val.as_deref()) {
                 matched = false;
                 break;
             }
         }
 
         if matched {
-            return true;
+            return Some(ele.clone());
         }
     }
-    false
-}
-
-/// match_label_value 匹配标签值
-pub fn match_label_value(rule_value: &MatchString, actual_val: String) -> bool {
-    let match_value = rule_value.value.clone().unwrap_or("".to_string());
-    if is_match_all(&match_value) {
-        return true;
-    }
-
-    match rule_value.r#type() {
-        polaris_specification::v1::match_string::MatchStringType::Exact => {
-            return match_value == actual_val;
-        }
-        polaris_specification::v1::match_string::MatchStringType::NotEquals => {
-            return match_value != actual_val;
-        }
-        polaris_specification::v1::match_string::MatchStringType::Regex => {
-            return regex::Regex::new(&match_value)
-                .unwrap()
-                .is_match(&actual_val);
-        }
-        polaris_specification::v1::match_string::MatchStringType::In => {
-            return match_value.split(',').any(|x| x == actual_val);
-        }
-        polaris_specification::v1::match_string::MatchStringType::NotIn => {
-            return !match_value.split(',').any(|x| x == actual_val);
-        }
-        polaris_specification::v1::match_string::MatchStringType::Range => {
-            let parts: Vec<&str> = match_value.split(',').collect();
-            if parts.len() != 2 {
-                return false;
-            }
-            let min = parts[0].parse::<i64>().unwrap();
-            let max = parts[1].parse::<i64>().unwrap();
-            let actual_val = actual_val.parse::<i64>().unwrap();
-            return actual_val >= min && actual_val <= max;
-        }
-    }
+    return None;
 }
 
 /// match_callee_caller 匹配主被调服务信息
-pub fn match_callee_caller(rctx: &RouteContext, rule: &Route) -> bool {
+pub fn match_callee_caller(rctx: &RouteContext, rule: &CustomRoute) -> bool {
     let caller = &rctx.route_info.caller;
     let callee = &rctx.route_info.callee;
 
-    for (_, ele) in rule.sources.iter().enumerate() {
-        let svc = ele.service.clone().unwrap();
-        let ns = ele.namespace.clone().unwrap();
-        if svc != caller.name && !is_match_all(&svc) {
-            return false;
-        }
-        if ns != caller.namespace && !is_match_all(&ns) {
-            return false;
-        }
+    let rule_caller = rule.caller.as_ref().unwrap();
+    let rule_callee = rule.callee.as_ref().unwrap();
+
+    let svc = &rule_caller.service;
+    let ns = &rule_caller.namespace;
+    if svc != &caller.name && !helper::is_match_all(&svc) {
+        return false;
+    }
+    if ns != &caller.namespace && !helper::is_match_all(&ns) {
+        return false;
     }
 
-    for (_, ele) in rule.destinations.iter().enumerate() {
-        let svc = ele.service.clone().unwrap();
-        let ns = ele.namespace.clone().unwrap();
-        if svc != callee.name && !is_match_all(&svc) {
-            return false;
-        }
-        if ns != callee.namespace && !is_match_all(&ns) {
-            return false;
-        }
+    let svc = &rule_callee.service;
+    let ns = &rule_callee.namespace;
+    if svc != &callee.name && !helper::is_match_all(&svc) {
+        return false;
     }
-
+    if ns != &callee.namespace && !helper::is_match_all(&ns) {
+        return false;
+    }
     true
-}
-
-pub fn is_match_all(s: &str) -> bool {
-    s == WILDCARD
 }

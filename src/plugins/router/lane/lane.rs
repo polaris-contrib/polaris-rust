@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -16,7 +16,7 @@
 use crate::core::{
     config::consumer::ServiceRouterPluginConfig,
     model::{
-        error::PolarisError,
+        error::PoleError,
         naming::ServiceInstances,
         router::{RouteResult, RouteState, DEFAULT_ROUTER_LANE},
     },
@@ -58,7 +58,7 @@ impl ServiceRouter for LaneRouter {
         &self,
         route_info: RouteContext,
         instances: ServiceInstances,
-    ) -> Result<RouteResult, PolarisError> {
+    ) -> Result<RouteResult, PoleError> {
         Ok(RouteResult {
             instances,
             state: RouteState::Next,

@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -16,12 +16,12 @@
 use std::sync::Arc;
 
 use crate::core::context::SDKContext;
-use crate::core::model::error::PolarisError;
+use crate::core::model::error::PoleError;
 use crate::discovery::default::{DefaultConsumerAPI, DefaultLosslessAPI, DefaultProviderAPI};
 use crate::discovery::req::*;
 
 /// new_provider_api
-pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
+pub fn new_provider_api() -> Result<impl ProviderAPI, PoleError> {
     let start_time = std::time::Instant::now();
     let context_ret = SDKContext::default();
     crate::info!("create sdk context cost: {:?}", start_time.elapsed());
@@ -34,7 +34,7 @@ pub fn new_provider_api() -> Result<impl ProviderAPI, PolarisError> {
 
 pub fn new_provider_api_by_context(
     context: Arc<SDKContext>,
-) -> Result<impl ProviderAPI, PolarisError> {
+) -> Result<impl ProviderAPI, PoleError> {
     Ok(DefaultProviderAPI::new(context))
 }
 
@@ -48,26 +48,26 @@ where
     async fn register(
         &self,
         req: InstanceRegisterRequest,
-    ) -> Result<InstanceRegisterResponse, PolarisError>;
+    ) -> Result<InstanceRegisterResponse, PoleError>;
 
     /// deregister 实例反注册
-    async fn deregister(&self, req: InstanceDeregisterRequest) -> Result<(), PolarisError>;
+    async fn deregister(&self, req: InstanceDeregisterRequest) -> Result<(), PoleError>;
 
     /// heartbeat 实例心跳上报
-    async fn heartbeat(&self, req: InstanceHeartbeatRequest) -> Result<(), PolarisError>;
+    async fn heartbeat(&self, req: InstanceHeartbeatRequest) -> Result<(), PoleError>;
 
     /// report_service_contract 上报服务接口定义信息
     async fn report_service_contract(
         &self,
         req: ReportServiceContractRequest,
-    ) -> Result<(), PolarisError>;
+    ) -> Result<(), PoleError>;
 
     /// close 关闭 ProviderAPI 实例
     async fn close(&mut self);
 }
 
 /// new_consumer_api
-pub fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
+pub fn new_consumer_api() -> Result<impl ConsumerAPI, PoleError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
@@ -78,7 +78,7 @@ pub fn new_consumer_api() -> Result<impl ConsumerAPI, PolarisError> {
 
 pub fn new_consumer_api_by_context(
     context: Arc<SDKContext>,
-) -> Result<impl ConsumerAPI, PolarisError> {
+) -> Result<impl ConsumerAPI, PoleError> {
     Ok(DefaultConsumerAPI::new(context))
 }
 
@@ -92,38 +92,32 @@ where
     async fn get_one_instance(
         &self,
         req: GetOneInstanceRequest,
-    ) -> Result<InstanceResponse, PolarisError>;
+    ) -> Result<InstanceResponse, PoleError>;
 
     /// get_health_instance 拉取健康实例
     async fn get_health_instance(
         &self,
         req: GetHealthInstanceRequest,
-    ) -> Result<InstancesResponse, PolarisError>;
+    ) -> Result<InstancesResponse, PoleError>;
 
     /// get_all_instance 拉取所有实例
     async fn get_all_instance(
         &self,
         req: GetAllInstanceRequest,
-    ) -> Result<InstancesResponse, PolarisError>;
+    ) -> Result<InstancesResponse, PoleError>;
 
     /// watch_instance 监听实例变化
     async fn watch_instance(
         &self,
         req: WatchInstanceRequest,
-    ) -> Result<WatchInstanceResponse, PolarisError>;
-
-    /// get_service_rule 获取服务规则
-    async fn get_service_rule(
-        &self,
-        req: GetServiceRuleRequest,
-    ) -> Result<ServiceRuleResponse, PolarisError>;
+    ) -> Result<WatchInstanceResponse, PoleError>;
 
     /// report_service_call 上报服务调用结果
     async fn report_service_call(&self, req: ServiceCallResult);
 }
 
 /// new_lossless_api 创建优雅上下线客户端实例
-pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {
+pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PoleError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
@@ -135,7 +129,7 @@ pub(crate) fn new_lossless_api() -> Result<impl LosslessAPI, PolarisError> {
 /// new_lossless_api_by_context 创建优雅上下线客户端实例
 pub(crate) fn new_lossless_api_by_context(
     context: SDKContext,
-) -> Result<Arc<dyn LosslessAPI>, PolarisError> {
+) -> Result<Arc<dyn LosslessAPI>, PoleError> {
     Ok(Arc::new(DefaultLosslessAPI::new(context)))
 }
 

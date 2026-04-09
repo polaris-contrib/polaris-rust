@@ -15,19 +15,24 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use polaris_rust::{core::{
-    context::SDKContext,
-    model::{error::PolarisError, loadbalance::Criteria, naming::Location, router::RouteInfo},
-}, discovery::{
-    api::{new_consumer_api_by_context, new_provider_api_by_context, ConsumerAPI, ProviderAPI},
-    req::{
-        GetAllInstanceRequest, GetOneInstanceRequest, InstanceDeregisterRequest, InstanceRegisterRequest, WatchInstanceRequest
+use pole_client_rust::{
+    core::{
+        context::SDKContext,
+        model::{error::PoleError, loadbalance::Criteria, naming::Location, router::RouteInfo},
     },
-}, error, info};
+    discovery::{
+        api::{new_consumer_api_by_context, new_provider_api_by_context, ConsumerAPI, ProviderAPI},
+        req::{
+            GetAllInstanceRequest, GetOneInstanceRequest, InstanceDeregisterRequest,
+            InstanceRegisterRequest, WatchInstanceRequest,
+        },
+    },
+    error, info,
+};
 use tracing::level_filters::LevelFilter;
 
 #[tokio::main]
-async fn main() -> Result<(), PolarisError> {
+async fn main() -> Result<(), PoleError> {
     tracing_subscriber::fmt()
         // all spans/events with a level higher than TRACE (e.g, info, warn, etc.)
         // will be written to stdout.
@@ -48,8 +53,8 @@ async fn main() -> Result<(), PolarisError> {
             "create sdk context fail: {}",
             sdk_context_ret.err().unwrap()
         );
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -58,8 +63,8 @@ async fn main() -> Result<(), PolarisError> {
     let provider_ret = new_provider_api_by_context(arc_ctx.clone());
     if provider_ret.is_err() {
         error!("create provider fail: {}", provider_ret.err().unwrap());
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -67,8 +72,8 @@ async fn main() -> Result<(), PolarisError> {
     let consumer_ret = new_consumer_api_by_context(arc_ctx);
     if consumer_ret.is_err() {
         error!("create consumer fail: {}", consumer_ret.err().unwrap());
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -87,10 +92,9 @@ async fn main() -> Result<(), PolarisError> {
         timeout: Duration::from_secs(1),
         id: None,
         namespace: "rust-demo".to_string(),
-        service: "polaris-rust-provider".to_string(),
+        service: "pole-rust-provider".to_string(),
         ip: "1.1.1.1".to_string(),
         port: 8080,
-        vpc_id: "1".to_string(),
         version: "1".to_string(),
         protocol: "1".to_string(),
         health: true,
@@ -119,7 +123,7 @@ async fn main() -> Result<(), PolarisError> {
     let watch_rsp = consumer
         .watch_instance(WatchInstanceRequest {
             namespace: "rust-demo".to_string(),
-            service: "polaris-rust-provider".to_string(),
+            service: "pole-rust-provider".to_string(),
             call_back: Arc::new(|instances| {
                 info!("watch instance: {:?}", instances.instances);
             }),
@@ -138,7 +142,7 @@ async fn main() -> Result<(), PolarisError> {
             flow_id: uuid::Uuid::new_v4().to_string(),
             timeout: Duration::from_secs(10),
             namespace: "rust-demo".to_string(),
-            service: "polaris-rust-provider".to_string(),
+            service: "pole-rust-provider".to_string(),
         })
         .await;
 
@@ -154,17 +158,19 @@ async fn main() -> Result<(), PolarisError> {
     // 执行路由以及负载均衡能力
     let mut route_info = RouteInfo::default();
 
-    let ret = consumer.get_one_instance(GetOneInstanceRequest{
-        flow_id: uuid::Uuid::new_v4().to_string(),
-        timeout: Duration::from_secs(10),
-        namespace: "rust-demo".to_string(),
-        service: "polaris-rust-provider".to_string(),
-        criteria: Criteria{
-            policy: "random".to_string(),
-            hash_key: "".to_string(),
-        },
-        route_info: route_info,
-    }).await;
+    let ret = consumer
+        .get_one_instance(GetOneInstanceRequest {
+            flow_id: uuid::Uuid::new_v4().to_string(),
+            timeout: Duration::from_secs(10),
+            namespace: "rust-demo".to_string(),
+            service: "pole-rust-provider".to_string(),
+            criteria: Criteria {
+                policy: "random".to_string(),
+                hash_key: "".to_string(),
+            },
+            route_info: route_info,
+        })
+        .await;
 
     match ret {
         Err(err) => {
@@ -184,7 +190,7 @@ async fn main() -> Result<(), PolarisError> {
         flow_id: uuid::Uuid::new_v4().to_string(),
         timeout: Duration::from_secs(1),
         namespace: "rust-demo".to_string(),
-        service: "polaris-rust-provider".to_string(),
+        service: "pole-rust-provider".to_string(),
         ip: "1.1.1.1".to_string(),
         port: 8080,
         vpc_id: "1".to_string(),

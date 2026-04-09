@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -17,10 +17,10 @@ use crate::core::config::config_file::ConfigFileConfig;
 use crate::core::config::consumer::ConsumerConfig;
 use crate::core::config::global::GlobalConfig;
 use crate::core::config::provider::ProviderConfig;
+use crate::info;
 use serde::Deserialize;
 use std::path::Path;
 use std::{env, fs, io};
-use crate::info;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -33,9 +33,9 @@ pub struct Configuration {
 
 pub fn load_default<'a>() -> Result<Configuration, io::Error> {
     // 这里兼容不同 yaml 文件格式的后缀
-    let mut path = Path::new("./polaris.yaml");
+    let mut path = Path::new("./pole.yaml");
     if !path.exists() {
-        path = Path::new("./polaris.yml");
+        path = Path::new("./pole.yml");
     }
     if env::var("POLARIS_RUST_CONFIG").is_ok() {
         let custom_conf_path = env::var("POLARIS_RUST_CONFIG").unwrap();

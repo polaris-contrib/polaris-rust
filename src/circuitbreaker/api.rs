@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -18,8 +18,11 @@ use std::{sync::Arc, time::Duration};
 use crate::core::{
     flow::CircuitBreakerFlow,
     model::{
-        circuitbreaker::{CallAbortedError, CheckResult, MethodResource, Resource, ResourceStat, RetStatus, ServiceResource},
-        error::PolarisError,
+        circuitbreaker::{
+            CallAbortedError, CheckResult, MethodResource, Resource, ResourceStat, RetStatus,
+            ServiceResource,
+        },
+        error::PoleError,
     },
 };
 
@@ -32,14 +35,14 @@ where
     Self: Send + Sync,
 {
     /// check_resource .
-    async fn check_resource(&self, resource: Resource) -> Result<CheckResult, PolarisError>;
+    async fn check_resource(&self, resource: Resource) -> Result<CheckResult, PoleError>;
     /// report_stat .
-    async fn report_stat(&self, stat: ResourceStat) -> Result<(), PolarisError>;
+    async fn report_stat(&self, stat: ResourceStat) -> Result<(), PoleError>;
     /// make_invoke_handler .
     async fn make_invoke_handler(
         &self,
         req: RequestContext,
-    ) -> Result<Arc<InvokeHandler>, PolarisError>;
+    ) -> Result<Arc<InvokeHandler>, PoleError>;
 }
 
 /// InvokeHandler .
@@ -56,36 +59,47 @@ impl InvokeHandler {
     }
 
     /// acquire_permission 检查当前请求是否可放通
-    async fn acquire_permission(&self) -> Result<(), CallAbortedError> {
+    pub async fn acquire_permission(&self) -> Result<(), CallAbortedError> {
         let svc_res = ServiceResource::new_waith_caller(
-            self.req_ctx.caller_service.clone(), 
-        self.req_ctx.callee_service.clone());
+            self.req_ctx.caller_service.clone(),
+            self.req_ctx.callee_service.clone(),
+        );
 
-        match self.flow.check_resource(Resource::ServiceResource(svc_res)).await {
+        match self
+            .flow
+            .check_resource(Resource::ServiceResource(svc_res))
+            .await
+        {
             Ok(ret) => {
                 if ret.pass {
                     Ok(())
                 } else {
                     Err(CallAbortedError::new(ret.rule_name, ret.fallback_info))
                 }
-            },
+            }
             Err(e) => {
                 // 内部异常，不触发垄断，但是需要记录
                 crate::error!("[circuitbreaker][invoke] check resource failed: {:?}", e);
                 Ok(())
-            },
+            }
         }
     }
 
-    async fn on_success(&self, rsp: ResponseContext) -> Result<(), PolarisError> {
-        let cost = rsp.duration.clone();
+    pub async fn on_success(&self, rsp: ResponseContext) -> Result<(), PoleError> {
+        let ResponseContext {
+            duration: cost,
+            result,
+            error,
+        } = rsp;
         let mut code = -1 as i32;
         let mut status = RetStatus::RetSuccess;
 
         if let Some(r) = &self.req_ctx.result_to_code {
-            code = r.on_success(rsp.result.unwrap());
+            if let Some(val) = result {
+                code = r.on_success(val);
+            }
         }
-        if let Some(e) = rsp.error {
+        if let Some(e) = error {
             let ret = e.downcast::<CallAbortedError>();
             if ret.is_ok() {
                 status = RetStatus::RetReject;
@@ -94,22 +108,36 @@ impl InvokeHandler {
         self.common_report(cost, code, status).await
     }
 
-    async fn on_error(&self, rsp: ResponseContext) -> Result<(), PolarisError> {
-        let cost = rsp.duration.clone();
+    pub async fn on_error(&self, rsp: ResponseContext) -> Result<(), PoleError> {
+        let ResponseContext {
+            duration: cost,
+            result,
+            error,
+        } = rsp;
         let mut code = 0 as i32;
-        let mut status = RetStatus::RetUnknown;
+        let status = RetStatus::RetFail;
 
         if let Some(r) = &self.req_ctx.result_to_code {
-            code = r.on_success(rsp.result.unwrap());
+            if let Some(err) = error {
+                code = r.on_error(err);
+            } else if let Some(val) = result {
+                code = r.on_success(val);
+            }
         }
         self.common_report(cost, code, status).await
     }
 
-    async fn common_report(&self, cost: Duration, code: i32, status: RetStatus) -> Result<(), PolarisError> {
+    async fn common_report(
+        &self,
+        cost: Duration,
+        code: i32,
+        status: RetStatus,
+    ) -> Result<(), PoleError> {
         let stat = ResourceStat {
             resource: Resource::ServiceResource(ServiceResource::new_waith_caller(
-                self.req_ctx.caller_service.clone(), 
-            self.req_ctx.callee_service.clone())),
+                self.req_ctx.caller_service.clone(),
+                self.req_ctx.callee_service.clone(),
+            )),
             ret_code: code.to_string(),
             delay: cost,
             status: status.clone(),

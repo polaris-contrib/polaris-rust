@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -72,10 +72,9 @@ mod tests {
                     timeout: Duration::from_secs(1),
                     id: None,
                     namespace: "rust-demo".to_string(),
-                    service: "polaris-rust-provider".to_string(),
+                    service: "pole-rust-provider".to_string(),
                     ip: "1.1.1.1".to_string(),
                     port: 8080,
-                    vpc_id: "1".to_string(),
                     version: "1".to_string(),
                     protocol: "1".to_string(),
                     health: true,
@@ -112,10 +111,9 @@ mod tests {
                                 flow_id: "1".to_string(),
                                 id: None,
                                 namespace: "rust-demo".to_string(),
-                                service: "polaris-rust-provider".to_string(),
+                                service: "pole-rust-provider".to_string(),
                                 ip: "1.1.1.1".to_string(),
                                 port: 8080,
-                                vpc_id: "1".to_string(),
                             })
                             .await;
                         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -128,7 +126,7 @@ mod tests {
                     flow_id: uuid::Uuid::new_v4().to_string(),
                     timeout: Duration::from_secs(1),
                     namespace: "rust-demo".to_string(),
-                    service: "polaris-rust-provider".to_string(),
+                    service: "pole-rust-provider".to_string(),
                     ip: "1.1.1.1".to_string(),
                     port: 8080,
                     vpc_id: "1".to_string(),

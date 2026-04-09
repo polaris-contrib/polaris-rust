@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 use super::{
     naming::{ServiceInstances, ServiceKey},
-    ArgumentType, TrafficArgument,
+    ArgumentType,
 };
 
 pub static DEFAULT_ROUTER_ISOLATED: &str = "isolatedRouter";

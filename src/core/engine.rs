@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -18,8 +18,9 @@ use std::sync::Arc;
 
 use tokio::runtime::{Builder, Runtime};
 
-use super::flow::{CircuitBreakerFlow, ClientFlow, RouterFlow};
+use super::flow::ClientFlow;
 use super::model::config::{ConfigFile, ConfigGroup};
+use super::model::instance_stat::InstanceStatManager;
 use super::model::naming::{ServiceContractRequest, ServiceInstances};
 use super::model::ClientContext;
 use super::plugin::cache::{Filter, ResourceCache, ResourceListener};
@@ -27,11 +28,11 @@ use super::plugin::connector::Connector;
 use super::plugin::location::{LocationProvider, LocationSupplier};
 use crate::config::req::{
     CreateConfigFileRequest, GetConfigFileRequest, GetConfigGroupRequest, PublishConfigFileRequest,
-    UpdateConfigFileRequest, UpsertAndPublishConfigFileRequest,
+    UpdateConfigFileRequest,
 };
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{EventType, ResourceEventKey};
-use crate::core::model::error::PolarisError;
+use crate::core::model::error::PoleError;
 use crate::core::model::naming::InstanceRequest;
 use crate::core::plugin::plugins::Extensions;
 use crate::discovery::req::{
@@ -54,11 +55,11 @@ where
 }
 
 impl Engine {
-    pub fn new(arc_conf: Arc<Configuration>) -> Result<Self, PolarisError> {
+    pub fn new(arc_conf: Arc<Configuration>) -> Result<Self, PoleError> {
         let runtime = Arc::new(
             Builder::new_multi_thread()
                 .enable_all()
-                .thread_name("polaris-client-thread-pool")
+                .thread_name("pole-client-thread-pool")
                 .worker_threads(4)
                 .build()
                 .unwrap(),
@@ -96,7 +97,7 @@ impl Engine {
     pub async fn register_instance(
         &self,
         req: InstanceRegisterRequest,
-    ) -> Result<InstanceRegisterResponse, PolarisError> {
+    ) -> Result<InstanceRegisterResponse, PoleError> {
         let mut instance = req.convert_instance();
 
         if instance.location.is_empty() {
@@ -131,7 +132,7 @@ impl Engine {
     pub async fn deregister_instance(
         &self,
         req: InstanceDeregisterRequest,
-    ) -> Result<(), PolarisError> {
+    ) -> Result<(), PoleError> {
         let connector = self.server_connector.clone();
         let rsp = connector
             .deregister_instance(InstanceRequest {
@@ -153,11 +154,7 @@ impl Engine {
         }
     }
 
-    /// instance_heartbeat 同步实例心跳
-    pub async fn instance_heartbeat(
-        &self,
-        req: InstanceHeartbeatRequest,
-    ) -> Result<(), PolarisError> {
+    pub async fn instance_heartbeat(&self, req: InstanceHeartbeatRequest) -> Result<(), PoleError> {
         let connector = self.server_connector.clone();
         let rsp = connector
             .heartbeat_instance(InstanceRequest {
@@ -168,6 +165,7 @@ impl Engine {
                     }
                     flow_id
                 },
+                // 注意，这里的 ttl 仅仅作为请求占位
                 ttl: 0,
                 instance: req.convert_instance(),
             })
@@ -184,7 +182,7 @@ impl Engine {
         &self,
         req: GetAllInstanceRequest,
         only_available: bool,
-    ) -> Result<InstancesResponse, PolarisError> {
+    ) -> Result<InstancesResponse, PoleError> {
         let mut filter = HashMap::<String, String>::new();
         filter.insert("service".to_string(), req.service.clone());
 
@@ -220,7 +218,7 @@ impl Engine {
     pub async fn report_service_contract(
         &self,
         req: ReportServiceContractRequest,
-    ) -> Result<bool, PolarisError> {
+    ) -> Result<bool, PoleError> {
         let connector = self.server_connector.clone();
         return connector
             .report_service_contract(ServiceContractRequest {
@@ -236,41 +234,11 @@ impl Engine {
             .await;
     }
 
-    /// get_service_rule 获取服务规则
-    pub async fn get_service_rule(
-        &self,
-        req: GetServiceRuleRequest,
-    ) -> Result<ServiceRuleResponse, PolarisError> {
-        let local_cache = self.local_cache.clone();
-        let mut filter = HashMap::<String, String>::new();
-        filter.insert("service".to_string(), req.service.clone());
-        let ret = local_cache
-            .load_service_rule(Filter {
-                resource_key: ResourceEventKey {
-                    namespace: req.namespace.clone(),
-                    event_type: req.rule_type.to_event_type(),
-                    filter,
-                },
-                internal_request: false,
-                include_cache: true,
-                timeout: req.timeout,
-            })
-            .await;
-
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-
-        Ok(ServiceRuleResponse {
-            rules: ret.unwrap().rules,
-        })
-    }
-
     /// get_config_file 获取配置文件
     pub async fn get_config_file(
         &self,
         req: GetConfigFileRequest,
-    ) -> Result<ConfigFile, PolarisError> {
+    ) -> Result<ConfigFile, PoleError> {
         let local_cache = self.local_cache.clone();
         let mut filter = HashMap::<String, String>::new();
         filter.insert("group".to_string(), req.group.clone());
@@ -299,7 +267,7 @@ impl Engine {
     pub async fn create_config_file(
         &self,
         req: CreateConfigFileRequest,
-    ) -> Result<bool, PolarisError> {
+    ) -> Result<bool, PoleError> {
         let config_file = req.to_config_request();
 
         let connector = self.server_connector.clone();
@@ -315,7 +283,7 @@ impl Engine {
     pub async fn update_config_file(
         &self,
         req: UpdateConfigFileRequest,
-    ) -> Result<bool, PolarisError> {
+    ) -> Result<bool, PoleError> {
         let config_file = req.to_config_request();
 
         let connector = self.server_connector.clone();
@@ -331,7 +299,7 @@ impl Engine {
     pub async fn publish_config_file(
         &self,
         req: PublishConfigFileRequest,
-    ) -> Result<bool, PolarisError> {
+    ) -> Result<bool, PoleError> {
         let config_file = req.to_config_request();
 
         let connector = self.server_connector.clone();
@@ -343,26 +311,10 @@ impl Engine {
         }
     }
 
-    /// upsert_publish_config_file 更新或发布配置文件
-    pub async fn upsert_publish_config_file(
-        &self,
-        req: UpsertAndPublishConfigFileRequest,
-    ) -> Result<bool, PolarisError> {
-        let config_file = req.to_config_request();
-
-        let connector = self.server_connector.clone();
-        let rsp = connector.upsert_publish_config_file(config_file).await;
-
-        match rsp {
-            Ok(ret_rsp) => Ok(ret_rsp),
-            Err(err) => Err(err),
-        }
-    }
-
     pub async fn get_config_group_files(
         &self,
         req: GetConfigGroupRequest,
-    ) -> Result<ConfigGroup, PolarisError> {
+    ) -> Result<ConfigGroup, PoleError> {
         let local_cache = self.local_cache.clone();
         let mut filter = HashMap::<String, String>::new();
         filter.insert("group".to_string(), req.group.clone());
@@ -397,5 +349,9 @@ impl Engine {
 
     pub fn get_extensions(&self) -> Arc<Extensions> {
         self.extensions.clone()
+    }
+
+    pub fn get_instance_stat_manager(&self) -> Arc<InstanceStatManager> {
+        self.extensions.instance_stat_manager.clone()
     }
 }

@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package polaris.metric.v2;
+
+message RateLimitRequest {
+  RateLimitCmd cmd = 1;
+  RateLimitInitRequest rate_limit_init_request = 2;
+  RateLimitReportRequest rate_limit_report_request = 3;
+  RateLimitBatchInitRequest rate_limit_batch_init_request = 4;
+}
+
+message RateLimitResponse {
+  RateLimitCmd cmd = 1;
+  RateLimitInitResponse rate_limit_init_response = 2;
+  RateLimitReportResponse rate_limit_report_response = 3;
+  RateLimitBatchInitResponse rate_limit_batch_init_response = 4;
+}
+
+message RateLimitInitRequest {
+  LimitTarget target = 1;
+  string client_id = 2;
+  repeated QuotaTotal totals = 3;
+  uint32 slide_count = 4;
+  Mode mode = 5;
+}
+
+message RateLimitInitResponse {
+  uint32 code = 1;
+  LimitTarget target = 2;
+  uint32 client_key = 3;
+  repeated QuotaCounter counters = 5;
+  uint32 slide_count = 6;
+  int64 timestamp = 7;
+}
+
+message RateLimitBatchInitRequest {
+  repeated RateLimitInitRequest request = 1;
+  string client_id = 2;
+}
+
+message LabeledQuotaCounter {
+  string labels = 1;
+  repeated QuotaCounter counters = 2;
+}
+
+message BatchInitResult {
+  uint32 code = 1;
+  LimitTarget target = 2;
+  repeated LabeledQuotaCounter counters = 3;
+  uint32 slide_count = 4;
+}
+
+message RateLimitBatchInitResponse {
+  uint32 code = 1;
+  uint32 client_key = 2;
+  int64 timestamp = 3;
+  repeated BatchInitResult result = 4;
+}
+
+message RateLimitReportRequest {
+  uint32 client_key = 1;
+  repeated QuotaSum quota_uses = 2;
+  int64 timestamp = 3;
+}
+
+message RateLimitReportResponse {
+  uint32 code = 1;
+  repeated QuotaLeft quota_lefts = 2;
+  int64 timestamp = 3;
+}
+
+message LimitTarget {
+  string namespace = 1;
+  string service = 2;
+  string labels = 3;
+  repeated string labels_list = 4;
+}
+
+message QuotaTotal {
+  QuotaMode mode = 1;
+  uint32 duration = 2;
+  uint32 max_amount = 3;
+}
+
+message QuotaCounter {
+  uint32 duration = 1;
+  uint32 counter_key = 2;
+  int64 left = 3;
+  Mode mode = 4;
+  uint32 client_count = 5;
+}
+
+message QuotaSum {
+  uint32 counter_key = 1;
+  uint32 used = 2;
+  uint32 limited = 3;
+}
+
+message QuotaLeft {
+  uint32 counter_key = 1;
+  int64 left = 2;
+  Mode mode = 3;
+  uint32 client_count = 4;
+}
+
+message TimeAdjustRequest {}
+
+message TimeAdjustResponse {
+  int64 server_timestamp = 1;
+}
+
+enum RateLimitCmd {
+  INIT = 0;
+  ACQUIRE = 1;
+  BATCH_INIT = 2;
+  BATCH_ACQUIRE = 3;
+}
+
+enum Mode {
+  ADAPTIVE = 0;
+  BATCH_OCCUPY = 1;
+  BATCH_SHARE = 2;
+}
+
+enum QuotaMode {
+  WHOLE = 0;
+  DIVIDE = 1;
+}
+
+service RateLimitGRPCV2 {
+  rpc Service(stream RateLimitRequest) returns (stream RateLimitResponse);
+  rpc TimeAdjust(TimeAdjustRequest) returns (TimeAdjustResponse);
+}

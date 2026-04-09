@@ -84,7 +84,7 @@ global:
     #描述: 是否启用服务数据文件缓存
     persistEnable: true
     #描述: 服务缓存持久化目录，SDK在实例数据更新后，按照服务维度将数据持久化到磁盘
-    persistDir: ./polaris/backup
+    persistDir: ./pole/backup
     #描述: 缓存写盘失败的最大重试次数
     persistMaxWriteRetry: 1
     #描述: 缓存从磁盘读取失败的最大重试次数
@@ -165,9 +165,9 @@ provider:
     # 是否开启限流功能
     enable: true
     # 限流服务的命名空间
-    namespace: Polaris
+    namespace: Pole
     # 限流服务名
-    service: polaris.limiter
+    service: pole.limiter
     # 限流本地存在的最大窗口限制
     maxWindowCount: 10000000
     # 超过最大窗口限制时的策略。pass（放通）, reject（限流）

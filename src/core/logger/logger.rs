@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -14,13 +14,15 @@
 // specific language governing permissions and limitations under the License.
 
 use std::sync::Arc;
-use tracing::Level;
 use tracing::level_filters::LevelFilter;
+use tracing::Level;
 use tracing_appender::{non_blocking::NonBlocking, rolling};
-use tracing_subscriber::{fmt::format::{DefaultFields, Format}, FmtSubscriber};
+use tracing_subscriber::{
+    fmt::format::{DefaultFields, Format},
+    FmtSubscriber,
+};
 
-use crate::core::model::error::{ErrorCode, PolarisError};
-
+use crate::core::model::error::{ErrorCode, PoleError};
 
 struct AtomicUsize {
     v: std::cell::Cell<usize>,
@@ -28,7 +30,9 @@ struct AtomicUsize {
 
 impl AtomicUsize {
     const fn new(v: usize) -> AtomicUsize {
-        AtomicUsize { v: std::cell::Cell::new(v) }
+        AtomicUsize {
+            v: std::cell::Cell::new(v),
+        }
     }
 
     fn load(&self, _order: std::sync::atomic::Ordering) -> usize {
@@ -72,16 +76,16 @@ const INITIALIZED: usize = 2;
 // the STATE static which determines whether LOGGER has been initialized yet.
 static mut LOGGER: &dyn Logger = &NopLogger;
 
-pub fn init_logger(dir: &str, file: &str, l: LevelFilter) -> Result<(), PolarisError> {
+pub fn init_logger(dir: &str, file: &str, l: LevelFilter) -> Result<(), PoleError> {
     let logger = DefaultLogger::new(dir, file, l);
     set_logger(Box::new(logger))
 }
 
-pub fn set_logger(logger: Box<dyn Logger>) -> Result<(), PolarisError> {
+pub fn set_logger(logger: Box<dyn Logger>) -> Result<(), PoleError> {
     set_logger_inner(|| Box::leak(logger))
 }
 
-fn set_logger_inner<F>(make_logger: F) -> Result<(), PolarisError>
+fn set_logger_inner<F>(make_logger: F) -> Result<(), PoleError>
 where
     F: FnOnce() -> &'static dyn Logger,
 {
@@ -102,9 +106,15 @@ where
             while STATE.load(std::sync::atomic::Ordering::Relaxed) == INITIALIZING {
                 std::hint::spin_loop();
             }
-            Err(PolarisError::new(ErrorCode::InternalError, "logger already initialized".to_string()))
+            Err(PoleError::new(
+                ErrorCode::InternalError,
+                "logger already initialized".to_string(),
+            ))
         }
-        _ => Err(PolarisError::new(ErrorCode::InternalError, "logger already initialized".to_string())),
+        _ => Err(PoleError::new(
+            ErrorCode::InternalError,
+            "logger already initialized".to_string(),
+        )),
     }
 }
 
@@ -115,12 +125,13 @@ pub trait Logger {
 pub struct NopLogger;
 
 impl Logger for NopLogger {
-    fn log(&self, level: Level, msg: &str) {
-    }
+    fn log(&self, level: Level, msg: &str) {}
 }
 
 pub struct DefaultLogger {
-    sub: Arc<Box<FmtSubscriber<DefaultFields, Format, tracing::level_filters::LevelFilter, NonBlocking>>>,
+    sub: Arc<
+        Box<FmtSubscriber<DefaultFields, Format, tracing::level_filters::LevelFilter, NonBlocking>>,
+    >,
 }
 
 impl DefaultLogger {
@@ -129,20 +140,18 @@ impl DefaultLogger {
         let (non_blocking_appender, _guard) = tracing_appender::non_blocking(file_appender);
 
         let subscriber = tracing_subscriber::fmt()
-                .with_thread_names(true)
-                .with_file(true)
-                .with_level(true)
-                .with_writer(non_blocking_appender)
-                .with_line_number(true)
-                .with_thread_ids(true)
-                .with_max_level(l)
-                .finish();
+            .with_thread_names(true)
+            .with_file(true)
+            .with_level(true)
+            .with_writer(non_blocking_appender)
+            .with_line_number(true)
+            .with_thread_ids(true)
+            .with_max_level(l)
+            .finish();
 
-       let sub = Arc::new(Box::new(subscriber));
+        let sub = Arc::new(Box::new(subscriber));
 
-        Self {
-            sub,
-        }
+        Self { sub }
     }
 }
 
@@ -151,23 +160,33 @@ impl Logger for DefaultLogger {
         match level {
             Level::TRACE => {
                 tracing::trace!(msg);
-            },
+            }
             Level::DEBUG => {
                 tracing::debug!(msg);
-            },
+            }
             Level::INFO => {
                 tracing::info!(msg);
-            },
+            }
             Level::WARN => {
                 tracing::warn!(msg);
-            },
+            }
             Level::ERROR => {
                 tracing::error!(msg);
-            },
+            }
         }
     }
 }
 
 pub fn log(level: Level, msg: &str) {
     unsafe { LOGGER }.log(level, msg);
+}
+
+pub fn enabled(level: Level) -> bool {
+    match level {
+        Level::TRACE => tracing::enabled!(tracing::Level::TRACE),
+        Level::DEBUG => tracing::enabled!(tracing::Level::DEBUG),
+        Level::INFO => tracing::enabled!(tracing::Level::INFO),
+        Level::WARN => tracing::enabled!(tracing::Level::WARN),
+        Level::ERROR => tracing::enabled!(tracing::Level::ERROR),
+    }
 }

@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,13 +15,18 @@
 
 use crate::core::config::global::LocalCacheConfig;
 use crate::core::model::cache::{
-    EventType, ResourceEventKey, ServerEvent, ServiceInstancesCacheItem,
+    CircuitBreakerRulesCacheItem, EventType, FaultDetectRulesCacheItem, LaneRulesCacheItem,
+    RatelimitRulesCacheItem, ResourceEventKey, RouterRulesCacheItem, ServerEvent,
+    ServiceInstancesCacheItem,
 };
 use crate::core::model::config::{ConfigFile, ConfigGroup};
-use crate::core::model::error::PolarisError;
+use crate::core::model::error::PoleError;
 use crate::core::model::naming::{ServiceRule, Services};
 use crate::core::plugin::plugins::Plugin;
-use polaris_specification::v1::{ConfigDiscoverResponse, DiscoverResponse};
+use pole_specification::v1::{
+    CircuitBreakerRule, ConfigDiscoverResponse, DiscoverResponse, FaultDetectRule, FaultDetector,
+    LaneGroup, RateLimit, RouteRule,
+};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -65,19 +70,30 @@ pub struct InitResourceCacheOption {
 #[async_trait::async_trait]
 pub trait ResourceCache: Plugin {
     fn set_failover_provider(&mut self, failover: Arc<dyn ResourceCacheFailover>);
-    // 加载服务规则
-    async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError>;
+    // 加载服务自定义路由规则
+    async fn load_service_custom_route(&self, filter: Filter) -> Result<Vec<RouteRule>, PoleError>;
+    // 加载全链路灰度路由规则
+    async fn load_service_lane_route(&self, filter: Filter) -> Result<Vec<LaneGroup>, PoleError>;
+    // 加载服务限流规则
+    async fn load_service_ratelimit(&self, filter: Filter) -> Result<Vec<RateLimit>, PoleError>;
+    // 加载服务熔断规则
+    async fn load_service_circuitbreaker(
+        &self,
+        filter: Filter,
+    ) -> Result<Vec<CircuitBreakerRule>, PoleError>;
+    // 加载服务故障检测规则
+    async fn load_service_faultdetect(&self, filter: Filter) -> Result<FaultDetector, PoleError>;
     // 加载服务
-    async fn load_services(&self, filter: Filter) -> Result<Services, PolarisError>;
+    async fn load_services(&self, filter: Filter) -> Result<Services, PoleError>;
     // 加载服务实例
     async fn load_service_instances(
         &self,
         filter: Filter,
-    ) -> Result<ServiceInstancesCacheItem, PolarisError>;
+    ) -> Result<ServiceInstancesCacheItem, PoleError>;
     // 加载配置文件
-    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError>;
+    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PoleError>;
     // 加载配置文件组
-    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError>;
+    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PoleError>;
     // 注册资源监听器
     async fn register_resource_listener(&self, listener: Arc<dyn ResourceListener>);
 }
@@ -85,18 +101,17 @@ pub trait ResourceCache: Plugin {
 #[async_trait::async_trait]
 pub trait ResourceCacheFailover: Send + Sync {
     // failover_naming_load 兜底加载
-    async fn failover_naming_load(&self, filter: Filter) -> Result<DiscoverResponse, PolarisError>;
+    async fn failover_naming_load(&self, filter: Filter) -> Result<DiscoverResponse, PoleError>;
     // save_naming_failover 保存容灾数据
-    async fn save_naming_failover(&self, value: DiscoverResponse) -> Result<(), PolarisError>;
+    async fn save_naming_failover(&self, value: DiscoverResponse) -> Result<(), PoleError>;
 
     // failover_config_load 兜底加载
     async fn failover_config_load(
         &self,
         filter: Filter,
-    ) -> Result<ConfigDiscoverResponse, PolarisError>;
+    ) -> Result<ConfigDiscoverResponse, PoleError>;
     // save_config_failover 保存容灾数据
-    async fn save_config_failover(&self, value: ConfigDiscoverResponse)
-        -> Result<(), PolarisError>;
+    async fn save_config_failover(&self, value: ConfigDiscoverResponse) -> Result<(), PoleError>;
 }
 
 #[derive(Default)]
@@ -122,26 +137,45 @@ impl ResourceCache for NoopResourceCache {
         todo!()
     }
 
-    async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
+    async fn load_service_custom_route(&self, filter: Filter) -> Result<Vec<RouteRule>, PoleError> {
         todo!()
     }
 
-    async fn load_services(&self, filter: Filter) -> Result<Services, PolarisError> {
+    async fn load_service_lane_route(&self, filter: Filter) -> Result<Vec<LaneGroup>, PoleError> {
+        todo!()
+    }
+
+    async fn load_service_ratelimit(&self, filter: Filter) -> Result<Vec<RateLimit>, PoleError> {
+        todo!()
+    }
+
+    async fn load_service_circuitbreaker(
+        &self,
+        filter: Filter,
+    ) -> Result<Vec<CircuitBreakerRule>, PoleError> {
+        todo!()
+    }
+
+    async fn load_service_faultdetect(&self, filter: Filter) -> Result<FaultDetector, PoleError> {
+        todo!()
+    }
+
+    async fn load_services(&self, filter: Filter) -> Result<Services, PoleError> {
         todo!()
     }
 
     async fn load_service_instances(
         &self,
         filter: Filter,
-    ) -> Result<ServiceInstancesCacheItem, PolarisError> {
+    ) -> Result<ServiceInstancesCacheItem, PoleError> {
         todo!()
     }
 
-    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError> {
+    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PoleError> {
         todo!()
     }
 
-    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
+    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PoleError> {
         todo!()
     }
 

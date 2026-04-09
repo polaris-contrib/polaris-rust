@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -20,12 +20,13 @@ use tokio::runtime::Runtime;
 use crate::core::config::config::Configuration;
 use crate::core::model::cache::{RemoteData, ResourceEventKey};
 use crate::core::model::config::{ConfigFileRequest, ConfigPublishRequest, ConfigReleaseRequest};
-use crate::core::model::error::PolarisError;
+use crate::core::model::error::PoleError;
 use crate::core::model::naming::{
     InstanceRequest, InstanceResponse, ServiceContract, ServiceContractRequest,
 };
 use crate::core::model::{ClientContext, ReportClientRequest};
 use crate::core::plugin::plugins::Plugin;
+use crate::discovery::req::InstanceHeartbeatRequest;
 
 use super::filter::DiscoverFilter;
 
@@ -53,49 +54,38 @@ pub trait Connector: Plugin {
     async fn register_resource_handler(
         &self,
         handler: Box<dyn ResourceHandler>,
-    ) -> Result<bool, PolarisError>;
+    ) -> Result<bool, PoleError>;
 
     /// register_instance: 实例注册回调函数
-    async fn register_instance(
-        &self,
-        req: InstanceRequest,
-    ) -> Result<InstanceResponse, PolarisError>;
+    async fn register_instance(&self, req: InstanceRequest) -> Result<InstanceResponse, PoleError>;
 
     /// deregister_instance 实例注销回调函数
-    async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError>;
+    async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PoleError>;
 
-    /// heartbeat_instance 实例心跳回调函数
-    async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError>;
+    /// heartbeat_instance 实例心跳发送
+    async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PoleError>;
 
     /// report_client 上报客户端信息
-    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PolarisError>;
+    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PoleError>;
 
     /// report_service_contract 上报服务契约
-    async fn report_service_contract(
-        &self,
-        req: ServiceContractRequest,
-    ) -> Result<bool, PolarisError>;
+    async fn report_service_contract(&self, req: ServiceContractRequest)
+        -> Result<bool, PoleError>;
 
     /// get_service_contract 获取服务契约
     async fn get_service_contract(
         &self,
         req: ServiceContractRequest,
-    ) -> Result<ServiceContract, PolarisError>;
+    ) -> Result<ServiceContract, PoleError>;
 
     /// create_config_file 创建配置文件
-    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
+    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PoleError>;
 
     /// update_config_file 更新配置文件
-    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError>;
+    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PoleError>;
 
     /// release_config_file 删除配置文件
-    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PolarisError>;
-
-    /// upsert_publish_config_file 更新发布配置文件
-    async fn upsert_publish_config_file(
-        &self,
-        req: ConfigPublishRequest,
-    ) -> Result<bool, PolarisError>;
+    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PoleError>;
 }
 
 #[derive(Default)]
@@ -120,59 +110,49 @@ impl Connector for NoopConnector {
     async fn register_resource_handler(
         &self,
         handler: Box<dyn ResourceHandler>,
-    ) -> Result<bool, PolarisError> {
+    ) -> Result<bool, PoleError> {
         todo!()
     }
 
-    async fn register_instance(
-        &self,
-        req: InstanceRequest,
-    ) -> Result<InstanceResponse, PolarisError> {
+    async fn register_instance(&self, req: InstanceRequest) -> Result<InstanceResponse, PoleError> {
         todo!()
     }
 
-    async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
+    async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PoleError> {
         todo!()
     }
 
-    async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
+    async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PoleError> {
         todo!()
     }
 
-    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PolarisError> {
+    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PoleError> {
         todo!()
     }
 
     async fn report_service_contract(
         &self,
         req: ServiceContractRequest,
-    ) -> Result<bool, PolarisError> {
+    ) -> Result<bool, PoleError> {
         todo!()
     }
 
     async fn get_service_contract(
         &self,
         req: ServiceContractRequest,
-    ) -> Result<ServiceContract, PolarisError> {
+    ) -> Result<ServiceContract, PoleError> {
         todo!()
     }
 
-    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
+    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PoleError> {
         todo!()
     }
 
-    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
+    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PoleError> {
         todo!()
     }
 
-    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PolarisError> {
-        todo!()
-    }
-
-    async fn upsert_publish_config_file(
-        &self,
-        req: ConfigPublishRequest,
-    ) -> Result<bool, PolarisError> {
+    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PoleError> {
         todo!()
     }
 }

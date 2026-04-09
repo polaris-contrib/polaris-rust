@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,7 +13,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use polaris_specification::v1::HeartbeatHealthCheck;
+use pole_specification::v1::HeartbeatHealthCheck;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 use std::{any::Any, collections::HashMap};
@@ -87,7 +87,6 @@ pub struct Instance {
     pub service: String,
     pub ip: String,
     pub port: u32,
-    pub vpc_id: String,
     pub version: String,
     pub protocol: String,
     pub health: bool,
@@ -117,7 +116,7 @@ impl Instance {
         true
     }
 
-    pub fn convert_from_spec(data: polaris_specification::v1::Instance) -> Instance {
+    pub fn convert_from_spec(data: pole_specification::v1::Instance) -> Instance {
         let mut metadata = HashMap::<String, String>::new();
         for ele in data.metadata {
             metadata.insert(ele.0, ele.1);
@@ -125,25 +124,24 @@ impl Instance {
         let location = data.location.unwrap_or_default();
 
         Self {
-            id: data.id.unwrap_or_default(),
-            namespace: data.namespace.unwrap_or_default(),
-            service: data.service.unwrap_or_default(),
-            ip: data.host.unwrap_or_default(),
-            port: data.port.unwrap_or_default(),
-            vpc_id: data.vpc_id.unwrap_or_default(),
-            version: data.version.unwrap_or_default(),
-            protocol: data.protocol.unwrap_or_default(),
-            health: data.healthy.unwrap_or(false),
-            isolated: data.isolate.unwrap_or(false),
-            weight: data.weight.unwrap_or(100),
-            priority: data.priority.unwrap_or_default(),
+            id: data.id,
+            namespace: data.namespace,
+            service: data.service,
+            ip: data.host,
+            port: data.port,
+            version: data.version,
+            protocol: data.protocol,
+            health: data.healthy,
+            isolated: data.isolate,
+            weight: data.weight,
+            priority: data.priority,
             metadata,
             location: Location {
-                region: location.region.unwrap_or_default(),
-                zone: location.zone.unwrap_or_default(),
-                campus: location.campus.unwrap_or_default(),
+                region: location.region,
+                zone: location.zone,
+                campus: location.campus,
             },
-            revision: data.revision.unwrap_or_default(),
+            revision: data.revision,
         }
     }
 }
@@ -164,11 +162,11 @@ impl Location {
         }
     }
 
-    pub fn convert_spec(&self) -> polaris_specification::v1::Location {
-        polaris_specification::v1::Location {
-            region: Some(self.region.clone()),
-            zone: Some(self.zone.clone()),
-            campus: Some(self.campus.clone()),
+    pub fn convert_spec(&self) -> pole_specification::v1::Location {
+        pole_specification::v1::Location {
+            region: self.region.clone(),
+            zone: self.zone.clone(),
+            campus: self.campus.clone(),
         }
     }
 
@@ -177,8 +175,8 @@ impl Location {
     }
 }
 
-pub struct ServiceRule {
-    pub rules: Vec<Box<dyn Any + Send>>,
+pub struct ServiceRule<T> {
+    pub rules: Vec<T>,
     pub revision: String,
     pub initialized: bool,
 }
@@ -206,78 +204,53 @@ pub struct InstanceRequest {
 }
 
 impl InstanceRequest {
-    pub fn convert_beat_spec(&self) -> polaris_specification::v1::Instance {
-        polaris_specification::v1::Instance {
-            id: None,
-            namespace: Some(self.instance.namespace.clone()),
-            service: Some(self.instance.service.clone()),
-            host: Some(self.instance.ip.clone()),
-            port: Some(self.instance.port),
-            vpc_id: Some(self.instance.vpc_id.clone()),
-            protocol: None,
-            version: None,
-            priority: None,
-            weight: None,
-            enable_health_check: None,
-            health_check: None,
-            healthy: None,
-            isolate: None,
-            location: None,
-            metadata: HashMap::new(),
-            logic_set: None,
-            ctime: None,
-            mtime: None,
-            revision: None,
-            service_token: None,
+    pub fn convert_beat_spec(&self) -> pole_specification::v1::InstanceHeartbeat {
+        pole_specification::v1::InstanceHeartbeat {
+            instance_id: self.instance.id.clone(),
+            namespace: self.instance.namespace.clone(),
+            service: self.instance.service.clone(),
+            host: self.instance.ip.clone(),
+            port: self.instance.port,
         }
     }
 
-    pub fn convert_spec(&self) -> polaris_specification::v1::Instance {
+    pub fn convert_spec(&self) -> pole_specification::v1::Instance {
         let ttl = self.ttl;
-        let mut enable_health_check = Some(false);
+        let mut enable_health_check = false;
         let mut health_check = None;
         if ttl != 0 {
-            enable_health_check = Some(true);
-            health_check = Some(polaris_specification::v1::HealthCheck {
-                r#type: i32::from(
-                    polaris_specification::v1::health_check::HealthCheckType::Heartbeat,
-                ),
-                heartbeat: Some(HeartbeatHealthCheck { ttl: Some(ttl) }),
+            enable_health_check = true;
+            health_check = Some(pole_specification::v1::HealthCheck {
+                r#type: i32::from(pole_specification::v1::health_check::HealthCheckType::Heartbeat),
+                heartbeat: Some(HeartbeatHealthCheck { ttl: ttl }),
             });
         }
 
-        let mut spec_ins = polaris_specification::v1::Instance {
-            id: None,
-            service: Some(self.instance.service.to_string()),
-            namespace: Some(self.instance.namespace.to_string()),
-            vpc_id: Some(self.instance.vpc_id.to_string()),
-            host: Some(self.instance.ip.to_string()),
-            port: Some(self.instance.port),
-            protocol: Some(self.instance.protocol.to_string()),
-            version: Some(self.instance.version.to_string()),
-            priority: Some(self.instance.priority),
-            weight: Some(self.instance.weight),
-            enable_health_check,
+        let mut spec_ins = pole_specification::v1::Instance {
+            id: self.instance.id.clone(),
+            service: self.instance.service.to_string(),
+            namespace: self.instance.namespace.to_string(),
+            host: self.instance.ip.to_string(),
+            port: self.instance.port,
+            protocol: self.instance.protocol.to_string(),
+            version: self.instance.version.to_string(),
+            priority: self.instance.priority,
+            weight: self.instance.weight,
+            enable_health_check: enable_health_check,
             health_check,
-            healthy: Some(self.instance.health),
-            isolate: Some(self.instance.isolated),
+            healthy: self.instance.health,
+            isolate: self.instance.isolated,
             location: Some(self.instance.location.convert_spec()),
             metadata: self.instance.metadata.clone(),
-            logic_set: None,
-            ctime: None,
-            mtime: None,
-            revision: None,
-            service_token: None,
+            ctime: "".to_string(),
+            mtime: "".to_string(),
+            revision: "".to_string(),
         };
         if self.ttl != 0 {
-            spec_ins.enable_health_check = Some(true);
-            spec_ins.health_check = Some(polaris_specification::v1::HealthCheck {
-                r#type: i32::from(
-                    polaris_specification::v1::health_check::HealthCheckType::Heartbeat,
-                ),
-                heartbeat: Some(HeartbeatHealthCheck {
-                    ttl: Some(self.ttl),
-                }),
+            spec_ins.enable_health_check = true;
+            spec_ins.health_check = Some(pole_specification::v1::HealthCheck {
+                r#type: i32::from(pole_specification::v1::health_check::HealthCheckType::Heartbeat),
+                heartbeat: Some(HeartbeatHealthCheck { ttl: self.ttl }),
             });
         }
         spec_ins
@@ -339,7 +312,7 @@ pub struct ServiceContract {
 }
 
 impl ServiceContract {
-    pub fn parse_from_spec(spec: polaris_specification::v1::ServiceContract) -> Self {
+    pub fn parse_from_spec(spec: pole_specification::v1::ServiceContract) -> Self {
         let mut interfaces = Vec::<ServiceInterfaceDescripitor>::new();
         for ele in spec.interfaces {
             interfaces.push(ServiceInterfaceDescripitor {
@@ -365,8 +338,8 @@ impl ServiceContract {
         }
     }
 
-    pub fn convert_spec(&self) -> polaris_specification::v1::ServiceContract {
-        let mut spec = polaris_specification::v1::ServiceContract {
+    pub fn convert_spec(&self) -> pole_specification::v1::ServiceContract {
+        let mut spec = pole_specification::v1::ServiceContract {
             id: "".to_string(),
             name: self.name.clone(),
             namespace: self.namespace.clone(),
@@ -374,6 +347,7 @@ impl ServiceContract {
             content: self.content.clone(),
             version: self.version.clone(),
             protocol: self.protocol.clone(),
+            content_digest: "".to_string(),
             interfaces: Vec::new(),
             status: "".to_string(),
             revision: "".to_string(),
@@ -384,17 +358,18 @@ impl ServiceContract {
         };
         for ele in self.interfaces.iter() {
             spec.interfaces
-                .push(polaris_specification::v1::InterfaceDescriptor {
+                .push(pole_specification::v1::InterfaceDescriptor {
                     id: "".to_string(),
                     name: self.name.clone(),
                     namespace: ele.namespace.clone(),
                     service: ele.service.clone(),
                     version: ele.version.clone(),
                     content: ele.content.clone(),
+                    content_digest: "".to_string(),
                     path: ele.path.clone(),
                     method: ele.method.clone(),
                     protocol: ele.protocol.clone(),
-                    source: polaris_specification::v1::interface_descriptor::Source::Client.into(),
+                    source: pole_specification::v1::interface_descriptor::Source::Client.into(),
                     revision: "".to_string(),
                     r#type: ele.name.clone(),
                     ctime: "".to_string(),

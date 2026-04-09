@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -20,7 +20,7 @@ use crate::core::{
     flow::CircuitBreakerFlow,
     model::{
         circuitbreaker::{CheckResult, Resource, ResourceStat},
-        error::PolarisError,
+        error::PoleError,
     },
 };
 
@@ -80,18 +80,18 @@ impl Drop for DefaultCircuitBreakerAPI {
 
 #[async_trait::async_trait]
 impl CircuitBreakerAPI for DefaultCircuitBreakerAPI {
-    async fn check_resource(&self, resource: Resource) -> Result<CheckResult, PolarisError> {
+    async fn check_resource(&self, resource: Resource) -> Result<CheckResult, PoleError> {
         self.flow.check_resource(resource).await
     }
 
-    async fn report_stat(&self, stat: ResourceStat) -> Result<(), PolarisError> {
+    async fn report_stat(&self, stat: ResourceStat) -> Result<(), PoleError> {
         self.flow.report_stat(stat).await
     }
 
     async fn make_invoke_handler(
         &self,
         req: RequestContext,
-    ) -> Result<Arc<InvokeHandler>, PolarisError> {
+    ) -> Result<Arc<InvokeHandler>, PoleError> {
         // Implement the method logic here
         Ok(Arc::new(InvokeHandler::new(req, self.flow.clone())))
     }

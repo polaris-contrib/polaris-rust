@@ -1,17 +1,16 @@
 [package]
 edition = "2021"
-name = "polaris-rust"
-version = "0.2.0-alpha.0"
+name = "pole-client-rust"
+version = "0.1.0-alpha.0"
 
-authors = ["polaris-contrib", "houseme <housemecn@gmail.com>", "liaochuntao <liaochuntao@live.com>"]
+authors = ["liaochuntao <liaochuntao@live.com>"]
 categories = ["network-programming", "development-tools"]
 description = "Lightweight Rust SDK used as Proxyless Service Governance Solution."
-documentation = "https://docs.rs/polaris-rust"
-homepage = "https://polarismesh.cn"
-keywords = ["polaris", "discovery", "configuration", "governance"]
+documentation = "https://docs.rs/pole-client-rust"
+keywords = ["discovery", "configuration", "governance"]
 license = "BSD-3-Clause OR MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/polaris-contrib/polaris-rust"
+repository = "https://github.com/pole-io/pole-client-rust"
 # Crate build related
 exclude = ["examples/*", "benches/*", "tests/*", ".gitignore"]
 
@@ -19,7 +18,7 @@ exclude = ["examples/*", "benches/*", "tests/*", ".gitignore"]
 [dependencies]
 
 # polaris-spec dep
-polaris-specification = {version = "=1.5.4-2"}
+pole-specification = {version = "=0.1.0-ALPHA.22"}
 
 # common dep
 bytes = {version = "1.4.0"}
@@ -52,10 +51,11 @@ tower = {version = "0.4.13"}
 # gRPC dep
 futures = {version = "0.3.30"}
 once_cell = {version = "1.19.0"}
-prost = {version = "0.12.4"}
-prost-build = {version = "0.12.4"}
-prost-types = {version = "0.12.4"}
-tonic = {version = "0.11.0"}
+prost = {version = "0.14"}
+prost-build = {version = "0.14"}
+prost-types = {version = "0.14"}
+tonic = {version = "0.14.1"}
+tonic-prost = {version = "0.14.2"}
 
 # logging
 tracing = {version = "0.1.36"}
@@ -69,8 +69,13 @@ block-modes = {version = "0.8.1"}
 hex = {version = "0.4.3"}
 rand = {version = "0.8.4"}
 rsa = {version = "0.9.6"}
+parking_lot = "0.12.5"
 
 [dev-dependencies]
+tokio-test = "0.4"
+
+[build-dependencies]
+tonic-prost-build = {version = "0.14.2"}
 
 [[example]]
 name = "discover"

@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,7 +15,10 @@
 
 use std::time::Duration;
 
-use crate::core::model::{error::{ErrorCode, PolarisError}, ArgumentType};
+use crate::core::model::{
+    error::{ErrorCode, PoleError},
+    ArgumentType,
+};
 
 /// QuotaRequest 获取请求配额
 #[derive(Clone, Debug)]
@@ -35,16 +38,16 @@ pub struct QuotaRequest {
 }
 
 impl QuotaRequest {
-    pub fn check_valid(&self) -> Result<(), PolarisError> {
+    pub fn check_valid(&self) -> Result<(), PoleError> {
         if self.service.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "service is empty".to_string(),
             ));
         }
 
         if self.namespace.is_empty() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::ApiInvalidArgument,
                 "namespace is empty".to_string(),
             ));
@@ -52,7 +55,6 @@ impl QuotaRequest {
         Ok(())
     }
 }
-
 
 /// QuotaResponse 配额响应
 #[derive(Clone, Debug)]

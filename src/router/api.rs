@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use crate::{
-    core::{context::SDKContext, model::error::PolarisError},
+    core::{context::SDKContext, model::error::PoleError},
     router::req::{
         ProcessLoadBalanceRequest, ProcessLoadBalanceResponse, ProcessRouteRequest,
         ProcessRouteResponse,
@@ -26,7 +26,7 @@ use crate::{
 use super::default::DefaultRouterAPI;
 
 /// new_router_api
-pub fn new_router_api() -> Result<impl RouterAPI, PolarisError> {
+pub fn new_router_api() -> Result<impl RouterAPI, PoleError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
@@ -36,7 +36,7 @@ pub fn new_router_api() -> Result<impl RouterAPI, PolarisError> {
 }
 
 /// new_router_api_by_context
-pub fn new_router_api_by_context(context: Arc<SDKContext>) -> Result<impl RouterAPI, PolarisError> {
+pub fn new_router_api_by_context(context: Arc<SDKContext>) -> Result<impl RouterAPI, PoleError> {
     Ok(DefaultRouterAPI::new(context))
 }
 
@@ -46,11 +46,11 @@ where
     Self: Send + Sync,
 {
     // router 执行路由逻辑
-    async fn router(&self, req: ProcessRouteRequest) -> Result<ProcessRouteResponse, PolarisError>;
+    async fn router(&self, req: ProcessRouteRequest) -> Result<ProcessRouteResponse, PoleError>;
 
     // load_balance 执行北极星负载均衡执行逻辑
     async fn load_balance(
         &self,
         req: ProcessLoadBalanceRequest,
-    ) -> Result<ProcessLoadBalanceResponse, PolarisError>;
+    ) -> Result<ProcessLoadBalanceResponse, PoleError>;
 }

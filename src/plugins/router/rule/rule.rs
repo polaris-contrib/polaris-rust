@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,15 +13,17 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::{any::Any, collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use polaris_specification::v1::{Destination, Route, Routing};
+use pole_specification::v1::{CustomRoute, DestinationGroup, RouteRule};
+use prost::Message;
 
+use super::helper::route_traffic_match;
 use crate::core::{
     config::consumer::ServiceRouterPluginConfig,
     model::{
         cache::{EventType, ResourceEventKey},
-        error::{ErrorCode, PolarisError},
+        error::{ErrorCode, PoleError},
         naming::{Instance, ServiceInstances},
         router::{RouteResult, RouteState, DEFAULT_ROUTER_RULE},
     },
@@ -32,7 +34,6 @@ use crate::core::{
     },
 };
 use crate::warn;
-use super::helper::route_traffic_match;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Direction {
@@ -104,7 +105,7 @@ impl RuleRouter {
         extensions: Arc<Extensions>,
         rctx: &RouteContext,
         dir: Direction,
-    ) -> Result<Vec<Route>, PolarisError> {
+    ) -> Result<Vec<RouteRule>, PoleError> {
         let local_cache = extensions.get_resource_cache();
 
         let mut ns = &rctx.route_info.caller.namespace;
@@ -116,8 +117,8 @@ impl RuleRouter {
 
         let mut filter = HashMap::<String, String>::new();
         filter.insert("service".to_string(), svc.to_string());
-        let ret = local_cache
-            .load_service_rule(Filter {
+        return local_cache
+            .load_service_custom_route(Filter {
                 resource_key: ResourceEventKey {
                     namespace: ns.to_string(),
                     event_type: EventType::RouterRule,
@@ -128,46 +129,29 @@ impl RuleRouter {
                 timeout: Duration::from_secs(1),
             })
             .await;
-
-        if ret.is_err() {
-            return Err(ret.err().unwrap());
-        }
-        let ret = ret.unwrap();
-
-        let mut rules = Vec::<Box<Routing>>::with_capacity(ret.rules.len());
-        for ele in ret.rules {
-            let type_id = ele.type_id();
-            match ele.downcast::<Routing>() {
-                Ok(rule) => rules.push(rule),
-                Err(_) => {
-                    return Err(PolarisError::new(
-                        ErrorCode::InvalidRule,
-                        format!("rule type error, expect Routing, but got {:?}", type_id),
-                    ));
-                }
-            }
-        }
-        // rules 只会有一个的，所以这里指拿第一个即可
-        let rule = rules.remove(0);
-        if dir == Direction::Callee {
-            return Ok(rule.inbounds);
-        }
-        return Ok(rule.outbounds);
     }
 
     fn filter_instances(
         &self,
         rctx: &RouteContext,
         instances: &ServiceInstances,
-        rules: Vec<Route>,
-    ) -> Result<Vec<Instance>, PolarisError> {
+        rules: Vec<RouteRule>,
+    ) -> Result<Vec<Instance>, PoleError> {
         for ele in rules {
-            if !route_traffic_match(rctx, &ele) {
+            let custom_route = CustomRoute::decode(ele.routing_config.unwrap().value.as_slice());
+            if custom_route.is_err() {
                 continue;
             }
+            let custom_route = custom_route.as_ref().unwrap();
+
+            let match_rule = route_traffic_match(rctx, custom_route);
+            if match_rule.is_none() {
+                continue;
+            }
+            let match_rule = match_rule.as_ref().unwrap();
             // 匹配实例分组
 
-            let destination = filter_available_destinations(ele.destinations);
+            let destination = filter_available_destinations(&match_rule.destinations);
             for (_, dest) in destination.iter().enumerate() {
                 let ret = match_callee_group(dest, instances);
                 if ret.is_empty() {
@@ -190,7 +174,7 @@ impl ServiceRouter for RuleRouter {
         &self,
         route_ctx: RouteContext,
         instances: ServiceInstances,
-    ) -> Result<RouteResult, PolarisError> {
+    ) -> Result<RouteResult, PoleError> {
         let extensions = route_ctx.extensions.clone().unwrap();
 
         // 匹配顺序 -> 先按照被调方路由规则匹配，然后再按照主调方规则进行匹配
@@ -310,23 +294,23 @@ impl ServiceRouter for RuleRouter {
     }
 }
 
-fn match_callee_group(dest: &Destination, instances: &ServiceInstances) -> Vec<Instance> {
+fn match_callee_group(dest: &DestinationGroup, instances: &ServiceInstances) -> Vec<Instance> {
     todo!()
 }
 
-fn filter_available_destinations(dests: Vec<Destination>) -> Vec<Destination> {
-    let mut ret = Vec::<Destination>::with_capacity(dests.capacity());
+fn filter_available_destinations(dests: &Vec<DestinationGroup>) -> Vec<&DestinationGroup> {
+    let mut ret = Vec::<&DestinationGroup>::with_capacity(dests.capacity());
 
     for ele in dests {
-        if ele.isolate.unwrap_or(false) {
+        if !ele.isolate {
             ret.push(ele);
         }
     }
 
     // 优先级按照 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 以此类推
     ret.sort_by(|a, b| {
-        let a_weight = a.weight.unwrap_or(0);
-        let b_weight = b.weight.unwrap_or(0);
+        let a_weight = a.weight;
+        let b_weight = b.weight;
         a_weight.cmp(&b_weight)
     });
 

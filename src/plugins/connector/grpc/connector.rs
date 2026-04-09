@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,25 +15,26 @@
 
 use crate::core::config::global::ServerConnectorConfig;
 use crate::core::model::cache::{EventType, RemoteData};
-use crate::core::model::config::{ConfigFileRequest, ConfigPublishRequest, ConfigReleaseRequest};
+use crate::core::model::config::{ConfigFileRequest, ConfigReleaseRequest};
 use crate::core::model::error::ErrorCode::{ServerError, ServerUserError};
-use crate::core::model::error::PolarisError;
+use crate::core::model::error::PoleError;
 use crate::core::model::naming::{
     InstanceRequest, InstanceResponse, ServiceContract, ServiceContractRequest,
 };
 use crate::core::model::ReportClientRequest;
 use crate::core::plugin::connector::{Connector, InitConnectorOption, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
-use polaris_specification::v1::polaris_config_grpc_client::PolarisConfigGrpcClient;
-use polaris_specification::v1::polaris_grpc_client::PolarisGrpcClient;
-use polaris_specification::v1::polaris_service_contract_grpc_client::PolarisServiceContractGrpcClient;
-use polaris_specification::v1::Code::{ExecuteSuccess, ExistedResource};
-use polaris_specification::v1::{
-    Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
+use crate::{debug, error, info};
+use pole_specification::v1::config_grpc_client::ConfigGrpcClient;
+use pole_specification::v1::discover_grpc_client::DiscoverGrpcClient;
+use pole_specification::v1::Code::{ExecuteSuccess, ExistedResource};
+use pole_specification::v1::{
+    self, Code, ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
+    HeartbeatsRequest, HeartbeatsResponse, InstanceHeartbeat,
 };
+use prost::Message;
 use std::cmp::PartialEq;
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
@@ -41,13 +42,11 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
-use tonic::metadata::{AsciiMetadataKey, MetadataValue};
 use tonic::service::interceptor::InterceptedService;
 use tonic::service::Interceptor;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Streaming;
 use tracing::Instrument;
-use crate::{debug, error, info};
 
 struct ResourceHandlerWrapper {
     handler: Box<dyn ResourceHandler>,
@@ -62,6 +61,7 @@ pub struct GrpcConnector {
     discover_channel: Channel,
     config_channel: Channel,
 
+    beat_spec_sender: Arc<UnboundedSender<HeartbeatsRequest>>,
     discover_spec_sender: Arc<UnboundedSender<DiscoverRequest>>,
     config_spec_sender: Arc<UnboundedSender<ConfigDiscoverRequest>>,
 
@@ -75,6 +75,9 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
     let (discover_sender, mut discover_reciver) =
         run_discover_spec_stream(discover_channel.clone(), opt.runtime.clone()).unwrap();
 
+    let beat_sender =
+        run_heartbeat_spec_stream(discover_channel.clone(), opt.runtime.clone()).unwrap();
+
     let (config_sender, mut config_reciver) =
         run_config_spec_stream(config_channel.clone(), opt.runtime.clone()).unwrap();
 
@@ -83,6 +86,7 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
         discover_channel: discover_channel.clone(),
         config_channel: config_channel.clone(),
 
+        beat_spec_sender: Arc::new(beat_sender),
         discover_spec_sender: Arc::new(discover_sender),
         config_spec_sender: Arc::new(config_sender),
 
@@ -119,7 +123,7 @@ fn new_connector(opt: InitConnectorOption) -> Box<dyn Connector> {
                     let key = handler.handler.interest_resource();
                     let filter = key.clone().filter;
                     debug!(
-                        "[polaris][discovery][connector] send discover request: {:?} filter: {:?}",
+                        "[pole][discovery][connector] send discover request: {:?} filter: {:?}",
                         key.clone(),
                         filter.clone()
                     );
@@ -155,9 +159,8 @@ fn create_channel(conf: &ServerConnectorConfig) -> (Channel, Channel) {
     }
 
     info!(
-        "[polaris][server_connector] discover_address: {:?} config_address: {:?}",
-        discover_address,
-        config_address
+        "[pole][server_connector] discover_address: {:?} config_address: {:?}",
+        discover_address, config_address
     );
 
     let connect_timeout = conf.connect_timeout;
@@ -197,44 +200,32 @@ impl GrpcConnector {
     fn create_discover_grpc_stub(
         &self,
         flow: String,
-    ) -> PolarisGrpcClient<InterceptedService<Channel, GrpcConnectorInterceptor>> {
-        let interceptor = GrpcConnectorInterceptor {
-            metadata: {
-                let mut metadata = HashMap::new();
-                metadata.insert("request-id".to_string(), flow.to_string());
-                metadata
-            },
-        };
-        PolarisGrpcClient::with_interceptor(self.discover_channel.clone(), interceptor)
+    ) -> DiscoverGrpcClient<InterceptedService<Channel, impl Interceptor>> {
+        let interceptor = make_interceptor(flow);
+        DiscoverGrpcClient::with_interceptor(self.discover_channel.clone(), interceptor)
     }
 
     fn create_config_grpc_stub(
         &self,
         flow: String,
-    ) -> PolarisConfigGrpcClient<InterceptedService<Channel, GrpcConnectorInterceptor>> {
-        let interceptor = GrpcConnectorInterceptor {
-            metadata: {
-                let mut metadata = HashMap::new();
-                metadata.insert("request-id".to_string(), flow.to_string());
-                metadata
-            },
-        };
-        PolarisConfigGrpcClient::with_interceptor(self.config_channel.clone(), interceptor)
+    ) -> ConfigGrpcClient<InterceptedService<Channel, impl Interceptor>> {
+        let interceptor = make_interceptor(flow);
+        ConfigGrpcClient::with_interceptor(self.config_channel.clone(), interceptor)
     }
 
     async fn receive_discover_response(&self, resp: DiscoverResponse) {
         let remote_rsp = resp.clone();
-        if remote_rsp.code.unwrap() == Code::DataNoChange as u32 {
+        if remote_rsp.code == Code::DataNoChange as u32 {
             debug!(
-                "[polaris][discovery][connector] receive naming_discover no_change response: {:?}",
+                "[pole][discovery][connector] receive naming_discover no_change response: {:?}",
                 resp
             );
             return;
         }
 
-        if remote_rsp.code.unwrap() != Code::ExecuteSuccess as u32 {
+        if remote_rsp.code != Code::ExecuteSuccess as u32 {
             error!(
-                "[polaris][discovery][connector] receive naming_discover failure response: {:?}",
+                "[pole][discovery][connector] receive naming_discover failure response: {:?}",
                 resp
             );
             return;
@@ -242,74 +233,77 @@ impl GrpcConnector {
 
         let mut watch_key = "".to_string();
         match resp.r#type() {
-            polaris_specification::v1::discover_response::DiscoverResponseType::Services => {
-                watch_key = resp.service.unwrap().namespace.clone().unwrap();
+            pole_specification::v1::discover_response::DiscoverResponseType::Services => {
+                watch_key = resp.service.unwrap().namespace.clone();
             }
-            polaris_specification::v1::discover_response::DiscoverResponseType::Instance => {
+            pole_specification::v1::discover_response::DiscoverResponseType::Instance => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!(
                     "{:?}#{}#{}",
                     EventType::Instance,
-                    svc.namespace.clone().unwrap(),
-                    svc.name.clone().unwrap()
+                    svc.namespace.clone(),
+                    svc.name.clone()
                 );
             }
-            polaris_specification::v1::discover_response::DiscoverResponseType::Routing => {
+            pole_specification::v1::discover_response::DiscoverResponseType::CustomRouteRule => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!(
                     "{:?}#{}#{}",
                     EventType::RouterRule,
-                    svc.namespace.clone().unwrap(),
-                    svc.name.clone().unwrap()
+                    svc.namespace.clone(),
+                    svc.name.clone()
                 );
             }
-            polaris_specification::v1::discover_response::DiscoverResponseType::RateLimit => {
+            pole_specification::v1::discover_response::DiscoverResponseType::NearbyRouteRule => {
+                let svc = resp.service.unwrap().clone();
+                watch_key = format!(
+                    "{:?}#{}#{}",
+                    EventType::RouterRule,
+                    svc.namespace.clone(),
+                    svc.name.clone()
+                );
+            }
+            pole_specification::v1::discover_response::DiscoverResponseType::RateLimit => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!(
                     "{:?}#{}#{}",
                     EventType::RateLimitRule,
-                    svc.namespace.clone().unwrap(),
-                    svc.name.clone().unwrap()
+                    svc.namespace.clone(),
+                    svc.name.clone()
                 );
             }
-            polaris_specification::v1::discover_response::DiscoverResponseType::CircuitBreaker => {
+            pole_specification::v1::discover_response::DiscoverResponseType::CircuitBreaker => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!(
                     "{:?}#{}#{}",
                     EventType::CircuitBreakerRule,
-                    svc.namespace.clone().unwrap(),
-                    svc.name.clone().unwrap()
+                    svc.namespace.clone(),
+                    svc.name.clone()
                 );
             }
-            polaris_specification::v1::discover_response::DiscoverResponseType::FaultDetector => {
+            pole_specification::v1::discover_response::DiscoverResponseType::FaultDetector => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!(
                     "{:?}#{}#{}",
                     EventType::FaultDetectRule,
-                    svc.namespace.clone().unwrap(),
-                    svc.name.clone().unwrap()
+                    svc.namespace.clone(),
+                    svc.name.clone()
                 );
             }
-            polaris_specification::v1::discover_response::DiscoverResponseType::Lane => {
+            pole_specification::v1::discover_response::DiscoverResponseType::Lane => {
                 let svc = resp.service.unwrap().clone();
                 watch_key = format!(
                     "{:?}#{}#{}",
                     EventType::LaneRule,
-                    svc.namespace.clone().unwrap(),
-                    svc.name.clone().unwrap()
+                    svc.namespace.clone(),
+                    svc.name.clone()
                 );
             }
             _ => {}
         }
         let mut handlers = self.watch_resources.write().await;
         if let Some(handle) = handlers.get_mut(watch_key.as_str()) {
-            handle.revision = remote_rsp
-                .service
-                .clone()
-                .unwrap()
-                .revision
-                .clone()
-                .unwrap();
+            handle.revision = remote_rsp.service.clone().unwrap().revision.clone();
             handle.handler.handle_event(RemoteData {
                 event_key: handle.handler.interest_resource(),
                 discover_value: Some(remote_rsp),
@@ -320,7 +314,7 @@ impl GrpcConnector {
 
     async fn receive_config_response(&self, mut resp: ConfigDiscoverResponse) {
         info!(
-            "[polaris][config][connector] receive config_discover response: {:?}",
+            "[pole][config][connector] receive config_discover response: {:?}",
             resp
         );
 
@@ -335,7 +329,7 @@ impl GrpcConnector {
                 }
                 Err(err) => {
                     error!(
-                        "[polaris][config][connector] filter response_process fail: {}",
+                        "[pole][config][connector] filter response_process fail: {}",
                         err.to_string()
                     );
                     return;
@@ -347,18 +341,18 @@ impl GrpcConnector {
 
         let mut watch_key = "".to_string();
         match resp.r#type() {
-            polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFile => {
-                let ret = resp.config_file.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}#{}", EventType::ConfigFile, ret.namespace.clone().unwrap(), 
-                ret.group.clone().unwrap(),  ret.file_name.clone().unwrap());
+            pole_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFile => {
+                let ret = resp.file.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}#{}", EventType::ConfigFile, ret.namespace.clone(), 
+                ret.group.clone(),  ret.file_name.clone());
             },
-            polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => {
-                let ret = resp.config_file.unwrap().clone();
-                watch_key = format!("{:?}#{}#{}", EventType::ConfigGroup, ret.namespace.clone().unwrap(), 
-                ret.group.clone().unwrap());
+            pole_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileNames => {
+                let ret = resp.file.unwrap().clone();
+                watch_key = format!("{:?}#{}#{}", EventType::ConfigGroup, ret.namespace.clone(), 
+                ret.group.clone());
             },
-            polaris_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => {
-                error!("[polaris][config][connector] not support ConfigFileGroups");
+            pole_specification::v1::config_discover_response::ConfigDiscoverResponseType::ConfigFileGroups => {
+                error!("[pole][config][connector] not support ConfigFileGroups");
             },
             _ => {}
         }
@@ -385,7 +379,7 @@ impl GrpcConnector {
                 }
                 Err(err) => {
                     error!(
-                        "[polaris][config][connector] filter request_process fail: {}",
+                        "[pole][config][connector] filter request_process fail: {}",
                         err.to_string()
                     );
                     return;
@@ -394,18 +388,14 @@ impl GrpcConnector {
         }
 
         // 添加客户端标签，用于配置灰度发布读取
-        let mut file = req.config_file.unwrap();
-        let mut client_tags = Vec::<polaris_specification::v1::ConfigFileTag>::new();
+        let mut file = req.file.unwrap();
+        let mut client_tags = HashMap::<String, String>::new();
         let client_labels = self.opt.client_ctx.labels.clone();
         for (k, v) in client_labels.iter() {
-            client_tags.push(polaris_specification::v1::ConfigFileTag {
-                key: Some(k.clone()),
-                value: Some(v.clone()),
-            });
+            client_tags.insert(k.clone(), v.clone());
         }
-        file.tags = client_tags;
-        req.config_file = Some(file);
-
+        file.labels = client_tags;
+        req.file = Some(file);
         let _ = self.config_spec_sender.send(req);
     }
 }
@@ -415,16 +405,16 @@ impl Connector for GrpcConnector {
     async fn register_resource_handler(
         &self,
         handler: Box<dyn ResourceHandler>,
-    ) -> Result<bool, PolarisError> {
+    ) -> Result<bool, PoleError> {
         let watch_key = handler.interest_resource();
         let watch_key_str = watch_key.to_string();
 
         let mut handlers = self.watch_resources.write().await;
         if handlers.contains_key(watch_key_str.as_str()) {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ServerError,
                 format!(
-                    "[polaris][discovery][connector] resource handler already exist: {}",
+                    "[pole][discovery][connector] resource handler already exist: {}",
                     watch_key_str
                 ),
             ));
@@ -450,17 +440,14 @@ impl Connector for GrpcConnector {
         }
 
         info!(
-            "[polaris][discovery][connector] register resource handler: {}",
+            "[pole][discovery][connector] register resource handler: {}",
             watch_key_str.clone()
         );
         Ok(true)
     }
 
-    async fn register_instance(
-        &self,
-        req: InstanceRequest,
-    ) -> Result<InstanceResponse, PolarisError> {
-        debug!("[polaris][discovery][connector] send register instance request={req:?}");
+    async fn register_instance(&self, req: InstanceRequest) -> Result<InstanceResponse, PoleError> {
+        debug!("[pole][discovery][connector] send register instance request={req:?}");
 
         let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
         let ret = client
@@ -470,17 +457,20 @@ impl Connector for GrpcConnector {
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
-                if rsp.instance.is_none() {
-                    return Err(PolarisError::new(
+                if rsp.data.is_none() {
+                    return Err(PoleError::new(
                         ServerUserError,
-                        "[polaris][discovery][connector] invalid register response: missing instance".to_string(),
+                        "[pole][discovery][connector] invalid register response: missing instance"
+                            .to_string(),
                     ));
                 }
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code) };
                 if ExecuteSuccess.eq(&recv_code) {
-                    let ins_id = rsp.instance.unwrap().id.unwrap();
+                    let rsp_ins: Result<v1::Instance, prost::DecodeError> =
+                        v1::Instance::decode(rsp.data.unwrap().value.as_slice());
+                    let ins_id = rsp_ins.unwrap().id;
                     info!(
-                        "[polaris][discovery][connector] register instance to server success id={}",
+                        "[pole][discovery][connector] register instance to server success id={}",
                         ins_id.clone(),
                     );
                     let mut ins = InstanceResponse::default();
@@ -490,20 +480,20 @@ impl Connector for GrpcConnector {
                 if ExistedResource.eq(&recv_code) {
                     return Ok(InstanceResponse::exist_resource());
                 }
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+                Err(PoleError::new(ServerError, rsp.info))
             }
             Err(err) => {
                 error!(
-                    "[polaris][discovery][connector] send register request to server fail: {}",
+                    "[pole][discovery][connector] send register request to server fail: {}",
                     err
                 );
-                Err(PolarisError::new(ServerError, err.to_string()))
+                Err(PoleError::new(ServerError, err.to_string()))
             }
         };
     }
 
-    async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
-        debug!("[polaris][discovery][connector] send deregister instance request={req:?}");
+    async fn deregister_instance(&self, req: InstanceRequest) -> Result<bool, PoleError> {
+        debug!("[pole][discovery][connector] send deregister instance request={req:?}");
 
         let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
         let ret = client
@@ -513,86 +503,60 @@ impl Connector for GrpcConnector {
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code) };
                 if ExecuteSuccess.eq(&recv_code) {
                     return Ok(true);
                 }
                 error!(
-                    "[polaris][discovery][connector] send deregister request to server receive fail: code={} info={}",
-                    rsp.code.unwrap().clone(),
-                    rsp.info.clone().unwrap(),
+                    "[pole][discovery][connector] send deregister request to server receive fail: code={} info={}",
+                    rsp.code.clone(),
+                    rsp.info.clone(),
                 );
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+                Err(PoleError::new(ServerError, rsp.info))
             }
             Err(err) => {
                 error!(
-                    "[polaris][discovery][connector] send deregister request to server fail: {}",
+                    "[pole][discovery][connector] send deregister request to server fail: {}",
                     err
                 );
-                Err(PolarisError::new(ServerError, err.to_string()))
+                Err(PoleError::new(ServerError, err.to_string()))
             }
         };
     }
 
-    async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PolarisError> {
-        debug!(
-            "[polaris][discovery][connector] send heartbeat instance request={:?}",
-            req.convert_beat_spec()
-        );
+    async fn heartbeat_instance(&self, req: InstanceRequest) -> Result<bool, PoleError> {
+        debug!("[pole][discovery][connector] send heartbeat instance request={req:?}");
 
-        let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
-        let ret = client
-            .heartbeat(tonic::Request::new(req.convert_beat_spec()))
-            .in_current_span()
-            .await;
+        let spec_req = req.convert_beat_spec();
+
+        let ret = self.beat_spec_sender.send(HeartbeatsRequest {
+            heartbeats: vec![spec_req],
+        });
         return match ret {
-            Ok(rsp) => {
-                let rsp = rsp.into_inner();
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
-                if ExecuteSuccess.eq(&recv_code) {
-                    return Ok(true);
-                }
-                error!(
-                    "[polaris][discovery][connector] send heartbeat request to server receive fail: code={} info={}",
-                    rsp.code.unwrap().clone(),
-                    rsp.info.clone().unwrap(),
-                );
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+            Ok(_) => {
+                return Ok(true);
             }
             Err(err) => {
                 error!(
-                    "[polaris][discovery][connector] send heartbeat request to server fail: {}",
+                    "[pole][discovery][connector] send heartbeat request to server fail: {}",
                     err
                 );
-                Err(PolarisError::new(ServerError, err.to_string()))
+                Err(PoleError::new(ServerError, err.to_string()))
             }
         };
     }
 
-    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PolarisError> {
+    async fn report_client(&self, req: ReportClientRequest) -> Result<bool, PoleError> {
         todo!()
     }
 
     async fn report_service_contract(
         &self,
         req: ServiceContractRequest,
-    ) -> Result<bool, PolarisError> {
-        debug!(
-            "[polaris][discovery][connector] send report service_contract request={req:?}"
-        );
+    ) -> Result<bool, PoleError> {
+        debug!("[pole][discovery][connector] send report service_contract request={req:?}");
 
-        let interceptor = GrpcConnectorInterceptor {
-            metadata: {
-                let mut metadata = HashMap::new();
-                metadata.insert("request-id".to_string(), req.flow_id.to_string());
-                metadata
-            },
-        };
-
-        let mut client = PolarisServiceContractGrpcClient::with_interceptor(
-            self.discover_channel.clone(),
-            interceptor,
-        );
+        let mut client = self.create_discover_grpc_stub(req.flow_id.clone());
         let ret = client
             .report_service_contract(tonic::Request::new(req.contract.convert_spec()))
             .in_current_span()
@@ -600,23 +564,23 @@ impl Connector for GrpcConnector {
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code) };
                 if ExecuteSuccess.eq(&recv_code) {
                     return Ok(true);
                 }
                 error!(
-                    "[polaris][discovery][connector] send report service_contract request to server receive fail: code={} info={}",
-                    rsp.code.unwrap().clone(),
-                    rsp.info.clone().unwrap(),
+                    "[pole][discovery][connector] send report service_contract request to server receive fail: code={} info={}",
+                    rsp.code.clone(),
+                    rsp.info.clone(),
                 );
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+                Err(PoleError::new(ServerError, rsp.info))
             }
             Err(err) => {
                 error!(
-                    "[polaris][discovery][connector] send report service_contract request to server fail: {}",
+                    "[pole][discovery][connector] send report service_contract request to server fail: {}",
                     err
                 );
-                Err(PolarisError::new(ServerError, err.to_string()))
+                Err(PoleError::new(ServerError, err.to_string()))
             }
         };
     }
@@ -624,12 +588,12 @@ impl Connector for GrpcConnector {
     async fn get_service_contract(
         &self,
         req: ServiceContractRequest,
-    ) -> Result<ServiceContract, PolarisError> {
+    ) -> Result<ServiceContract, PoleError> {
         todo!()
     }
 
-    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
-        debug!("[polaris][config][connector] send create config_file request={req:?}");
+    async fn create_config_file(&self, req: ConfigFileRequest) -> Result<bool, PoleError> {
+        debug!("[pole][config][connector] send create config_file request={req:?}");
 
         let mut client = self.create_config_grpc_stub(req.flow_id.clone());
         let ret = client
@@ -639,29 +603,29 @@ impl Connector for GrpcConnector {
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code) };
                 if ExecuteSuccess.eq(&recv_code) {
                     return Ok(true);
                 }
                 error!(
-                    "[polaris][config][connector] send create config_file request to server receive fail: code={} info={}",
-                    rsp.code.unwrap().clone(),
-                    rsp.info.clone().unwrap(),
+                    "[pole][config][connector] send create config_file request to server receive fail: code={} info={}",
+                    rsp.code.clone(),
+                    rsp.info.clone(),
                 );
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+                Err(PoleError::new(ServerError, rsp.info))
             }
             Err(err) => {
                 error!(
-                    "[polaris][config][connector] send create config_file request to server fail: {}",
+                    "[pole][config][connector] send create config_file request to server fail: {}",
                     err
                 );
-                Err(PolarisError::new(ServerError, err.to_string()))
+                Err(PoleError::new(ServerError, err.to_string()))
             }
         };
     }
 
-    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PolarisError> {
-        debug!("[polaris][config][connector] send update config_file request={req:?}");
+    async fn update_config_file(&self, req: ConfigFileRequest) -> Result<bool, PoleError> {
+        debug!("[pole][config][connector] send update config_file request={req:?}");
 
         let mut client = self.create_config_grpc_stub(req.flow_id.clone());
         let ret = client
@@ -671,29 +635,29 @@ impl Connector for GrpcConnector {
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code) };
                 if ExecuteSuccess.eq(&recv_code) {
                     return Ok(true);
                 }
                 error!(
-                    "[polaris][config][connector] send update config_file request to server receive fail: code={} info={}",
-                    rsp.code.unwrap().clone(),
-                    rsp.info.clone().unwrap(),
+                    "[pole][config][connector] send update config_file request to server receive fail: code={} info={}",
+                    rsp.code.clone(),
+                    rsp.info.clone(),
                 );
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+                Err(PoleError::new(ServerError, rsp.info))
             }
             Err(err) => {
                 error!(
-                    "[polaris][config][connector] send update config_file request to server fail: {}",
+                    "[pole][config][connector] send update config_file request to server fail: {}",
                     err
                 );
-                Err(PolarisError::new(ServerError, err.to_string()))
+                Err(PoleError::new(ServerError, err.to_string()))
             }
         };
     }
 
-    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PolarisError> {
-        debug!("[polaris][config][connector] send publish config_file request={req:?}");
+    async fn release_config_file(&self, req: ConfigReleaseRequest) -> Result<bool, PoleError> {
+        debug!("[pole][config][connector] send publish config_file request={req:?}");
 
         let mut client = self.create_config_grpc_stub(req.flow_id.clone());
         let ret = client
@@ -703,60 +667,23 @@ impl Connector for GrpcConnector {
         return match ret {
             Ok(rsp) => {
                 let rsp = rsp.into_inner();
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
+                let recv_code: Code = unsafe { std::mem::transmute(rsp.code) };
                 if ExecuteSuccess.eq(&recv_code) {
                     return Ok(true);
                 }
                 error!(
-                    "[polaris][config][connector] send publish config_file request to server receive fail: code={} info={}",
-                    rsp.code.unwrap().clone(),
-                    rsp.info.clone().unwrap(),
+                    "[pole][config][connector] send publish config_file request to server receive fail: code={} info={}",
+                    rsp.code.clone(),
+                    rsp.info.clone(),
                 );
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
+                Err(PoleError::new(ServerError, rsp.info))
             }
             Err(err) => {
                 error!(
-                    "[polaris][config][connector] send publish config_file request to server fail: {}",
+                    "[pole][config][connector] send publish config_file request to server fail: {}",
                     err
                 );
-                Err(PolarisError::new(ServerError, err.to_string()))
-            }
-        };
-    }
-
-    async fn upsert_publish_config_file(
-        &self,
-        req: ConfigPublishRequest,
-    ) -> Result<bool, PolarisError> {
-        debug!(
-            "[polaris][config][connector] send upsert and publish config_file request={req:?}"
-        );
-
-        let mut client = self.create_config_grpc_stub(req.flow_id.clone());
-        let ret = client
-            .upsert_and_publish_config_file(tonic::Request::new(req.convert_spec()))
-            .in_current_span()
-            .await;
-        return match ret {
-            Ok(rsp) => {
-                let rsp = rsp.into_inner();
-                let recv_code: Code = unsafe { std::mem::transmute(rsp.code.unwrap()) };
-                if ExecuteSuccess.eq(&recv_code) {
-                    return Ok(true);
-                }
-                error!(
-                    "[polaris][config][connector] send upsert and publish config_file request to server receive fail: code={} info={}",
-                    rsp.code.unwrap().clone(),
-                    rsp.info.clone().unwrap(),
-                );
-                Err(PolarisError::new(ServerError, rsp.info.unwrap()))
-            }
-            Err(err) => {
-                error!(
-                    "[polaris][config][connector] send upsert and publish config_file request to server fail: {}",
-                    err
-                );
-                Err(PolarisError::new(ServerError, err.to_string()))
+                Err(PoleError::new(ServerError, err.to_string()))
             }
         };
     }
@@ -770,15 +697,15 @@ fn run_discover_spec_stream(
         UnboundedSender<DiscoverRequest>,
         UnboundedReceiver<DiscoverResponse>,
     ),
-    PolarisError,
+    PoleError,
 > {
     let (discover_sender, rx) = mpsc::unbounded_channel::<DiscoverRequest>();
     let (rsp_sender, rsp_recv) = mpsc::unbounded_channel::<DiscoverResponse>();
     _ = executor.spawn(async move {
-        info!("[polaris][discovery][connector] start naming_discover grpc stream");
+        info!("[pole][discovery][connector] start naming_discover grpc stream");
         let reciver = UnboundedReceiverStream::new(rx);
 
-        let mut client = PolarisGrpcClient::new(channel);
+        let mut client = DiscoverGrpcClient::new(channel);
 
         let discover_future = client.discover(tonic::Request::new(reciver));
 
@@ -786,10 +713,10 @@ fn run_discover_spec_stream(
         if discover_rt.is_err() {
             let stream_err = discover_rt.err().unwrap();
             error!(
-                "[polaris][discovery][connector] naming_discover stream receive err: {}",
+                "[pole][discovery][connector] naming_discover stream receive err: {}",
                 stream_err.clone().to_string()
             );
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 crate::core::model::error::ErrorCode::PluginError,
                 stream_err.clone().to_string(),
             ));
@@ -798,20 +725,18 @@ fn run_discover_spec_stream(
         let mut stream_recv = discover_rt.unwrap().into_inner();
         while let Some(received) = stream_recv.next().await {
             match received {
-                Ok(rsp) => {
-                    match rsp_sender.send(rsp) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            error!(
-                                "[polaris][discovery][connector] send discover request receive fail: {}",
-                                err.to_string()
-                            );
-                        }
+                Ok(rsp) => match rsp_sender.send(rsp) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!(
+                            "[pole][discovery][connector] send discover request receive fail: {}",
+                            err.to_string()
+                        );
                     }
-                }
+                },
                 Err(err) => {
                     error!(
-                        "[polaris][discovery][connector] naming_discover stream receive err: {}",
+                        "[pole][discovery][connector] naming_discover stream receive err: {}",
                         err.to_string()
                     );
                 }
@@ -823,6 +748,52 @@ fn run_discover_spec_stream(
     Ok((discover_sender, rsp_recv))
 }
 
+fn run_heartbeat_spec_stream(
+    channel: Channel,
+    executor: Arc<Runtime>,
+) -> Result<UnboundedSender<HeartbeatsRequest>, PoleError> {
+    let (beat_sender, rx) = mpsc::unbounded_channel::<HeartbeatsRequest>();
+    _ = executor.spawn(async move {
+        info!("[pole][discovery][connector] start naming_heartbeat grpc stream");
+        let reciver = UnboundedReceiverStream::new(rx);
+
+        let mut client = DiscoverGrpcClient::new(channel);
+
+        let beat_future = client.heartbeat(tonic::Request::new(reciver));
+
+        let beat_rt = beat_future.await;
+        if beat_rt.is_err() {
+            let stream_err = beat_rt.err().unwrap();
+            error!(
+                "[pole][discovery][connector] naming_heartbeat stream receive err: {}",
+                stream_err.clone().to_string()
+            );
+            return Err(PoleError::new(
+                crate::core::model::error::ErrorCode::PluginError,
+                stream_err.clone().to_string(),
+            ));
+        }
+
+        let mut stream_recv = beat_rt.unwrap().into_inner();
+        while let Some(received) = stream_recv.next().await {
+            match received {
+                Ok(rsp) => {
+                    // 心跳响应暂时不处理
+                }
+                Err(err) => {
+                    error!(
+                        "[pole][discovery][connector] naming_heartbeat stream receive err: {}",
+                        err.to_string()
+                    );
+                }
+            }
+        }
+        Ok(())
+    });
+
+    Ok(beat_sender)
+}
+
 fn run_config_spec_stream(
     channel: Channel,
     executor: Arc<Runtime>,
@@ -831,14 +802,14 @@ fn run_config_spec_stream(
         UnboundedSender<ConfigDiscoverRequest>,
         UnboundedReceiver<ConfigDiscoverResponse>,
     ),
-    PolarisError,
+    PoleError,
 > {
-    info!("[polaris][config][connector] start config_discover grpc stream");
+    info!("[pole][config][connector] start config_discover grpc stream");
     let (config_sender, config_reciver) = mpsc::unbounded_channel::<ConfigDiscoverRequest>();
     let (rsp_sender, rsp_recv) = mpsc::unbounded_channel::<ConfigDiscoverResponse>();
     _ = executor.spawn(async move {
         let reciver = UnboundedReceiverStream::new(config_reciver);
-        let mut client = PolarisConfigGrpcClient::new(channel);
+        let mut client = ConfigGrpcClient::new(channel);
 
         let discover_future = client.discover(tonic::Request::new(reciver));
 
@@ -846,10 +817,10 @@ fn run_config_spec_stream(
         if discover_rt.is_err() {
             let stream_err = discover_rt.err().unwrap();
             error!(
-                "[polaris][config][connector] config_discover stream receive err: {}",
+                "[pole][config][connector] config_discover stream receive err: {}",
                 stream_err.clone().to_string()
             );
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 crate::core::model::error::ErrorCode::PluginError,
                 stream_err.clone().to_string(),
             ));
@@ -862,14 +833,14 @@ fn run_config_spec_stream(
                     Ok(_) => {}
                     Err(err) => {
                         error!(
-                            "[polaris][config][connector] send config request receive fail: {}",
+                            "[pole][config][connector] send config request receive fail: {}",
                             err.to_string()
                         );
                     }
                 },
                 Err(err) => {
                     error!(
-                        "[polaris][config][connector] config_discover stream receive err: {}",
+                        "[pole][config][connector] config_discover stream receive err: {}",
                         err.to_string()
                     );
                 }
@@ -881,29 +852,13 @@ fn run_config_spec_stream(
     Ok((config_sender, rsp_recv))
 }
 
-struct GrpcConnectorInterceptor {
-    metadata: HashMap<String, String>,
-}
-
-impl Interceptor for GrpcConnectorInterceptor {
-    fn call(
-        &mut self,
-        mut request: tonic::Request<()>,
-    ) -> Result<tonic::Request<()>, tonic::Status> {
-        let metadata = self.metadata.clone();
-        for ele in metadata {
-            let meta_key = AsciiMetadataKey::from_str(ele.0.to_string().as_str());
-            if meta_key.is_err() {
-                return Err(tonic::Status::internal("invalid metadata key"));
-            }
-            let meta_val: Result<MetadataValue<_>, _> = ele.1.to_string().parse();
-            if meta_val.is_err() {
-                return Err(tonic::Status::internal("invalid metadata value"));
-            }
-            request
-                .metadata_mut()
-                .insert(meta_key.unwrap(), meta_val.unwrap());
-        }
-        Ok(request)
+fn make_interceptor(flow: String) -> impl Interceptor {
+    move |mut req: tonic::Request<()>| {
+        req.metadata_mut().insert(
+            "request-id",
+            flow.parse()
+                .map_err(|_| tonic::Status::invalid_argument("Invalid request-id"))?,
+        );
+        Ok(req)
     }
 }

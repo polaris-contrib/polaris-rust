@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations under the License.
 
 use naming::Location;
-use polaris_specification::v1::client::ClientType;
-use polaris_specification::v1::{
+use pole_specification::v1::client::ClientType;
+use pole_specification::v1::{
     ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverRequest, DiscoverResponse,
 };
 
@@ -24,6 +24,7 @@ pub mod circuitbreaker;
 pub mod cluster;
 pub mod config;
 pub mod error;
+pub mod instance_stat;
 pub mod loadbalance;
 pub mod naming;
 pub mod ratelimit;
@@ -36,7 +37,9 @@ use std::hash::Hash;
 use super::config::global::ClientConfig;
 
 static RUST_CLIENT_VERSION: &str = "v0.0.1";
-static RUST_CLIENT_TYPE: &str = "polaris-rust";
+static RUST_CLIENT_TYPE: &str = "pole-client-rust";
+
+pub static DEFAULT_MAP_KV_TUPLE_SEPARATOR: &str = "|";
 
 #[derive(Clone)]
 pub enum DiscoverRequestInfo {
@@ -64,7 +67,7 @@ pub enum DiscoverResponseInfo {
 }
 
 impl DiscoverResponseInfo {
-    pub fn to_config_response(&self) -> polaris_specification::v1::ConfigDiscoverResponse {
+    pub fn to_config_response(&self) -> pole_specification::v1::ConfigDiscoverResponse {
         match self {
             DiscoverResponseInfo::Configuration(resp) => resp.clone(),
             _ => {
@@ -98,6 +101,33 @@ impl ArgumentType {
             "caller_service" => ArgumentType::CallerService,
             "caller_ip" => ArgumentType::CallerIP,
             _ => ArgumentType::Custom,
+        }
+    }
+
+    pub fn parse_from_spec(i: i32) -> Self {
+        match pole_specification::v1::match_argument::Type::from_i32(i) {
+            Some(pole_specification::v1::match_argument::Type::Custom) => ArgumentType::Custom,
+            Some(pole_specification::v1::match_argument::Type::Method) => ArgumentType::Method,
+            Some(pole_specification::v1::match_argument::Type::Header) => ArgumentType::Header,
+            Some(pole_specification::v1::match_argument::Type::Query) => ArgumentType::Query,
+            Some(pole_specification::v1::match_argument::Type::CallerService) => {
+                ArgumentType::CallerService
+            }
+            Some(pole_specification::v1::match_argument::Type::CallerIp) => ArgumentType::CallerIP,
+            _ => ArgumentType::Custom,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            ArgumentType::Custom => "custom".to_string(),
+            ArgumentType::Method => "method".to_string(),
+            ArgumentType::Path => "path".to_string(),
+            ArgumentType::Header => "header".to_string(),
+            ArgumentType::Cookie => "cookie".to_string(),
+            ArgumentType::Query => "query".to_string(),
+            ArgumentType::CallerService => "caller_service".to_string(),
+            ArgumentType::CallerIP => "caller_ip".to_string(),
         }
     }
 }
@@ -223,16 +253,16 @@ pub struct ReportClientRequest {
 }
 
 impl ReportClientRequest {
-    pub fn convert_spec(&self) -> polaris_specification::v1::Client {
-        polaris_specification::v1::Client {
-            id: Some(self.client_id.clone()),
-            host: Some(self.host.clone()),
-            version: Some(self.version.clone()),
+    pub fn convert_spec(&self) -> pole_specification::v1::Client {
+        pole_specification::v1::Client {
+            id: self.client_id.clone(),
+            host: self.host.clone(),
+            version: self.version.clone(),
             location: Some(self.location.convert_spec()),
             r#type: ClientType::Sdk.into(),
             stat: vec![],
-            ctime: None,
-            mtime: None,
+            ctime: "".to_string(),
+            mtime: "".to_string(),
         }
     }
 }

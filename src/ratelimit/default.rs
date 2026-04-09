@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use crate::core::{context::SDKContext, flow::RatelimitFlow, model::error::PolarisError};
+use crate::core::{context::SDKContext, flow::RatelimitFlow, model::error::PoleError};
 
 use super::{
     api::RateLimitAPI,
@@ -51,6 +51,8 @@ impl DefaultRateLimitAPI {
 
 impl Drop for DefaultRateLimitAPI {
     fn drop(&mut self) {
+        self.flow.shutdown();
+
         if !self.manage_sdk {
             return;
         }
@@ -70,10 +72,18 @@ impl Drop for DefaultRateLimitAPI {
 
 #[async_trait::async_trait]
 impl RateLimitAPI for DefaultRateLimitAPI {
-    async fn get_quota(&self, req: QuotaRequest) -> Result<QuotaResponse, PolarisError> {
+    async fn get_quota(&self, req: QuotaRequest) -> Result<QuotaResponse, PoleError> {
         let check_ret = req.check_valid();
         check_ret?;
 
-        todo!()
+        if crate::debug_enabled!() {
+            crate::debug!("[pole][limiter] get quota request: {req:?}");
+        }
+
+        self.flow.check_quota(req).await
+    }
+
+    fn destroy(&self) {
+        self.flow.shutdown();
     }
 }

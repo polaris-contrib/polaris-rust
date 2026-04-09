@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -18,7 +18,7 @@ use crate::core::{
     flow::CircuitBreakerFlow,
     model::{
         circuitbreaker::{InstanceResource, Resource},
-        error::PolarisError,
+        error::PoleError,
         naming::ServiceInstances,
         router::{RouteResult, RouteState, DEFAULT_ROUTER_RECOVER},
     },
@@ -59,18 +59,21 @@ impl ServiceRouter for HealthRouter {
         &self,
         route_ctx: RouteContext,
         instances: ServiceInstances,
-    ) -> Result<RouteResult, PolarisError> {
+    ) -> Result<RouteResult, PoleError> {
         let mut final_instances = Vec::with_capacity(instances.instances.len());
-
         let circuit_breaker_flow = CircuitBreakerFlow::new(route_ctx.extensions.unwrap());
-        let mut total_weight = 0 as u64;
+        let mut pass_indexes = vec![false; instances.instances.len()];
 
-        for (_, ins) in instances.instances.iter().enumerate() {
+        for (idx, ins) in instances.instances.iter().enumerate() {
             if !ins.is_available() {
                 continue;
             }
             let ret = circuit_breaker_flow
-                .check_resource(Resource::InstanceResource(InstanceResource {}))
+                .check_resource(Resource::InstanceResource(InstanceResource::new(
+                    ins.namespace.clone(),
+                    ins.service.clone(),
+                    ins.clone(),
+                )))
                 .await;
             match ret {
                 Ok(check_ret) => {
@@ -82,18 +85,19 @@ impl ServiceRouter for HealthRouter {
                     return Err(e);
                 }
             }
-
-            total_weight += ins.weight as u64;
+            pass_indexes[idx] = true;
         }
 
-        // 重新算一次
-        total_weight = 0 as u64;
-        for instance in instances.instances {
+        let mut total_weight = 0_u64;
+        for (idx, instance) in instances.instances.into_iter().enumerate() {
             let weight = instance.weight as u64;
-            if !instance.is_available() && total_weight != 0 {
+            if !instance.is_available() {
                 continue;
             }
-            total_weight += weight as u64;
+            if !pass_indexes[idx] {
+                continue;
+            }
+            total_weight += weight;
             final_instances.push(instance);
         }
 

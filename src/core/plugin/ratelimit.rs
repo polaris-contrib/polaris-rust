@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,7 +13,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::error::PolarisError;
+use std::collections::HashMap;
+
+use crate::core::model::error::PoleError;
+use crate::core::model::ratelimit::{AmountInfo, LocalQuotaInfo, RemoteUpdate};
 
 use super::plugins::Plugin;
 
@@ -21,13 +24,32 @@ use super::plugins::Plugin;
 #[async_trait::async_trait]
 pub trait ServiceRateLimiter: Plugin {
     // allocate_quota 申请配额
-    async fn allocate_quota(&self) -> Result<(), PolarisError>;
+    async fn allocate_quota(&self) -> Result<bool, PoleError>;
     // return_quota 归还配额
-    async fn return_quota(&self) -> Result<(), PolarisError>;
-    // on_remote_update 远程更新
-    async fn on_remote_update(&self) -> Result<(), PolarisError>;
-    // fetch_local_usage 获取本地使用情况
-    async fn fetch_local_usage(&self) -> Result<(), PolarisError>;
-    // get_amount 获取数量
-    async fn get_amount(&self) -> Result<(), PolarisError>;
+    async fn return_quota(&self) -> Result<bool, PoleError>;
+
+    /// on_remote_update 处理远程更新
+    /// - QuotaSync: 分布式场景下的配额同步
+    /// - RemoteQuotaUpdate: 分布式场景下完整的远程配额信息
+    /// - ConfigUpdate: 规则变化引起的配置更新
+    async fn on_remote_update(&self, update: RemoteUpdate<'_>) -> Result<(), PoleError>;
+
+    /// fetch_local_usage 获取本地配额使用情况
+    /// 默认实现返回空 HashMap（供本地限流器使用）
+    /// 分布式限流器应覆盖此方法返回实际使用数据
+    async fn fetch_local_usage_info(&self, _cur_time_ms: u64) -> HashMap<i32, LocalQuotaInfo> {
+        HashMap::new()
+    }
+
+    /// get_amount_info 获取限流阈值信息
+    /// 默认实现返回空 HashMap
+    /// 分布式限流器应覆盖此方法返回实际阈值数据
+    fn get_amount_info(&self) -> HashMap<i32, AmountInfo> {
+        HashMap::new()
+    }
+
+    // fetch_local_usage 获取本地使用情况（旧接口，保持兼容）
+    async fn fetch_local_usage(&self) -> Result<(), PoleError>;
+    // get_amount 获取数量（旧接口，保持兼容）
+    async fn get_amount(&self) -> Result<(), PoleError>;
 }

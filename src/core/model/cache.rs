@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -23,12 +23,12 @@ use std::{
 
 use tokio::sync::RwLock;
 
-use polaris_specification::v1::{
+use pole_specification::v1::{
     config_discover_request::ConfigDiscoverRequestType,
     config_discover_response::ConfigDiscoverResponseType, discover_request::DiscoverRequestType,
-    discover_response::DiscoverResponseType, CircuitBreaker, ClientConfigFileInfo,
-    ConfigDiscoverRequest, ConfigDiscoverResponse, DiscoverFilter, DiscoverRequest,
-    DiscoverResponse, FaultDetector, LaneGroup, RateLimit, Routing, Service,
+    discover_response::DiscoverResponseType, CircuitBreakerRule, ConfigDiscoverRequest,
+    ConfigDiscoverResponse, ConfigFileRelease, DiscoverFilter, DiscoverRequest, DiscoverResponse,
+    FaultDetector, LaneGroup, RateLimit, Service,
 };
 
 use super::{
@@ -74,7 +74,7 @@ impl EventType {
     pub fn naming_spec_to_persist_file(t: DiscoverResponseType) -> String {
         match t {
             DiscoverResponseType::Instance => "instance.data".to_string(),
-            DiscoverResponseType::Routing => "router_rule.data".to_string(),
+            DiscoverResponseType::CustomRouteRule => "router_rule.data".to_string(),
             DiscoverResponseType::CircuitBreaker => "circuit_breaker_rule.data".to_string(),
             DiscoverResponseType::RateLimit => "rate_limit_rule.data".to_string(),
             DiscoverResponseType::Services => "service.data".to_string(),
@@ -212,7 +212,7 @@ impl ResourceEventKey {
                 filter: Some(DiscoverFilter::default()),
             }),
             crate::core::model::cache::EventType::RouterRule => Some(DiscoverRequest {
-                r#type: DiscoverRequestType::Routing.into(),
+                r#type: DiscoverRequestType::CustomRouteRule.into(),
                 service: Some(self.to_spec_service(revision)),
                 filter: Some(DiscoverFilter::default()),
             }),
@@ -249,12 +249,14 @@ impl ResourceEventKey {
         match self.event_type {
             crate::core::model::cache::EventType::ConfigFile => Some(ConfigDiscoverRequest {
                 r#type: ConfigDiscoverRequestType::ConfigFile.into(),
-                config_file: Some(self.to_spec_config_file()),
+                file: Some(self.to_spec_config_file()),
+                filter: None,
                 revision,
             }),
             crate::core::model::cache::EventType::ConfigGroup => Some(ConfigDiscoverRequest {
                 r#type: ConfigDiscoverRequestType::ConfigFileNames.into(),
-                config_file: Some(self.to_spec_config_group()),
+                file: Some(self.to_spec_config_group()),
+                filter: None,
                 revision,
             }),
             _ => None,
@@ -264,30 +266,30 @@ impl ResourceEventKey {
     pub fn to_spec_service(&self, revision: String) -> Service {
         let svc = self.filter.get("service").unwrap().to_string();
         Service {
-            namespace: Some(self.namespace.clone()),
-            name: Some(svc),
-            revision: Some(revision),
+            namespace: self.namespace.clone(),
+            name: svc,
+            revision: revision,
             ..Service::default()
         }
     }
 
-    pub fn to_spec_config_file(&self) -> ClientConfigFileInfo {
+    pub fn to_spec_config_file(&self) -> pole_specification::v1::ConfigFile {
         let group = self.filter.get("group").unwrap().to_string();
         let file_name = self.filter.get("file").unwrap().to_string();
-        ClientConfigFileInfo {
-            namespace: Some(self.namespace.clone()),
-            group: Some(group),
-            name: Some(file_name),
-            ..ClientConfigFileInfo::default()
+        pole_specification::v1::ConfigFile {
+            namespace: self.namespace.clone(),
+            group: group,
+            name: file_name,
+            ..pole_specification::v1::ConfigFile::default()
         }
     }
 
-    pub fn to_spec_config_group(&self) -> ClientConfigFileInfo {
+    pub fn to_spec_config_group(&self) -> pole_specification::v1::ConfigFile {
         let group = self.filter.get("group").unwrap().to_string();
-        ClientConfigFileInfo {
-            namespace: Some(self.namespace.clone()),
-            group: Some(group),
-            ..ClientConfigFileInfo::default()
+        pole_specification::v1::ConfigFile {
+            namespace: self.namespace.clone(),
+            group: group,
+            ..pole_specification::v1::ConfigFile::default()
         }
     }
 }
@@ -456,11 +458,22 @@ impl ServiceInstancesCacheItem {
         let revision = svc_info.revision.clone();
 
         ServiceInfo {
-            id: id.unwrap_or_default().clone(),
-            namespace: namespace.unwrap_or_default().to_string(),
-            name: name.unwrap_or_default().to_string(),
+            id,
+            namespace,
+            name,
             metadata: self.svc_info.metadata.clone(),
-            revision: revision.unwrap_or_default().clone(),
+            revision: revision,
+        }
+    }
+
+    /// 以最少分配替换实例列表
+    pub async fn replace_instances(&self, mut new_list: Vec<Instance>) {
+        let mut dst = self.value.write().await;
+        if dst.capacity() >= new_list.len() {
+            dst.clear();
+            dst.extend(new_list.into_iter());
+        } else {
+            std::mem::swap(&mut *dst, &mut new_list);
         }
     }
 }
@@ -505,7 +518,7 @@ impl RegistryCacheValue for ServiceInstancesCacheItem {
 pub struct RouterRulesCacheItem {
     initialized: Arc<AtomicBool>,
     pub revision: String,
-    pub value: Arc<RwLock<Vec<Routing>>>,
+    pub value: Arc<RwLock<Vec<pole_specification::v1::RouteRule>>>,
 }
 
 impl Default for RouterRulesCacheItem {
@@ -530,6 +543,17 @@ impl RouterRulesCacheItem {
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
         );
+    }
+
+    /// 以最少分配替换路由规则
+    pub async fn replace_rules(&self, mut new_rules: Vec<pole_specification::v1::RouteRule>) {
+        let mut dst = self.value.write().await;
+        if dst.capacity() >= new_rules.len() {
+            dst.clear();
+            dst.extend(new_rules.into_iter());
+        } else {
+            std::mem::swap(&mut *dst, &mut new_rules);
+        }
     }
 }
 
@@ -569,8 +593,44 @@ impl RegistryCacheValue for RouterRulesCacheItem {
 // LaneRulesCacheItem 泳道规则
 pub struct LaneRulesCacheItem {
     initialized: Arc<AtomicBool>,
-    value: Vec<LaneGroup>,
-    revision: String,
+    pub value: Arc<RwLock<Vec<pole_specification::v1::LaneGroup>>>,
+    pub revision: String,
+}
+
+impl Default for LaneRulesCacheItem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LaneRulesCacheItem {
+    pub fn new() -> Self {
+        Self {
+            initialized: Arc::new(AtomicBool::new(false)),
+            value: Arc::new(RwLock::new(Vec::new())),
+            revision: String::new(),
+        }
+    }
+
+    pub fn finish_initialize(&self) {
+        let _ = self.initialized.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
+    }
+
+    /// 以最少分配替换路由规则
+    pub async fn replace_rules(&self, mut new_rules: Vec<pole_specification::v1::LaneGroup>) {
+        let mut dst = self.value.write().await;
+        if dst.capacity() >= new_rules.len() {
+            dst.clear();
+            dst.extend(new_rules.into_iter());
+        } else {
+            std::mem::swap(&mut *dst, &mut new_rules);
+        }
+    }
 }
 
 impl Clone for LaneRulesCacheItem {
@@ -609,7 +669,7 @@ impl RegistryCacheValue for LaneRulesCacheItem {
 // RatelimitRulesCacheItem 限流规则
 pub struct RatelimitRulesCacheItem {
     initialized: Arc<AtomicBool>,
-    pub value: RateLimit,
+    pub value: Arc<RwLock<Vec<pole_specification::v1::RateLimit>>>,
     pub revision: String,
 }
 
@@ -623,7 +683,7 @@ impl RatelimitRulesCacheItem {
     pub fn new() -> Self {
         Self {
             initialized: Arc::new(AtomicBool::new(false)),
-            value: RateLimit::default(),
+            value: Arc::new(RwLock::new(Vec::new())),
             revision: String::new(),
         }
     }
@@ -635,6 +695,17 @@ impl RatelimitRulesCacheItem {
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
         );
+    }
+
+    /// 批量替换限流规则，最少分配
+    pub async fn replace_rules(&self, mut new_rules: Vec<pole_specification::v1::RateLimit>) {
+        let mut dst = self.value.write().await;
+        if dst.capacity() >= new_rules.len() {
+            dst.clear();
+            dst.extend(new_rules.into_iter());
+        } else {
+            std::mem::swap(&mut *dst, &mut new_rules);
+        }
     }
 }
 
@@ -674,7 +745,7 @@ impl RegistryCacheValue for RatelimitRulesCacheItem {
 // CircuitBreakerRulesCacheItem 熔断规则
 pub struct CircuitBreakerRulesCacheItem {
     initialized: Arc<AtomicBool>,
-    pub value: CircuitBreaker,
+    pub value: Arc<RwLock<Vec<pole_specification::v1::CircuitBreakerRule>>>,
     pub revision: String,
 }
 
@@ -688,7 +759,7 @@ impl CircuitBreakerRulesCacheItem {
     pub fn new() -> Self {
         Self {
             initialized: Arc::new(AtomicBool::new(false)),
-            value: CircuitBreaker::default(),
+            value: Arc::new(RwLock::new(Vec::new())),
             revision: String::new(),
         }
     }
@@ -700,6 +771,20 @@ impl CircuitBreakerRulesCacheItem {
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
         );
+    }
+
+    /// 批量替换熔断规则，最少分配
+    pub async fn replace_rules(
+        &self,
+        mut new_rules: Vec<pole_specification::v1::CircuitBreakerRule>,
+    ) {
+        let mut dst = self.value.write().await;
+        if dst.capacity() >= new_rules.len() {
+            dst.clear();
+            dst.extend(new_rules.into_iter());
+        } else {
+            std::mem::swap(&mut *dst, &mut new_rules);
+        }
     }
 }
 
@@ -739,7 +824,7 @@ impl RegistryCacheValue for CircuitBreakerRulesCacheItem {
 // FaultDetectRulesCacheItem 主动探测规则
 pub struct FaultDetectRulesCacheItem {
     initialized: Arc<AtomicBool>,
-    pub value: FaultDetector,
+    pub value: Arc<RwLock<FaultDetector>>,
     pub revision: String,
 }
 
@@ -753,7 +838,7 @@ impl FaultDetectRulesCacheItem {
     pub fn new() -> Self {
         Self {
             initialized: Arc::new(AtomicBool::new(false)),
-            value: FaultDetector::default(),
+            value: Arc::new(RwLock::new(FaultDetector::default())),
             revision: String::new(),
         }
     }
@@ -765,6 +850,11 @@ impl FaultDetectRulesCacheItem {
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
         );
+    }
+
+    /// 覆盖主动探测规则
+    pub fn set_value(&mut self, val: FaultDetector) {
+        self.value = Arc::new(RwLock::new(val));
     }
 }
 
@@ -850,6 +940,17 @@ impl ConfigGroupCacheItem {
             std::sync::atomic::Ordering::SeqCst,
         );
     }
+
+    /// 以最少分配替换文件列表
+    pub async fn replace_files(&self, mut files: Vec<ConfigFile>) {
+        let mut dst = self.files.write().await;
+        if dst.capacity() >= files.len() {
+            dst.clear();
+            dst.extend(files.into_iter());
+        } else {
+            std::mem::swap(&mut *dst, &mut files);
+        }
+    }
 }
 
 impl Clone for ConfigGroupCacheItem {
@@ -890,7 +991,7 @@ impl RegistryCacheValue for ConfigGroupCacheItem {
 // ConfigFileCacheItem 单个配置文件的最新发布信息
 pub struct ConfigFileCacheItem {
     initialized: Arc<AtomicBool>,
-    pub value: ClientConfigFileInfo,
+    pub value: ConfigFileRelease,
     pub revision: String,
 }
 
@@ -904,26 +1005,22 @@ impl ConfigFileCacheItem {
     pub fn new() -> Self {
         Self {
             initialized: Arc::new(AtomicBool::new(false)),
-            value: ClientConfigFileInfo::default(),
+            value: ConfigFileRelease::default(),
             revision: String::new(),
         }
     }
 
     pub fn to_config_file(&self) -> ConfigFile {
-        let mut labels = HashMap::<String, String>::new();
-        for label in self.value.tags.iter() {
-            labels.insert(label.key.clone().unwrap(), label.value.clone().unwrap());
-        }
-
         ConfigFile {
-            namespace: self.value.namespace.clone().unwrap_or_default(),
-            group: self.value.group.clone().unwrap_or_default(),
-            name: self.value.file_name.clone().unwrap_or_default(),
-            version: self.value.version.unwrap_or_default(),
-            content: self.value.content.clone().unwrap_or_default(),
-            labels,
-            encrypt_algo: String::new(),
-            encrypt_key: String::new(),
+            id: self.value.id.clone(),
+            namespace: self.value.namespace.clone(),
+            group: self.value.group.clone(),
+            name: self.value.file_name.clone(),
+            version: self.value.version,
+            content: self.value.content.clone(),
+            labels: self.value.labels.clone(),
+            encrypt_algo: "".to_string(),
+            encrypt_key: "".to_string(),
         }
     }
 
@@ -934,6 +1031,11 @@ impl ConfigFileCacheItem {
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
         );
+    }
+
+    /// 覆盖单个配置文件的发布信息
+    pub fn set_value(&mut self, val: ConfigFileRelease) {
+        self.value = val;
     }
 }
 

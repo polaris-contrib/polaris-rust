@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -14,10 +14,12 @@
 // specific language governing permissions and limitations under the License.
 
 use crate::core::model::{
-    error::PolarisError,
+    error::PoleError,
+    instance_stat::InstanceStatManager,
     loadbalance::Criteria,
     naming::{Instance, ServiceInstances},
 };
+use std::sync::Arc;
 
 use super::plugins::Plugin;
 
@@ -26,10 +28,13 @@ pub trait LoadBalancer
 where
     Self: Plugin,
 {
+    /// set_instance_stat_manager 注入实例运行时统计仓库
+    fn set_instance_stat_manager(&mut self, _manager: Arc<InstanceStatManager>) {}
+
     /// choose_instance 选择一个实例
     fn choose_instance(
         &self,
         criteria: Criteria,
         instances: ServiceInstances,
-    ) -> Result<Instance, PolarisError>;
+    ) -> Result<Instance, PoleError>;
 }

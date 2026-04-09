@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -28,7 +28,7 @@ use crate::core::{
     model::{
         cache::{EventType, ServerEvent},
         config::{ConfigFile, ConfigFileChangeEvent, ConfigGroup, ConfigGroupChangeEvent},
-        error::PolarisError,
+        error::PoleError,
     },
     plugin::cache::{Action, ResourceListener},
 };
@@ -159,39 +159,26 @@ impl Drop for DefaultConfigFileAPI {
 
 #[async_trait::async_trait]
 impl ConfigFileAPI for DefaultConfigFileAPI {
-    async fn get_config_file(&self, req: GetConfigFileRequest) -> Result<ConfigFile, PolarisError> {
+    async fn get_config_file(&self, req: GetConfigFileRequest) -> Result<ConfigFile, PoleError> {
         self.context.get_engine().get_config_file(req).await
     }
 
-    async fn create_config_file(&self, req: CreateConfigFileRequest) -> Result<bool, PolarisError> {
+    async fn create_config_file(&self, req: CreateConfigFileRequest) -> Result<bool, PoleError> {
         self.context.get_engine().create_config_file(req).await
     }
 
-    async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PolarisError> {
+    async fn update_config_file(&self, req: UpdateConfigFileRequest) -> Result<bool, PoleError> {
         self.context.get_engine().update_config_file(req).await
     }
 
-    async fn publish_config_file(
-        &self,
-        req: PublishConfigFileRequest,
-    ) -> Result<bool, PolarisError> {
+    async fn publish_config_file(&self, req: PublishConfigFileRequest) -> Result<bool, PoleError> {
         self.context.get_engine().publish_config_file(req).await
-    }
-
-    async fn upsert_publish_config_file(
-        &self,
-        req: UpsertAndPublishConfigFileRequest,
-    ) -> Result<bool, PolarisError> {
-        self.context
-            .get_engine()
-            .upsert_publish_config_file(req)
-            .await
     }
 
     async fn watch_config_file(
         &self,
         req: WatchConfigFileRequest,
-    ) -> Result<WatchConfigFileResponse, PolarisError> {
+    ) -> Result<WatchConfigFileResponse, PoleError> {
         if self
             .register_resource_watcher
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::SeqCst)
@@ -282,14 +269,14 @@ impl ConfigGroupAPI for DefaultConfigGroupAPI {
     async fn get_publish_config_files(
         &self,
         req: GetConfigGroupRequest,
-    ) -> Result<ConfigGroup, PolarisError> {
+    ) -> Result<ConfigGroup, PoleError> {
         self.context.get_engine().get_config_group_files(req).await
     }
 
     async fn watch_publish_config_files(
         &self,
         req: WatchConfigGroupRequest,
-    ) -> Result<WatchConfigGroupResponse, PolarisError> {
+    ) -> Result<WatchConfigGroupResponse, PoleError> {
         if self
             .register_resource_watcher
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::SeqCst)

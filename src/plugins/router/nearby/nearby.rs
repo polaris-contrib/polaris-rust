@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use crate::core::{
     config::consumer::ServiceRouterPluginConfig,
     model::{
-        error::{ErrorCode, PolarisError},
+        error::{ErrorCode, PoleError},
         naming::{Instance, Location, ServiceInstances},
         router::{RouteResult, RouteState, DEFAULT_ROUTER_NEARBY},
     },
@@ -191,7 +191,7 @@ impl ServiceRouter for NearbyRouter {
         &self,
         route_info: RouteContext,
         instances: ServiceInstances,
-    ) -> Result<RouteResult, PolarisError> {
+    ) -> Result<RouteResult, PoleError> {
         let mut min_available_level = self.match_level.clone();
         if min_available_level.is_empty() {
             min_available_level = DEFAULT_NEARBY_MATCH_LEVEL.to_string();
@@ -213,7 +213,7 @@ impl ServiceRouter for NearbyRouter {
             let (ret_ins, _health_cnt) =
                 self.select_instances(location.clone(), min_available_level.as_str(), &instances);
             if ret_ins.instances.is_empty() {
-                return Err(PolarisError::new(ErrorCode::LocationMismatch, format!("")));
+                return Err(PoleError::new(ErrorCode::LocationMismatch, format!("")));
             }
             return Ok(RouteResult {
                 instances: ret_ins,
@@ -242,7 +242,7 @@ impl ServiceRouter for NearbyRouter {
         }
 
         if ret_ins.is_none() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::LocationMismatch,
                 format!("can not find any instance by level {}", cur_level),
             ));

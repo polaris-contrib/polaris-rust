@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,7 +13,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use crate::core::model::{error::PolarisError, DiscoverRequestInfo, DiscoverResponseInfo};
+use crate::core::model::{error::PoleError, DiscoverRequestInfo, DiscoverResponseInfo};
 
 use super::plugins::Plugin;
 
@@ -26,11 +26,11 @@ where
     fn request_process(
         &self,
         request: DiscoverRequestInfo,
-    ) -> Result<DiscoverRequestInfo, PolarisError>;
+    ) -> Result<DiscoverRequestInfo, PoleError>;
 
     /// response_process
     fn response_process(
         &self,
         request: DiscoverResponseInfo,
-    ) -> Result<DiscoverResponseInfo, PolarisError>;
+    ) -> Result<DiscoverResponseInfo, PoleError>;
 }

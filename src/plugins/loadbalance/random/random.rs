@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,7 +15,7 @@
 
 use crate::core::{
     model::{
-        error::{ErrorCode, PolarisError},
+        error::{ErrorCode, PoleError},
         naming::Instance,
     },
     plugin::{loadbalance::LoadBalancer, plugins::Plugin},
@@ -52,10 +52,10 @@ impl LoadBalancer for WeightRandomLoadbalancer {
         &self,
         _criteria: crate::core::model::loadbalance::Criteria,
         instances: crate::core::model::naming::ServiceInstances,
-    ) -> Result<Instance, PolarisError> {
+    ) -> Result<Instance, PoleError> {
         let total_weight = instances.total_weight;
         if total_weight == 0 {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InstanceInfoError,
                 "total weight of instances is 0".to_string(),
             ));
@@ -74,7 +74,7 @@ impl LoadBalancer for WeightRandomLoadbalancer {
         }
 
         debug!(
-            "[polaris][loadbalancer][weight_random] choose instance failed, rand_weight: {}",
+            "[pole][loadbalancer][weight_random] choose instance failed, rand_weight: {}",
             rand_weight
         );
         // 随机选取一个

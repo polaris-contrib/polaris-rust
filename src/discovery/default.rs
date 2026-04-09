@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -21,7 +21,7 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::core::context::SDKContext;
-use crate::core::model::error::PolarisError;
+use crate::core::model::error::PoleError;
 use crate::core::model::naming::{ServiceInstancesChangeEvent, ServiceKey};
 use crate::core::plugin::cache::ResourceListener;
 use crate::discovery::api::{ConsumerAPI, LosslessAPI, ProviderAPI};
@@ -29,7 +29,8 @@ use crate::discovery::req::{
     BaseInstance, GetAllInstanceRequest, GetHealthInstanceRequest, GetOneInstanceRequest,
     GetServiceRuleRequest, InstanceDeregisterRequest, InstanceHeartbeatRequest,
     InstanceRegisterRequest, InstanceRegisterResponse, InstancesResponse, LosslessActionProvider,
-    ReportServiceContractRequest, ServiceCallResult, ServiceRuleResponse, WatchInstanceRequest,
+    ReportServiceContractRequest, ServiceCallResult, ServiceCallStep, ServiceRuleResponse,
+    WatchInstanceRequest,
 };
 use crate::router::api::RouterAPI;
 use crate::router::default::DefaultRouterAPI;
@@ -159,7 +160,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
     async fn get_one_instance(
         &self,
         req: GetOneInstanceRequest,
-    ) -> Result<InstanceResponse, PolarisError> {
+    ) -> Result<InstanceResponse, PoleError> {
         let check_ret = req.check_valid();
         check_ret?;
 
@@ -178,7 +179,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
 
         // 重新设置被调服务数据信息
         let mut route_info = req.route_info;
-        route_info.callee  = ServiceKey{
+        route_info.callee = ServiceKey {
             namespace: req.namespace.clone(),
             name: req.service.clone(),
         };
@@ -227,12 +228,12 @@ impl ConsumerAPI for DefaultConsumerAPI {
     async fn get_health_instance(
         &self,
         req: GetHealthInstanceRequest,
-    ) -> Result<InstancesResponse, PolarisError> {
+    ) -> Result<InstancesResponse, PoleError> {
         let check_ret = req.check_valid();
         check_ret?;
 
         let engine = self.context.get_engine();
-        let rsp: Result<InstancesResponse, PolarisError> = engine
+        let rsp: Result<InstancesResponse, PoleError> = engine
             .get_service_instances(
                 GetAllInstanceRequest {
                     flow_id: req.flow_id,
@@ -250,7 +251,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
     async fn get_all_instance(
         &self,
         req: GetAllInstanceRequest,
-    ) -> Result<InstancesResponse, PolarisError> {
+    ) -> Result<InstancesResponse, PoleError> {
         let check_ret = req.check_valid();
         check_ret?;
 
@@ -262,7 +263,7 @@ impl ConsumerAPI for DefaultConsumerAPI {
     async fn watch_instance(
         &self,
         req: WatchInstanceRequest,
-    ) -> Result<WatchInstanceResponse, PolarisError> {
+    ) -> Result<WatchInstanceResponse, PoleError> {
         if self
             .register_resource_watcher
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::SeqCst)
@@ -289,16 +290,23 @@ impl ConsumerAPI for DefaultConsumerAPI {
         ))
     }
 
-    async fn get_service_rule(
-        &self,
-        req: GetServiceRuleRequest,
-    ) -> Result<ServiceRuleResponse, PolarisError> {
-        let engine = self.context.get_engine();
-        engine.get_service_rule(req).await
-    }
-
-    async fn report_service_call(&self, _req: ServiceCallResult) {
-        todo!()
+    async fn report_service_call(&self, req: ServiceCallResult) {
+        let manager = self.context.get_engine().get_instance_stat_manager();
+        match req.step {
+            ServiceCallStep::Begin => {
+                manager.on_instance_selected(&req.namespace, &req.service, &req.instance);
+            }
+            ServiceCallStep::End => {
+                manager.report_call(
+                    &req.namespace,
+                    &req.service,
+                    &req.instance,
+                    req.duration,
+                    req.success,
+                    req.error_code.as_deref(),
+                );
+            }
+        }
     }
 }
 
@@ -354,17 +362,17 @@ impl ProviderAPI for DefaultProviderAPI {
     async fn register(
         &self,
         req: InstanceRegisterRequest,
-    ) -> Result<InstanceRegisterResponse, PolarisError> {
+    ) -> Result<InstanceRegisterResponse, PoleError> {
         let auto_heartbeat = req.auto_heartbeat;
         let ttl = req.ttl;
         let beat_req = req.to_heartbeat_request();
-        crate::info!("[polaris][discovery][provider] register instance request: {req:?}");
+        crate::info!("[pole][discovery][provider] register instance request: {req:?}");
         let rsp = self.context.get_engine().register_instance(req).await;
         let engine = self.context.get_engine();
         if rsp.is_ok() && auto_heartbeat {
             let task_key = beat_req.beat_key();
             crate::info!(
-                "[polaris][discovery][heartbeat] add one auto_beat task={} duration={}s",
+                "[pole][discovery][heartbeat] add one auto_beat task={} duration={}s",
                 task_key,
                 ttl,
             );
@@ -374,13 +382,13 @@ impl ProviderAPI for DefaultProviderAPI {
                 loop {
                     tokio::time::sleep(tokio::time::Duration::from_secs(u64::from(ttl))).await;
                     crate::debug!(
-                        "[polaris][discovery][heartbeat] start to auto_beat instance: {beat_req:?}"
+                        "[pole][discovery][heartbeat] start to auto_beat instance: {beat_req:?}"
                     );
                     let beat_ret = beat_engine.instance_heartbeat(beat_req.clone()).await;
                     if let Err(e) = beat_ret {
                         crate::error!(
-                        "[polaris][discovery][heartbeat] auto_beat instance to server fail: {e}"
-                    );
+                            "[pole][discovery][heartbeat] auto_beat instance to server fail: {e}"
+                        );
                     }
                 }
             });
@@ -389,13 +397,13 @@ impl ProviderAPI for DefaultProviderAPI {
         return rsp;
     }
 
-    async fn deregister(&self, req: InstanceDeregisterRequest) -> Result<(), PolarisError> {
+    async fn deregister(&self, req: InstanceDeregisterRequest) -> Result<(), PoleError> {
         let beat_req = req.to_heartbeat_request();
         let task_key = beat_req.beat_key();
         let wait_remove_task = self.beat_tasks.write().await.remove(&task_key);
         if let Some(task) = wait_remove_task {
             crate::info!(
-                "[polaris][discovery][heartbeat] remove one auto_beat task={}",
+                "[pole][discovery][heartbeat] remove one auto_beat task={}",
                 task_key,
             );
             task.abort();
@@ -405,7 +413,7 @@ impl ProviderAPI for DefaultProviderAPI {
         engine.deregister_instance(req).await
     }
 
-    async fn heartbeat(&self, req: InstanceHeartbeatRequest) -> Result<(), PolarisError> {
+    async fn heartbeat(&self, req: InstanceHeartbeatRequest) -> Result<(), PoleError> {
         let engine = self.context.get_engine();
         engine.instance_heartbeat(req).await
     }
@@ -413,7 +421,7 @@ impl ProviderAPI for DefaultProviderAPI {
     async fn report_service_contract(
         &self,
         req: ReportServiceContractRequest,
-    ) -> Result<(), PolarisError> {
+    ) -> Result<(), PoleError> {
         todo!()
     }
 

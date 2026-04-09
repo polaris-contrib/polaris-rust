@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -17,7 +17,7 @@ use crate::{
     core::{
         config::global::LocationConfig,
         model::{
-            error::{ErrorCode, PolarisError},
+            error::{ErrorCode, PoleError},
             naming::Location,
         },
     },
@@ -56,11 +56,11 @@ pub struct LocationProvider {
     pub chain: Vec<Box<dyn LocationSupplier>>,
 }
 
-pub fn new_location_provider(opt: &LocationConfig) -> Result<LocationProvider, PolarisError> {
+pub fn new_location_provider(opt: &LocationConfig) -> Result<LocationProvider, PoleError> {
     let mut chain = Vec::<Box<dyn LocationSupplier>>::new();
     let providers = opt.clone().providers;
     if providers.is_none() {
-        return Err(PolarisError::new(
+        return Err(PoleError::new(
             ErrorCode::ApiInvalidArgument,
             "".to_string(),
         ));

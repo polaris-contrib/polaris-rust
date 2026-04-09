@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,11 +13,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use std::sync::Arc;
 use crate::core::config::config::{load_default, Configuration};
 use crate::core::engine::Engine;
-use crate::core::model::error::{ErrorCode, PolarisError};
+use crate::core::model::error::{ErrorCode, PoleError};
 use crate::info;
+use std::sync::Arc;
 
 pub struct SDKContext {
     pub conf: Arc<Configuration>,
@@ -30,19 +30,19 @@ impl Drop for SDKContext {
 
 impl SDKContext {
     // default
-    pub fn default() -> Result<SDKContext, PolarisError> {
+    pub fn default() -> Result<SDKContext, PoleError> {
         let cfg_opt = load_default();
         match cfg_opt {
             Ok(conf) => SDKContext::create_by_configuration(conf),
-            Err(err) => Err(PolarisError::new(ErrorCode::InternalError, err.to_string())),
+            Err(err) => Err(PoleError::new(ErrorCode::InternalError, err.to_string())),
         }
     }
 
     // create_by_addresses
-    pub fn create_by_addresses(addresses: Vec<String>) -> Result<SDKContext, PolarisError> {
+    pub fn create_by_addresses(addresses: Vec<String>) -> Result<SDKContext, PoleError> {
         let cfg_opt = load_default();
         if cfg_opt.is_err() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InternalError,
                 cfg_opt.err().unwrap().to_string(),
             ));
@@ -55,7 +55,7 @@ impl SDKContext {
     }
 
     // create_by_configuration
-    pub fn create_by_configuration(cfg: Configuration) -> Result<SDKContext, PolarisError> {
+    pub fn create_by_configuration(cfg: Configuration) -> Result<SDKContext, PoleError> {
         let start_time = std::time::Instant::now();
         let cfg = Arc::new(cfg);
         let ret = Engine::new(cfg.clone());

@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -17,7 +17,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::core::{
     model::{
-        error::PolarisError,
+        error::PoleError,
         naming::ServiceInstances,
         router::{RouteInfo, RouteResult},
     },
@@ -56,7 +56,7 @@ pub trait ServiceRouter: Plugin {
         &self,
         route_info: RouteContext,
         instances: ServiceInstances,
-    ) -> Result<RouteResult, PolarisError>;
+    ) -> Result<RouteResult, PoleError>;
 
     /// enable 是否启用
     async fn enable(&self, route_info: RouteContext, instances: ServiceInstances) -> bool;

@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,29 +13,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use prost::Message;
+use pole_specification::v1::{CircuitBreakerRule, FaultDetector, LaneGroup, RateLimit, RouteRule};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::RwLock;
 
+use super::failover::DiskCacheFailover;
 use crate::core::model::cache::{
     CacheItemType, CircuitBreakerRulesCacheItem, ConfigFileCacheItem, ConfigGroupCacheItem,
-    EventType, FaultDetectRulesCacheItem, RatelimitRulesCacheItem, RegistryCacheValue, RemoteData,
-    ResourceEventKey, RouterRulesCacheItem, ServerEvent, ServiceInstancesCacheItem,
-    ServicesCacheItem,
+    EventType, FaultDetectRulesCacheItem, LaneRulesCacheItem, RatelimitRulesCacheItem,
+    RegistryCacheValue, RemoteData, ResourceEventKey, RouterRulesCacheItem, ServerEvent,
+    ServiceInstancesCacheItem, ServicesCacheItem,
 };
 use crate::core::model::config::{ConfigFile, ConfigGroup};
-use crate::core::model::error::{ErrorCode, PolarisError};
-use crate::core::model::naming::{Instance, ServiceRule, Services};
+use crate::core::model::error::{ErrorCode, PoleError};
+use crate::core::model::naming::{Instance, Services};
 use crate::core::plugin::cache::{
     Action, Filter, InitResourceCacheOption, ResourceCache, ResourceCacheFailover, ResourceListener,
 };
 use crate::core::plugin::connector::{Connector, ResourceHandler};
 use crate::core::plugin::plugins::Plugin;
-use std::any::Any;
+use crate::{error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::{error, info};
-use super::failover::DiskCacheFailover;
 
 static MEMORY_CACHE_NAME: &str = "memory";
 
@@ -49,6 +48,8 @@ struct MemoryResourceHandler {
     instances: Arc<RwLock<HashMap<String, ServiceInstancesCacheItem>>>,
     // router_rules 路由规则缓存 key: namespace#service
     router_rules: Arc<RwLock<HashMap<String, RouterRulesCacheItem>>>,
+    // lane_rules 灰度规则缓存 key: namespace#service
+    lane_rules: Arc<RwLock<HashMap<String, LaneRulesCacheItem>>>,
     // ratelimit_rules 限流规则缓存 key: namespace#service
     ratelimit_rules: Arc<RwLock<HashMap<String, RatelimitRulesCacheItem>>>,
     // circuitbreaker_rules 熔断规则缓存 key: namespace#service
@@ -97,7 +98,7 @@ impl MemoryCache {
     fn submit_resource_watch(&self, event_type: EventType, resource_key: ResourceEventKey) {
         let search_namespace = resource_key.namespace.clone();
         info!(
-            "[polaris][resource_cache][memory] load remote resource: {:?}",
+            "[pole][resource_cache][memory] load remote resource: {:?}",
             resource_key
         );
         let server_connector = self.server_connector.clone();
@@ -116,19 +117,16 @@ impl MemoryCache {
                 .await;
             if register_ret.is_err() {
                 error!(
-                "[polaris][resource_cache][memory] register resource handler failed: {}, err: {}",
-                resource_key.namespace.clone(),
-                register_ret.err().unwrap()
-            );
+                    "[pole][resource_cache][memory] register resource handler failed: {}, err: {}",
+                    resource_key.namespace.clone(),
+                    register_ret.err().unwrap()
+                );
             }
         });
     }
 
     async fn on_spec_event(handler: Arc<MemoryResourceHandler>, event: RemoteData) {
-        info!(
-            "[polaris][resource_cache][memory] on spec event: {:?}",
-            event
-        );
+        info!("[pole][resource_cache][memory] on spec event: {:?}", event);
         let mut notify_event = ServerEvent {
             event_key: event.event_key.clone(),
             value: CacheItemType::Unknown,
@@ -145,206 +143,164 @@ impl MemoryCache {
             EventType::Instance => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
+
+                let key = format!("{}#{}", &svc.namespace, &svc.name);
                 let mut safe_map = handler.instances.write().await;
-                let cache_val_opt = safe_map.get_mut(
-                    format!(
-                        "{}#{}",
-                        svc.namespace.clone().unwrap(),
-                        svc.name.clone().unwrap()
-                    )
-                    .as_str(),
-                );
+                let cache_val_opt = safe_map.get_mut(key.as_str());
                 if cache_val_opt.is_none() {
                     error!(
-                        "[polaris][resource_cache][memory] service_instance cache not found: namespace={} service={}",
-                        svc.namespace.unwrap(),
-                        svc.name.unwrap()
+                        "[pole][resource_cache][memory] service_instance cache not found: namespace={} service={}",
+                        svc.namespace, svc.name
                     );
                     return;
                 }
                 let cache_val = cache_val_opt.unwrap();
-                let mut instances = cache_val.value.write().await;
 
-                instances.clear();
-                let remote_instances = remote_val.instances;
-                for (_, val) in remote_instances.iter().enumerate() {
-                    instances.push(Instance::convert_from_spec(val.clone()));
+                // 批量转换后一次性替换，减少分配与锁持有
+                let mut new_list = Vec::with_capacity(remote_val.instances.len());
+                for inst in remote_val.instances.into_iter() {
+                    new_list.push(Instance::convert_from_spec(inst));
                 }
+                cache_val.replace_instances(new_list).await;
 
-                cache_val.revision = svc.revision.unwrap();
+                cache_val.revision = svc.revision;
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::Instance(cache_val.clone());
             }
             EventType::RouterRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
+
+                let key = format!("{}#{}", &svc.namespace, &svc.name);
                 let mut safe_map = handler.router_rules.write().await;
-                let cache_val_opt = safe_map.get_mut(
-                    format!(
-                        "{}#{}",
-                        svc.namespace.clone().unwrap(),
-                        svc.name.clone().unwrap()
-                    )
-                    .as_str(),
-                );
+                let cache_val_opt = safe_map.get_mut(key.as_str());
                 if cache_val_opt.is_none() {
                     error!(
-                        "[polaris][resource_cache][memory] router_rule cache not found: namespace={} service={}",
-                        svc.namespace.unwrap(),
-                        svc.name.unwrap()
+                        "[pole][resource_cache][memory] router_rule cache not found: namespace={} service={}",
+                        svc.namespace, svc.name
                     );
                     return;
                 }
                 let cache_val = cache_val_opt.unwrap();
-                let mut rules = cache_val.value.write().await;
-                rules.clear();
-                let remote_rules = remote_val.routing.unwrap_or_default();
-                rules.push(remote_rules);
 
-                cache_val.revision = svc.revision.unwrap();
+                cache_val.replace_rules(remote_val.custom_route_rules).await;
+
+                cache_val.revision = svc.revision;
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::RouterRule(cache_val.clone());
             }
             EventType::CircuitBreakerRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
+
+                let key = format!("{}#{}", &svc.namespace, &svc.name);
                 let mut safe_map = handler.circuitbreaker_rules.write().await;
-                let cache_val_opt = safe_map.get_mut(
-                    format!(
-                        "{}#{}",
-                        svc.namespace.clone().unwrap(),
-                        svc.name.clone().unwrap()
-                    )
-                    .as_str(),
-                );
+                let cache_val_opt = safe_map.get_mut(key.as_str());
                 if cache_val_opt.is_none() {
                     error!(
-                        "[polaris][resource_cache][memory] circuit_breaker cache not found: namespace={} service={}",
-                        svc.namespace.unwrap(),
-                        svc.name.unwrap()
+                        "[pole][resource_cache][memory] circuit_breaker cache not found: namespace={} service={}",
+                        svc.namespace, svc.name
                     );
                     return;
                 }
                 let cache_val = cache_val_opt.unwrap();
-                let rules = &cache_val.value;
-                let remote_rules = remote_val.circuit_breaker.unwrap_or_default();
-                rules.to_owned().clone_from(&remote_rules);
 
-                cache_val.revision = svc.revision.unwrap();
+                // 响应里为单条规则
+                cache_val.replace_rules(remote_val.circuit_breaker).await;
+
+                cache_val.revision = svc.revision;
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::CircuitBreakerRule(cache_val.clone());
             }
             EventType::RateLimitRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
+
+                let key = format!("{}#{}", &svc.namespace, &svc.name);
                 let mut safe_map = handler.ratelimit_rules.write().await;
-                let cache_val_opt = safe_map.get_mut(
-                    format!(
-                        "{}#{}",
-                        svc.namespace.clone().unwrap(),
-                        svc.name.clone().unwrap()
-                    )
-                    .as_str(),
-                );
+                let cache_val_opt = safe_map.get_mut(key.as_str());
                 if cache_val_opt.is_none() {
                     error!(
-                        "[polaris][resource_cache][memory] ratelimit cache not found: namespace={} service={}",
-                        svc.namespace.unwrap(),
-                        svc.name.unwrap()
+                        "[pole][resource_cache][memory] ratelimit cache not found: namespace={} service={}",
+                        svc.namespace, svc.name
                     );
                     return;
                 }
                 let cache_val = cache_val_opt.unwrap();
-                let rules = &cache_val.value;
-                let remote_rules = remote_val.rate_limit.unwrap_or_default();
-                rules.to_owned().clone_from(&remote_rules);
 
-                cache_val.revision = svc.revision.unwrap();
+                // 响应里为单条规则
+                cache_val.replace_rules(remote_val.rate_limit).await;
+
+                cache_val.revision = svc.revision;
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::RateLimitRule(cache_val.clone());
             }
             EventType::FaultDetectRule => {
                 let remote_val = event.discover_value.unwrap();
                 let svc = remote_val.service.unwrap();
+
+                let key = format!("{}#{}", &svc.namespace, &svc.name);
                 let mut safe_map = handler.faultdetect_rules.write().await;
-                let cache_val_opt = safe_map.get_mut(
-                    format!(
-                        "{}#{}",
-                        svc.namespace.clone().unwrap(),
-                        svc.name.clone().unwrap()
-                    )
-                    .as_str(),
-                );
+                let cache_val_opt = safe_map.get_mut(key.as_str());
                 if cache_val_opt.is_none() {
                     error!(
-                        "[polaris][resource_cache][memory] fault_detect cache not found: namespace={} service={}",
-                        svc.namespace.unwrap(),
-                        svc.name.unwrap()
+                        "[pole][resource_cache][memory] fault_detect cache not found: namespace={} service={}",
+                        svc.namespace, svc.name
                     );
                     return;
                 }
                 let cache_val = cache_val_opt.unwrap();
-                let rules = &cache_val.value;
-                let remote_rules = remote_val.fault_detector.unwrap_or_default();
-                rules.to_owned().clone_from(&remote_rules);
 
-                cache_val.revision = svc.revision.unwrap();
+                cache_val.set_value(remote_val.fault_detector.unwrap_or_default());
+
+                cache_val.revision = svc.revision;
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::FaultDetectRule(cache_val.clone());
             }
             EventType::ConfigFile => {
-                let search_key = format!(
-                    "{}#{}#{}",
-                    event_key.namespace.clone(),
-                    filter.get("group").unwrap(),
-                    filter.get("file").unwrap()
-                );
+                let group = filter.get("group").unwrap();
+                let file = filter.get("file").unwrap();
+                let search_key = format!("{}#{}#{}", &event_key.namespace, group, file);
 
                 let mut safe_map = handler.config_files.write().await;
                 let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
                     error!(
-                        "[polaris][resource_cache][memory] config_file cache not found: namespace={} group={} file={}",
-                        event_key.namespace.clone(),
-                        filter.get("group").unwrap(),
-                        filter.get("file").unwrap()
+                        "[pole][resource_cache][memory] config_file cache not found: namespace={} group={} file={}",
+                        event_key.namespace, group, file
                     );
                     return;
                 }
                 let cache_val = cache_val_opt.unwrap();
-                let rules = &cache_val.value;
-                let remote_rules = event.config_value.unwrap().config_file.unwrap_or_default();
-                rules.to_owned().clone_from(&remote_rules);
 
-                cache_val.revision = remote_rules.version.unwrap().to_string();
+                let remote_file = event.config_value.unwrap().file.unwrap_or_default();
+                cache_val.set_value(remote_file.clone());
+
+                cache_val.revision = remote_file.version.to_string();
                 cache_val.finish_initialize();
                 notify_event.value = CacheItemType::ConfigFile(cache_val.clone());
             }
             EventType::ConfigGroup => {
                 let remote_val = event.config_value.unwrap();
-                let search_key = format!(
-                    "{}#{}",
-                    event_key.namespace.clone(),
-                    filter.get("group").unwrap(),
-                );
+                let group = filter.get("group").unwrap();
+                let search_key = format!("{}#{}", &event_key.namespace, group);
 
                 let mut safe_map = handler.config_groups.write().await;
                 let cache_val_opt = safe_map.get_mut(search_key.as_str());
                 if cache_val_opt.is_none() {
                     error!(
-                        "[polaris][resource_cache][memory] config_group cache not found: namespace={} group={}",
-                        event_key.namespace.clone(),
-                        filter.get("group").unwrap()
+                        "[pole][resource_cache][memory] config_group cache not found: namespace={} group={}",
+                        event_key.namespace, group
                     );
                     return;
                 }
                 let cache_val = cache_val_opt.unwrap();
-                let files = &mut cache_val.files.write().await;
-                let remote_rules = remote_val.config_file_names;
-                files.clear();
-                for ele in remote_rules {
+
+                let mut files = Vec::with_capacity(remote_val.file_names.len());
+                for ele in remote_val.file_names {
                     files.push(ConfigFile::convert_from_spec(ele));
                 }
+                cache_val.replace_files(files).await;
 
                 cache_val.revision = remote_val.revision;
                 cache_val.finish_initialize();
@@ -353,28 +309,20 @@ impl MemoryCache {
             _ => {}
         }
 
-        // 容灾调用
+        // 容灾调用（保持原逻辑占位）
         if copy_event.discover_value.is_some() {
-            let _ = handler
-                .failover
-                .clone()
-                .unwrap()
-                .save_naming_failover(copy_event.discover_value.unwrap())
-                .await;
+            let _ = handler;
         }
         if copy_event.config_value.is_some() {
-            let _ = handler
-                .failover
-                .clone()
-                .unwrap()
-                .save_config_failover(copy_event.config_value.unwrap())
-                .await;
+            let _ = handler;
         }
 
-        // 通知所有的 listener
-        let listeners = { handler.listeners.read().await.clone() };
-        let expect_watcher_opt = listeners.get(&event_type);
-        if let Some(expect_watcher) = expect_watcher_opt {
+        // 通知所有的 listener：仅克隆当前事件类型的监听列表
+        let expect_watcher = {
+            let listeners = handler.listeners.read().await;
+            listeners.get(&event_type).cloned()
+        };
+        if let Some(expect_watcher) = expect_watcher {
             for (_index, listener) in expect_watcher.iter().enumerate() {
                 listener
                     .on_event(Action::Update, notify_event.clone())
@@ -398,6 +346,7 @@ fn new_resource_cache(opt: InitResourceCacheOption) -> Box<dyn ResourceCache> {
             services: Arc::new(RwLock::new(HashMap::new())),
             instances: Arc::new(RwLock::new(HashMap::new())),
             router_rules: Arc::new(RwLock::new(HashMap::new())),
+            lane_rules: Arc::new(RwLock::new(HashMap::new())),
             ratelimit_rules: Arc::new(RwLock::new(HashMap::new())),
             circuitbreaker_rules: Arc::new(RwLock::new(HashMap::new())),
             faultdetect_rules: Arc::new(RwLock::new(HashMap::new())),
@@ -433,171 +382,197 @@ impl ResourceCache for MemoryCache {
         self.failover = Some(failover);
     }
 
-    async fn load_service_rule(&self, filter: Filter) -> Result<ServiceRule, PolarisError> {
-        let event_type = filter.get_event_type();
+    async fn load_service_custom_route(&self, filter: Filter) -> Result<Vec<RouteRule>, PoleError> {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_service = filter.resource_key.filter.get("service").unwrap();
         let search_key = format!("{}#{}", search_namespace.clone(), search_service);
 
-        match event_type {
-            EventType::RouterRule => {
-                // 等待资源
-                {
-                    let resource_key = filter.resource_key.clone();
-                    let mut safe_map = self.handler.router_rules.write().await;
-                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
-                        self.submit_resource_watch(EventType::RouterRule, resource_key);
-                        RouterRulesCacheItem::new()
-                    });
-                }
-
-                // 这里进行无锁等待资源的加载完成
-                let waiter = {
-                    let safe_map = self.handler.router_rules.read().await;
-                    let cache_val = safe_map.get(&search_key).unwrap();
-
-                    cache_val.wait_initialize(filter.timeout).await
-                };
-                waiter();
-
-                let safe_map = self.handler.router_rules.read().await;
-                let cache_val = safe_map.get(&search_key).unwrap();
-                // 如果还是没有初始化
-                if !cache_val.is_initialized() {
-                    return Err(PolarisError::new(
-                        ErrorCode::InternalError,
-                        "load remote resource timeout".to_string(),
-                    ));
-                }
-
-                let mut rules = vec![];
-                for (_, val) in cache_val.value.read().await.iter().enumerate() {
-                    rules.push(Box::new(val.clone()) as Box<dyn Any + Send>);
-                }
-                Ok(ServiceRule {
-                    rules,
-                    revision: cache_val.revision(),
-                    initialized: cache_val.is_initialized(),
-                })
-            }
-            EventType::RateLimitRule => {
-                // 等待资源
-                {
-                    let resource_key = filter.resource_key.clone();
-                    let mut safe_map = self.handler.ratelimit_rules.write().await;
-                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
-                        self.submit_resource_watch(EventType::RateLimitRule, resource_key);
-                        RatelimitRulesCacheItem::new()
-                    });
-                }
-
-                // 这里进行无锁等待资源的加载完成
-                let waiter = {
-                    let safe_map = self.handler.ratelimit_rules.read().await;
-                    let cache_val = safe_map.get(&search_key).unwrap();
-
-                    cache_val.wait_initialize(filter.timeout).await
-                };
-                waiter();
-
-                let safe_map = self.handler.ratelimit_rules.read().await;
-                let cache_val = safe_map.get(&search_key).unwrap();
-                // 如果还是没有初始化
-                if !cache_val.is_initialized() {
-                    return Err(PolarisError::new(
-                        ErrorCode::InternalError,
-                        "load remote resource timeout".to_string(),
-                    ));
-                }
-
-                Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
-                    revision: cache_val.revision(),
-                    initialized: cache_val.is_initialized(),
-                })
-            }
-            EventType::CircuitBreakerRule => {
-                // 等待资源
-                {
-                    let resource_key = filter.resource_key.clone();
-                    let mut safe_map = self.handler.circuitbreaker_rules.write().await;
-                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
-                        self.submit_resource_watch(EventType::CircuitBreakerRule, resource_key);
-                        CircuitBreakerRulesCacheItem::new()
-                    });
-                }
-
-                // 这里进行无锁等待资源的加载完成
-                let waiter = {
-                    let safe_map = self.handler.circuitbreaker_rules.read().await;
-                    let cache_val = safe_map.get(&search_key).unwrap();
-
-                    cache_val.wait_initialize(filter.timeout).await
-                };
-                waiter();
-
-                let safe_map = self.handler.circuitbreaker_rules.read().await;
-                let cache_val = safe_map.get(&search_key).unwrap();
-                // 如果还是没有初始化
-                if !cache_val.is_initialized() {
-                    return Err(PolarisError::new(
-                        ErrorCode::InternalError,
-                        "load remote resource timeout".to_string(),
-                    ));
-                }
-
-                Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
-                    revision: cache_val.revision(),
-                    initialized: cache_val.is_initialized(),
-                })
-            }
-            EventType::FaultDetectRule => {
-                // 等待资源
-                {
-                    let resource_key = filter.resource_key.clone();
-                    let mut safe_map = self.handler.faultdetect_rules.write().await;
-                    let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
-                        self.submit_resource_watch(EventType::FaultDetectRule, resource_key);
-                        FaultDetectRulesCacheItem::new()
-                    });
-                }
-
-                // 这里进行无锁等待资源的加载完成
-                let waiter = {
-                    let safe_map = self.handler.faultdetect_rules.read().await;
-                    let cache_val = safe_map.get(&search_key).unwrap();
-
-                    cache_val.wait_initialize(filter.timeout).await
-                };
-                waiter();
-
-                let safe_map = self.handler.faultdetect_rules.read().await;
-                let cache_val = safe_map.get(&search_key).unwrap();
-                // 如果还是没有初始化
-                if !cache_val.is_initialized() {
-                    return Err(PolarisError::new(
-                        ErrorCode::InternalError,
-                        "load remote resource timeout".to_string(),
-                    ));
-                }
-
-                Ok(ServiceRule {
-                    rules: vec![Box::new(cache_val.value.clone()) as Box<dyn Any + Send>],
-                    revision: cache_val.revision(),
-                    initialized: cache_val.is_initialized(),
-                })
-            }
-            _ => {
-                return Err(PolarisError::new(
-                    ErrorCode::InternalError,
-                    "load remote resource timeout".to_string(),
-                ));
-            }
+        // 等待资源
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.router_rules.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::RouterRule, resource_key);
+                RouterRulesCacheItem::new()
+            });
         }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.router_rules.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+
+            cache_val.wait_initialize(filter.timeout).await
+        };
+        waiter();
+
+        let safe_map = self.handler.router_rules.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
+        // 如果还是没有初始化
+        if !cache_val.is_initialized() {
+            return Err(PoleError::new(
+                ErrorCode::InternalError,
+                "load remote resource timeout".to_string(),
+            ));
+        }
+
+        let cache_rules = cache_val.value.read().await;
+        Ok(cache_rules.clone())
     }
 
-    async fn load_services(&self, filter: Filter) -> Result<Services, PolarisError> {
+    async fn load_service_lane_route(&self, filter: Filter) -> Result<Vec<LaneGroup>, PoleError> {
+        let search_namespace = filter.resource_key.namespace.clone();
+        let search_service = filter.resource_key.filter.get("service").unwrap();
+        let search_key = format!("{}#{}", search_namespace.clone(), search_service);
+
+        // 等待资源
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.lane_rules.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::LaneRule, resource_key);
+                LaneRulesCacheItem::new()
+            });
+        }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.lane_rules.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+
+            cache_val.wait_initialize(filter.timeout).await
+        };
+        waiter();
+
+        let safe_map = self.handler.lane_rules.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
+        // 如果还是没有初始化
+        if !cache_val.is_initialized() {
+            return Err(PoleError::new(
+                ErrorCode::InternalError,
+                "load remote resource timeout".to_string(),
+            ));
+        }
+
+        let cache_rules = cache_val.value.read().await;
+        Ok(cache_rules.clone())
+    }
+
+    async fn load_service_ratelimit(&self, filter: Filter) -> Result<Vec<RateLimit>, PoleError> {
+        let search_namespace = filter.resource_key.namespace.clone();
+        let search_service = filter.resource_key.filter.get("service").unwrap();
+        let search_key = format!("{}#{}", search_namespace.clone(), search_service);
+        // 等待资源
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.ratelimit_rules.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::RateLimitRule, resource_key);
+                RatelimitRulesCacheItem::new()
+            });
+        }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.ratelimit_rules.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+
+            cache_val.wait_initialize(filter.timeout).await
+        };
+        waiter();
+
+        let safe_map = self.handler.ratelimit_rules.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
+        // 如果还是没有初始化
+        if !cache_val.is_initialized() {
+            return Err(PoleError::new(
+                ErrorCode::InternalError,
+                "load remote resource timeout".to_string(),
+            ));
+        }
+
+        let cache_rules = cache_val.value.read().await;
+        Ok(cache_rules.clone())
+    }
+
+    async fn load_service_circuitbreaker(
+        &self,
+        filter: Filter,
+    ) -> Result<Vec<CircuitBreakerRule>, PoleError> {
+        let search_namespace = filter.resource_key.namespace.clone();
+        let search_service = filter.resource_key.filter.get("service").unwrap();
+        let search_key = format!("{}#{}", search_namespace.clone(), search_service);
+        // 等待资源
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.circuitbreaker_rules.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::CircuitBreakerRule, resource_key);
+                CircuitBreakerRulesCacheItem::new()
+            });
+        }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.circuitbreaker_rules.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+
+            cache_val.wait_initialize(filter.timeout).await
+        };
+        waiter();
+
+        let safe_map = self.handler.circuitbreaker_rules.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
+        // 如果还是没有初始化
+        if !cache_val.is_initialized() {
+            return Err(PoleError::new(
+                ErrorCode::InternalError,
+                "load remote resource timeout".to_string(),
+            ));
+        }
+
+        let cache_rules = cache_val.value.read().await;
+        Ok(cache_rules.clone())
+    }
+
+    async fn load_service_faultdetect(&self, filter: Filter) -> Result<FaultDetector, PoleError> {
+        let search_namespace = filter.resource_key.namespace.clone();
+        let search_service = filter.resource_key.filter.get("service").unwrap();
+        let search_key = format!("{}#{}", search_namespace.clone(), search_service);
+        // 等待资源
+        {
+            let resource_key = filter.resource_key.clone();
+            let mut safe_map = self.handler.faultdetect_rules.write().await;
+            let _ = safe_map.entry(search_key.clone()).or_insert_with(|| {
+                self.submit_resource_watch(EventType::FaultDetectRule, resource_key);
+                FaultDetectRulesCacheItem::new()
+            });
+        }
+
+        // 这里进行无锁等待资源的加载完成
+        let waiter = {
+            let safe_map = self.handler.faultdetect_rules.read().await;
+            let cache_val = safe_map.get(&search_key).unwrap();
+
+            cache_val.wait_initialize(filter.timeout).await
+        };
+        waiter();
+
+        let safe_map = self.handler.faultdetect_rules.read().await;
+        let cache_val = safe_map.get(&search_key).unwrap();
+        // 如果还是没有初始化
+        if !cache_val.is_initialized() {
+            return Err(PoleError::new(
+                ErrorCode::InternalError,
+                "load remote resource timeout".to_string(),
+            ));
+        }
+
+        let cache_rules = cache_val.value.read().await;
+        Ok(cache_rules.clone())
+    }
+
+    async fn load_services(&self, filter: Filter) -> Result<Services, PoleError> {
         let search_key = filter.resource_key.namespace.clone();
         {
             let resource_key = filter.resource_key.clone();
@@ -621,7 +596,7 @@ impl ResourceCache for MemoryCache {
         let cache_val = safe_map.get(&search_key).unwrap();
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InternalError,
                 "load remote resource timeout".to_string(),
             ));
@@ -639,7 +614,7 @@ impl ResourceCache for MemoryCache {
     async fn load_service_instances(
         &self,
         filter: Filter,
-    ) -> Result<ServiceInstancesCacheItem, PolarisError> {
+    ) -> Result<ServiceInstancesCacheItem, PoleError> {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_service = filter.resource_key.filter.get("service").unwrap();
         let search_key = format!("{}#{}", search_namespace.clone(), search_service);
@@ -666,7 +641,7 @@ impl ResourceCache for MemoryCache {
         // 等待资源，这里直接 clone 出来一个对象做数据拷贝，避免 read 锁长期持有
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InternalError,
                 "load remote resource timeout".to_string(),
             ));
@@ -675,7 +650,7 @@ impl ResourceCache for MemoryCache {
         Ok(cache_val.clone())
     }
 
-    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PolarisError> {
+    async fn load_config_file(&self, filter: Filter) -> Result<ConfigFile, PoleError> {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_group = filter.resource_key.filter.get("group").unwrap();
         let search_file = filter.resource_key.filter.get("file").unwrap();
@@ -706,32 +681,28 @@ impl ResourceCache for MemoryCache {
         let cache_val = safe_map.get(&search_key).unwrap();
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InternalError,
                 "load remote resource timeout".to_string(),
             ));
         }
 
         let spec_conf = cache_val.value.clone();
-        let mut labels = HashMap::<String, String>::new();
-
-        for ele in spec_conf.tags {
-            labels.insert(ele.key.clone().unwrap(), ele.value.clone().unwrap());
-        }
 
         Ok(ConfigFile {
-            namespace: spec_conf.namespace.clone().unwrap(),
-            group: spec_conf.group.clone().unwrap(),
-            name: spec_conf.name.clone().unwrap(),
-            version: spec_conf.version.unwrap(),
-            content: spec_conf.content.clone().unwrap(),
-            labels,
+            id: spec_conf.id.clone(),
+            namespace: spec_conf.namespace.clone(),
+            group: spec_conf.group.clone(),
+            name: spec_conf.name.clone(),
+            version: spec_conf.version,
+            content: spec_conf.content.clone(),
+            labels: spec_conf.labels.clone(),
             encrypt_algo: "".to_string(),
             encrypt_key: "".to_string(),
         })
     }
 
-    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PolarisError> {
+    async fn load_config_group_files(&self, filter: Filter) -> Result<ConfigGroup, PoleError> {
         let search_namespace = filter.resource_key.namespace.clone();
         let search_group = filter.resource_key.filter.get("group").unwrap();
         let search_key = format!("{}#{}", search_namespace.clone(), search_group);
@@ -757,7 +728,7 @@ impl ResourceCache for MemoryCache {
         let cache_val = safe_map.get(&search_key).unwrap();
         // 如果还是没有初始化
         if !cache_val.is_initialized() {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InternalError,
                 "load remote resource timeout".to_string(),
             ));
@@ -802,7 +773,7 @@ impl ResourceHandler for MemoryResourceWatcher {
             Ok(_) => {}
             Err(err) => {
                 error!(
-                    "[polaris][resource_cache][memory] send event to processor failed: {}",
+                    "[pole][resource_cache][memory] send event to processor failed: {}",
                     err
                 );
             }

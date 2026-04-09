@@ -15,23 +15,27 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use polaris_rust::{config::{
-    api::{new_config_file_api_by_context, ConfigFileAPI},
-    req::{
-        CreateConfigFileRequest, PublishConfigFileRequest, UpdateConfigFileRequest,
-        UpsertAndPublishConfigFileRequest, WatchConfigFileRequest,
+use pole_client_rust::{
+    config::{
+        api::{new_config_file_api_by_context, ConfigFileAPI},
+        req::{
+            CreateConfigFileRequest, PublishConfigFileRequest, UpdateConfigFileRequest,
+            WatchConfigFileRequest,
+        },
     },
-}, core::{
-    context::SDKContext,
-    model::{
-        config::{ConfigFile, ConfigFileRelease},
-        error::PolarisError,
+    core::{
+        context::SDKContext,
+        model::{
+            config::{ConfigFile, ConfigFileRelease},
+            error::PoleError,
+        },
     },
-}, info};
+    info,
+};
 use tracing::level_filters::LevelFilter;
 
 #[tokio::main]
-async fn main() -> Result<(), PolarisError> {
+async fn main() -> Result<(), PoleError> {
     tracing_subscriber::fmt()
         // all spans/events with a level higher than TRACE (e.g, info, warn, etc.)
         // will be written to stdout.
@@ -52,8 +56,8 @@ async fn main() -> Result<(), PolarisError> {
             "create sdk context fail: {}",
             sdk_context_ret.err().unwrap()
         );
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -65,8 +69,8 @@ async fn main() -> Result<(), PolarisError> {
             "create config_file api fail: {}",
             config_file_api_ret.err().unwrap()
         );
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -100,8 +104,8 @@ async fn main() -> Result<(), PolarisError> {
 
     if ret.is_err() {
         tracing::error!("create config_file fail: {}", ret.err().unwrap());
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -124,8 +128,8 @@ async fn main() -> Result<(), PolarisError> {
 
     if ret.is_err() {
         tracing::error!("update config_file fail: {}", ret.err().unwrap());
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -136,6 +140,7 @@ async fn main() -> Result<(), PolarisError> {
             flow_id: uuid::Uuid::new_v4().to_string(),
             timeout: Duration::from_secs(1),
             config_file: ConfigFileRelease {
+                id: "".to_string(),
                 namespace: "rust".to_string(),
                 group: "rust".to_string(),
                 file_name: "rust.toml".to_string(),
@@ -147,8 +152,8 @@ async fn main() -> Result<(), PolarisError> {
 
     if ret.is_err() {
         tracing::error!("publish config_file fail: {}", ret.err().unwrap());
-        return Err(PolarisError::new(
-            polaris_rust::core::model::error::ErrorCode::UnknownServerError,
+        return Err(PoleError::new(
+            pole_client_rust::core::model::error::ErrorCode::UnknownServerError,
             "".to_string(),
         ));
     }
@@ -164,39 +169,6 @@ async fn main() -> Result<(), PolarisError> {
             }),
         })
         .await;
-
-    // 变更 10 次配置文件并发布
-    for i in 0..10 {
-        let ret = config_file_api
-            .upsert_publish_config_file(UpsertAndPublishConfigFileRequest {
-                flow_id: uuid::Uuid::new_v4().to_string(),
-                timeout: Duration::from_secs(1),
-                release_name: format!("rust-{}", i),
-                md5: "".to_string(),
-                config_file: ConfigFile {
-                    namespace: "rust".to_string(),
-                    group: "rust".to_string(),
-                    name: "rust.toml".to_string(),
-                    content: format!("test-{}", i),
-                    labels: labels.clone(),
-                    ..Default::default()
-                },
-            })
-            .await;
-
-        if ret.is_err() {
-            tracing::error!(
-                "upsert and publish config_file fail: {}",
-                ret.err().unwrap()
-            );
-            return Err(PolarisError::new(
-                polaris_rust::core::model::error::ErrorCode::UnknownServerError,
-                "".to_string(),
-            ));
-        }
-
-        std::thread::sleep(Duration::from_secs(10));
-    }
 
     Ok(())
 }

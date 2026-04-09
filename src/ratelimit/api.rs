@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use crate::core::{context::SDKContext, model::error::PolarisError};
+use crate::core::{context::SDKContext, model::error::PoleError};
 
 use super::{
     default::DefaultRateLimitAPI,
@@ -23,7 +23,7 @@ use super::{
 };
 
 /// new_ratelimit_api
-pub fn new_ratelimit_api() -> Result<impl RateLimitAPI, PolarisError> {
+pub fn new_ratelimit_api() -> Result<impl RateLimitAPI, PoleError> {
     let context_ret = SDKContext::default();
     if context_ret.is_err() {
         return Err(context_ret.err().unwrap());
@@ -35,7 +35,7 @@ pub fn new_ratelimit_api() -> Result<impl RateLimitAPI, PolarisError> {
 /// new_ratelimit_api_by_context
 pub fn new_ratelimit_api_by_context(
     context: Arc<SDKContext>,
-) -> Result<impl RateLimitAPI, PolarisError> {
+) -> Result<impl RateLimitAPI, PoleError> {
     Ok(DefaultRateLimitAPI::new(context))
 }
 
@@ -44,5 +44,7 @@ pub trait RateLimitAPI
 where
     Self: Send + Sync,
 {
-    async fn get_quota(&self, req: QuotaRequest) -> Result<QuotaResponse, PolarisError>;
+    async fn get_quota(&self, req: QuotaRequest) -> Result<QuotaResponse, PoleError>;
+
+    fn destroy(&self) {}
 }

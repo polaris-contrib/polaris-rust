@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -13,7 +13,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-use polaris_specification::v1::{
+use pole_specification::v1::{
     config_discover_response::ConfigDiscoverResponseType, discover_response::DiscoverResponseType,
     ConfigDiscoverResponse, DiscoverResponse,
 };
@@ -27,7 +27,7 @@ use crate::core::{
     config::global::LocalCacheConfig,
     model::{
         cache::EventType,
-        error::{ErrorCode, PolarisError},
+        error::{ErrorCode, PoleError},
     },
     plugin::cache::{Filter, ResourceCacheFailover},
 };
@@ -45,7 +45,7 @@ impl DiskCacheFailover {
 #[async_trait::async_trait]
 impl ResourceCacheFailover for DiskCacheFailover {
     // failover_naming_load 兜底加载
-    async fn failover_naming_load(&self, filter: Filter) -> Result<DiscoverResponse, PolarisError> {
+    async fn failover_naming_load(&self, filter: Filter) -> Result<DiscoverResponse, PoleError> {
         let mut persist_file = self.conf.persist_dir.clone();
         let event_type = filter.get_event_type();
         let resource_key = filter.resource_key;
@@ -72,7 +72,7 @@ impl ResourceCacheFailover for DiskCacheFailover {
                 );
             }
             _ => {
-                return Err(PolarisError::new(
+                return Err(PoleError::new(
                     ErrorCode::InternalError,
                     format!("unsupported event type"),
                 ));
@@ -85,7 +85,7 @@ impl ResourceCacheFailover for DiskCacheFailover {
                 let mut buf = Vec::new();
                 let ret = file.read_to_end(&mut buf).await;
                 if let Err(e) = ret {
-                    return Err(PolarisError::new(
+                    return Err(PoleError::new(
                         ErrorCode::InternalError,
                         format!("read file:{:?} error: {:?}", persist_file, e),
                     ));
@@ -93,13 +93,13 @@ impl ResourceCacheFailover for DiskCacheFailover {
                 let ret = DiscoverResponse::decode(buf.as_slice());
                 match ret {
                     Ok(value) => Ok(value),
-                    Err(e) => Err(PolarisError::new(
+                    Err(e) => Err(PoleError::new(
                         ErrorCode::InternalError,
                         format!("decode file:{:?} error: {:?}", persist_file, e),
                     )),
                 }
             }
-            Err(e) => Err(PolarisError::new(
+            Err(e) => Err(PoleError::new(
                 ErrorCode::InternalError,
                 format!("open file:{:?} error: {:?}", persist_file, e),
             )),
@@ -107,35 +107,39 @@ impl ResourceCacheFailover for DiskCacheFailover {
     }
 
     // save_failover 保存容灾数据
-    async fn save_naming_failover(&self, value: DiscoverResponse) -> Result<(), PolarisError> {
+    async fn save_naming_failover(&self, value: DiscoverResponse) -> Result<(), PoleError> {
         let mut buf = Vec::new();
         let mut persist_file = self.conf.persist_dir.clone();
         let svc = value.service.clone().unwrap();
 
         match value.r#type().clone() {
-            polaris_specification::v1::discover_response::DiscoverResponseType::Services => {
+            pole_specification::v1::discover_response::DiscoverResponseType::Services => {
                 persist_file = format!(
                     "{}/svc#{}#services.data",
                     persist_file,
-                    svc.namespace.clone().unwrap()
+                    svc.namespace.clone()
                 );
             }
             DiscoverResponseType::Instance
-            | DiscoverResponseType::Routing
+            | DiscoverResponseType::CustomRouteRule
+            | DiscoverResponseType::NearbyRouteRule
             | DiscoverResponseType::RateLimit
             | DiscoverResponseType::CircuitBreaker
             | DiscoverResponseType::FaultDetector
+            | DiscoverResponseType::BlockAllowRule
+            | DiscoverResponseType::ServiceContracts
+            | DiscoverResponseType::Lossless
             | DiscoverResponseType::Lane => {
                 persist_file = format!(
                     "{}/svc#{}#{}#{}",
                     persist_file,
-                    svc.namespace.clone().unwrap(),
-                    svc.name.clone().unwrap(),
+                    svc.namespace.clone(),
+                    svc.name.clone(),
                     EventType::naming_spec_to_persist_file(value.r#type().clone())
                 );
             }
             _ => {
-                return Err(PolarisError::new(
+                return Err(PoleError::new(
                     ErrorCode::InternalError,
                     format!("unsupported discover response type"),
                 ));
@@ -144,7 +148,7 @@ impl ResourceCacheFailover for DiskCacheFailover {
 
         let ret = DiscoverResponse::encode(&value, &mut buf);
         if let Err(e) = ret {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InternalError,
                 format!("encode discover response error: {:?}", e),
             ));
@@ -154,14 +158,14 @@ impl ResourceCacheFailover for DiskCacheFailover {
             Ok(mut file) => {
                 let ret = file.write_all(buf.as_slice()).await;
                 if let Err(e) = ret {
-                    return Err(PolarisError::new(
+                    return Err(PoleError::new(
                         ErrorCode::InternalError,
                         format!("write file error: {:?}", e),
                     ));
                 }
                 Ok(())
             }
-            Err(e) => Err(PolarisError::new(
+            Err(e) => Err(PoleError::new(
                 ErrorCode::InternalError,
                 format!("create file error: {:?}", e),
             )),
@@ -172,7 +176,7 @@ impl ResourceCacheFailover for DiskCacheFailover {
     async fn failover_config_load(
         &self,
         filter: Filter,
-    ) -> Result<ConfigDiscoverResponse, PolarisError> {
+    ) -> Result<ConfigDiscoverResponse, PoleError> {
         let mut persist_file = self.conf.persist_dir.clone();
         let event_type = filter.get_event_type();
         let resource_key = filter.resource_key;
@@ -195,7 +199,7 @@ impl ResourceCacheFailover for DiskCacheFailover {
                 );
             }
             _ => {
-                return Err(PolarisError::new(
+                return Err(PoleError::new(
                     ErrorCode::InternalError,
                     format!("unsupported event type"),
                 ));
@@ -208,7 +212,7 @@ impl ResourceCacheFailover for DiskCacheFailover {
                 let mut buf = Vec::new();
                 let ret = file.read_to_end(&mut buf).await;
                 if let Err(e) = ret {
-                    return Err(PolarisError::new(
+                    return Err(PoleError::new(
                         ErrorCode::InternalError,
                         format!("read file:{:?} error: {:?}", persist_file, e),
                     ));
@@ -216,13 +220,13 @@ impl ResourceCacheFailover for DiskCacheFailover {
                 let ret = ConfigDiscoverResponse::decode(buf.as_slice());
                 match ret {
                     Ok(value) => Ok(value),
-                    Err(e) => Err(PolarisError::new(
+                    Err(e) => Err(PoleError::new(
                         ErrorCode::InternalError,
                         format!("decode file:{:?} error: {:?}", persist_file, e),
                     )),
                 }
             }
-            Err(e) => Err(PolarisError::new(
+            Err(e) => Err(PoleError::new(
                 ErrorCode::InternalError,
                 format!("open file:{:?} error: {:?}", persist_file, e),
             )),
@@ -230,34 +234,31 @@ impl ResourceCacheFailover for DiskCacheFailover {
     }
 
     // save_config_failover 保存容灾数据
-    async fn save_config_failover(
-        &self,
-        value: ConfigDiscoverResponse,
-    ) -> Result<(), PolarisError> {
+    async fn save_config_failover(&self, value: ConfigDiscoverResponse) -> Result<(), PoleError> {
         let mut buf = Vec::new();
         let mut persist_file = self.conf.persist_dir.clone();
-        let conf = value.config_file.clone().unwrap();
+        let conf = value.file.clone().unwrap();
 
         match value.r#type().clone() {
             ConfigDiscoverResponseType::ConfigFile => {
                 persist_file = format!(
                     "{}/config#{}#{}#{}#config_file.data",
                     persist_file,
-                    conf.namespace.clone().unwrap(),
-                    conf.group.clone().unwrap(),
-                    conf.file_name.clone().unwrap(),
+                    conf.namespace.clone(),
+                    conf.group.clone(),
+                    conf.file_name.clone(),
                 );
             }
             ConfigDiscoverResponseType::ConfigFileNames => {
                 persist_file = format!(
                     "{}/config#{}#{}#config_group.data",
                     persist_file,
-                    conf.namespace.clone().unwrap(),
-                    conf.group.clone().unwrap(),
+                    conf.namespace.clone(),
+                    conf.group.clone(),
                 );
             }
             _ => {
-                return Err(PolarisError::new(
+                return Err(PoleError::new(
                     ErrorCode::InternalError,
                     format!("unsupported config response type"),
                 ));
@@ -266,7 +267,7 @@ impl ResourceCacheFailover for DiskCacheFailover {
 
         let ret = ConfigDiscoverResponse::encode(&value, &mut buf);
         if let Err(e) = ret {
-            return Err(PolarisError::new(
+            return Err(PoleError::new(
                 ErrorCode::InternalError,
                 format!("encode config response error: {:?}", e),
             ));
@@ -276,14 +277,14 @@ impl ResourceCacheFailover for DiskCacheFailover {
             Ok(mut file) => {
                 let ret = file.write_all(buf.as_slice()).await;
                 if let Err(e) = ret {
-                    return Err(PolarisError::new(
+                    return Err(PoleError::new(
                         ErrorCode::InternalError,
                         format!("write file error: {:?}", e),
                     ));
                 }
                 Ok(())
             }
-            Err(e) => Err(PolarisError::new(
+            Err(e) => Err(PoleError::new(
                 ErrorCode::InternalError,
                 format!("create file error: {:?}", e),
             )),

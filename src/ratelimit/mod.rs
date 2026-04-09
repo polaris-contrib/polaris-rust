@@ -1,4 +1,4 @@
-// Tencent is pleased to support the open source community by making Polaris available.
+// Tencent is pleased to support the open source community by making Pole available.
 //
 // Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -14,5 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 pub mod api;
+pub mod connector;
 pub mod default;
 pub mod req;
+pub mod sync;
